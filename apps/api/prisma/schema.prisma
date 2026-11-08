@@ -1,0 +1,331 @@
+// Event Platform — Phase 1 schema (Foundation).
+//
+// Rules from docs/02-data-model-and-erd.md:
+//  - UUID primary keys, explicit foreign keys, snake_case tables (@@map).
+//  - Every tenant-owned row carries organization_id directly or through a
+//    constrained parent, and is protected by row-level security.
+//  - Account (User), Person and Event Registration stay distinct. Person and
+//    registration tables arrive with Phase 5 so migrations never conflict.
+//
+// After editing: npm run db:migrate (dev) or npm run db:deploy (CI).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum EventVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum EventFormat {
+  IN_PERSON
+  ONLINE
+  HYBRID
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @unique
+  passwordHash    String     @map("password_hash")
+  displayName     String?    @map("display_name")
+  status          UserStatus @default(PENDING_VERIFICATION)
+  isPlatformAdmin Boolean    @default(false) @map("is_platform_admin")
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  sessions           UserSession[]
+  memberships        OrganizationMember[]
+  verificationTokens VerificationToken[]
+  createdEvents      Event[]            @relation("EventCreator")
+  auditLogs          AuditLog[]         @relation("AuditActor")
+
+  @@map("users")
+}
+
+/// Refresh sessions. The raw refresh token is never stored — only its hash.
+model UserSession {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  refreshTokenHash   String    @unique @map("refresh_token_hash")
+  expiresAt          DateTime  @map("expires_at")
+  revokedAt          DateTime? @map("revoked_at")
+  /// Set when this session was rotated; reuse of a revoked token revokes all sessions.
+  replacedBySessionId String?  @map("replaced_by_session_id") @db.Uuid
+  userAgent          String?   @map("user_agent")
+  ipAddress          String?   @map("ip_address")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  lastUsedAt         DateTime? @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+/// Single-use, hashed tokens for email verification and password reset.
+model VerificationToken {
+  id        String                @id @default(uuid()) @db.Uuid
+  userId    String                @map("user_id") @db.Uuid
+  type      VerificationTokenType
+  tokenHash String                @unique @map("token_hash")
+  expiresAt DateTime              @map("expires_at")
+  consumedAt DateTime?            @map("consumed_at")
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy and access control
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String             @id @default(uuid()) @db.Uuid
+  slug      String             @unique
+  name      String
+  status    OrganizationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  settings   WorkspaceSettings?
+  branding   WorkspaceBranding?
+  members    OrganizationMember[]
+  roles      OrganizationRole[]
+  events     Event[]
+  auditLogs  AuditLog[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  roleId         String       @map("role_id") @db.Uuid
+  status         MemberStatus @default(ACTIVE)
+  invitedByUserId String?     @map("invited_by_user_id") @db.Uuid
+  joinedAt       DateTime?    @map("joined_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         OrganizationRole @relation(fields: [roleId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationRole {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  key            String
+  name           String
+  description    String?
+  isSystem       Boolean @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  members      OrganizationMember[]
+
+  @@unique([organizationId, key])
+  @@map("organization_roles")
+}
+
+/// Global permission catalogue (`resource:action`). Seeded, not tenant-owned.
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       OrganizationRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Workspace
+// ---------------------------------------------------------------------------
+
+model WorkspaceSettings {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  defaultLocale  String   @default("fr") @map("default_locale")
+  timeZone       String   @default("Africa/Porto-Novo") @map("time_zone")
+  description    String?
+  websiteUrl     String?  @map("website_url")
+  contactEmail   String?  @map("contact_email")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_settings")
+}
+
+model WorkspaceBranding {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  primaryColor   String   @default("#173F5F") @map("primary_color")
+  secondaryColor String   @default("#206A8A") @map("secondary_color")
+  accentColor    String   @default("#F5A623") @map("accent_color")
+  backgroundColor String  @default("#FFFFFF") @map("background_color")
+  surfaceColor   String   @default("#F5F7FA") @map("surface_color")
+  textColor      String   @default("#172B4D") @map("text_color")
+  colorMode      String   @default("light") @map("color_mode")
+  logoUrl        String?  @map("logo_url")
+  logoDarkUrl    String?  @map("logo_dark_url")
+  faviconUrl     String?  @map("favicon_url")
+  borderRadius   String?  @default("0.5rem") @map("border_radius")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_branding")
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+model Event {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  parentEventId        String?         @map("parent_event_id") @db.Uuid
+  slug                 String
+  name                 String
+  description          String?
+  format               EventFormat     @default(IN_PERSON)
+  status               EventStatus     @default(DRAFT)
+  visibility           EventVisibility @default(PRIVATE)
+  timeZone             String          @map("time_zone")
+  startsAt             DateTime        @map("starts_at")
+  endsAt               DateTime        @map("ends_at")
+  venueName            String?         @map("venue_name")
+  venueAddress         String?         @map("venue_address")
+  registrationOpensAt  DateTime?       @map("registration_opens_at")
+  registrationClosesAt DateTime?       @map("registration_closes_at")
+  publishedAt          DateTime?       @map("published_at")
+  createdByUserId      String          @map("created_by_user_id") @db.Uuid
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User           @relation("EventCreator", fields: [createdByUserId], references: [id])
+  parent       Event?         @relation("EventEditions", fields: [parentEventId], references: [id])
+  editions     Event[]        @relation("EventEditions")
+  modules      EventModule[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([organizationId, startsAt])
+  @@map("events")
+}
+
+/// Modules enabled for one event. Disabling never deletes history.
+model EventModule {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @map("event_id") @db.Uuid
+  moduleKey String   @map("module_key")
+  enabled   Boolean  @default(true)
+  settings  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, moduleKey])
+  @@index([eventId])
+  @@map("event_modules")
+}
+
+// ---------------------------------------------------------------------------
+// Governance
+// ---------------------------------------------------------------------------
+
+/// Append-only log of sensitive administrative actions. Product data, not telemetry.
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  targetType     String   @map("target_type")
+  targetId       String?  @map("target_id")
+  metadata       Json?
+  ipAddress      String?  @map("ip_address")
+  requestId      String?  @map("request_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,261 @@
+import { Injectable } from '@nestjs/common';
+import {
+  Branding,
+  BrandingContrastWarning,
+  DEFAULT_BRANDING,
+  Locale,
+  UpdateBrandingRequest,
+  UpdateWorkspaceSettingsRequest,
+  WorkspaceContext,
+} from '@event-platform/shared';
+import { OrganizationStatus, WorkspaceBranding, WorkspaceSettings } from '@prisma/client';
+import { AppException } from '../../common/app-exception';
+import {
+  WCAG_AA_NORMAL_TEXT,
+  contrastRatio,
+} from '../../common/utils/color-contrast';
+import { PrismaService } from '../../database/prisma.service';
+import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import type { TenantPrismaClient } from '../../database/tenant-transaction.service';
+
+export interface WorkspaceSettingsView {
+  organization: { id: string; slug: string; name: string };
+  settings: {
+    defaultLocale: Locale;
+    timeZone: string;
+    description: string | null;
+    websiteUrl: string | null;
+    contactEmail: string | null;
+  };
+}
+
+export interface BrandingView {
+  branding: Branding;
+  contrastWarnings: BrandingContrastWarning[];
+}
+
+/**
+ * Workspace and branding. Whitespace is data: nothing here knows about a specific
+ * organisation. See docs/05-branding-and-theming.md.
+ */
+@Injectable()
+export class WorkspacesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantTransaction: TenantTransactionService,
+  ) {}
+
+  /**
+   * Public context used by the SPA to render a tenant shell and apply branding.
+   * Runs without tenant context, so it selects an explicit public projection and
+   * filters by slug — no wildcard selects.
+   */
+  async getPublicContext(slug: string): Promise<WorkspaceContext> {
+    const organization = await this.prisma.organization.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        status: true,
+        branding: true,
+        settings: { select: { defaultLocale: true } },
+      },
+    });
+
+    if (!organization || organization.status !== OrganizationStatus.ACTIVE) {
+      throw AppException.notFound('tenant_not_found', 'Workspace not found.');
+    }
+
+    return {
+      organization: {
+        id: organization.id,
+        slug: organization.slug,
+        name: organization.name,
+      },
+      branding: organization.branding
+        ? toBranding(organization.branding)
+        : { ...DEFAULT_BRANDING },
+      locale: {
+        default: toLocale(organization.settings?.defaultLocale),
+        supported: ['fr', 'en'],
+      },
+    };
+  }
+
+  async getSettings(): Promise<WorkspaceSettingsView> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const organization = await tx.organization.findUnique({
+        where: { id: tenant.organizationId },
+        select: { id: true, slug: true, name: true },
+      });
+
+      if (!organization) {
+        throw AppException.notFound('tenant_not_found', 'Workspace not found.');
+      }
+
+      const settings = await tx.workspaceSettings.findUnique({
+        where: { organizationId: tenant.organizationId },
+      });
+
+      return toSettingsView(organization, settings);
+    });
+  }
+
+  async updateSettings(input: UpdateWorkspaceSettingsRequest): Promise<WorkspaceSettingsView> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      if (input.name !== undefined) {
+        await tx.organization.update({
+          where: { id: tenant.organizationId },
+          data: { name: input.name },
+        });
+      }
+
+      await tx.workspaceSettings.upsert({
+        where: { organizationId: tenant.organizationId },
+        create: {
+          organizationId: tenant.organizationId,
+          defaultLocale: input.defaultLocale ?? 'fr',
+          timeZone: input.timeZone ?? 'Africa/Porto-Novo',
+          description: input.description ?? null,
+          websiteUrl: input.websiteUrl ?? null,
+          contactEmail: input.contactEmail ?? null,
+        },
+        update: {
+          ...(input.defaultLocale === undefined ? {} : { defaultLocale: input.defaultLocale }),
+          ...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
+          ...(input.description === undefined ? {} : { description: input.description }),
+          ...(input.websiteUrl === undefined ? {} : { websiteUrl: input.websiteUrl }),
+          ...(input.contactEmail === undefined ? {} : { contactEmail: input.contactEmail }),
+        },
+      });
+
+      return this.readSettingsInsideTransaction(tx, tenant.organizationId);
+    });
+  }
+
+  async getBranding(): Promise<BrandingView> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const row = await tx.workspaceBranding.findUnique({
+        where: { organizationId: tenant.organizationId },
+      });
+
+      const branding = row ? toBranding(row) : { ...DEFAULT_BRANDING };
+      return { branding, contrastWarnings: checkContrast(branding) };
+    });
+  }
+
+  async updateBranding(input: UpdateBrandingRequest): Promise<BrandingView> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const existing = await tx.workspaceBranding.findUnique({
+        where: { organizationId: tenant.organizationId },
+      });
+
+      const merged: Branding = {
+        ...(existing ? toBranding(existing) : DEFAULT_BRANDING),
+        ...stripUndefined(input),
+      };
+
+      await tx.workspaceBranding.upsert({
+        where: { organizationId: tenant.organizationId },
+        create: { organizationId: tenant.organizationId, ...merged },
+        update: merged,
+      });
+
+      return { branding: merged, contrastWarnings: checkContrast(merged) };
+    });
+  }
+
+  private async readSettingsInsideTransaction(
+    tx: TenantPrismaClient,
+    organizationId: string,
+  ): Promise<WorkspaceSettingsView> {
+    const organization = await tx.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, slug: true, name: true },
+    });
+
+    if (!organization) {
+      throw AppException.notFound('tenant_not_found', 'Workspace not found.');
+    }
+
+    const settings = await tx.workspaceSettings.findUnique({
+      where: { organizationId },
+    });
+
+    return toSettingsView(organization, settings);
+  }
+}
+
+export function toSettingsView(
+  organization: { id: string; slug: string; name: string },
+  settings: WorkspaceSettings | null,
+): WorkspaceSettingsView {
+  return {
+    organization,
+    settings: {
+      defaultLocale: toLocale(settings?.defaultLocale),
+      timeZone: settings?.timeZone ?? 'Africa/Porto-Novo',
+      description: settings?.description ?? null,
+      websiteUrl: settings?.websiteUrl ?? null,
+      contactEmail: settings?.contactEmail ?? null,
+    },
+  };
+}
+
+export function toBranding(row: WorkspaceBranding): Branding {
+  return {
+    primaryColor: row.primaryColor,
+    secondaryColor: row.secondaryColor,
+    accentColor: row.accentColor,
+    backgroundColor: row.backgroundColor,
+    surfaceColor: row.surfaceColor,
+    textColor: row.textColor,
+    colorMode: row.colorMode === 'dark' ? 'dark' : 'light',
+    logoUrl: row.logoUrl,
+    logoDarkUrl: row.logoDarkUrl,
+    faviconUrl: row.faviconUrl,
+    borderRadius: row.borderRadius,
+  };
+}
+
+function toLocale(value: string | null | undefined): Locale {
+  return value === 'en' ? 'en' : 'fr';
+}
+
+function stripUndefined(input: UpdateBrandingRequest): Partial<Branding> {
+  const result: Partial<Branding> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) {
+      (result as Record<string, unknown>)[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Organisation-provided colours can be unreadable. We warn with the measured ratio
+ * instead of silently saving a theme that fails accessibility checks.
+ */
+export function checkContrast(branding: Branding): BrandingContrastWarning[] {
+  const pairs: Array<{ pair: string; foreground: string; background: string }> = [
+    { pair: 'text-on-background', foreground: branding.textColor, background: branding.backgroundColor },
+    { pair: 'text-on-surface', foreground: branding.textColor, background: branding.surfaceColor },
+    { pair: 'white-on-primary', foreground: '#FFFFFF', background: branding.primaryColor },
+  ];
+
+  const warnings: BrandingContrastWarning[] = [];
+
+  for (const { pair, foreground, background } of pairs) {
+    const ratio = contrastRatio(foreground, background);
+    if (ratio !== null && ratio < WCAG_AA_NORMAL_TEXT) {
+      warnings.push({
+        pair,
+        ratio: Math.round(ratio * 100) / 100,
+        required: WCAG_AA_NORMAL_TEXT,
+      });
+    }
+  }
+
+  return warnings;
+}

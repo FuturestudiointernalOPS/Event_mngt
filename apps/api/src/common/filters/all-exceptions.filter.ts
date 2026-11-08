@@ -1,0 +1,153 @@
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { Response } from 'express';
+import { AppException } from '../app-exception';
+import type { AuthenticatedRequest } from '../types/authenticated-request';
+
+interface NormalizedError {
+  status: number;
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+/**
+ * Single exit point for errors. Produces the documented envelope:
+ *   { error: { code, message, details? }, meta: { requestId, timestamp } }
+ *
+ * Never leaks stack traces, SQL or another tenant's identifiers to the client.
+ */
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const context = host.switchToHttp();
+    const response = context.getResponse<Response>();
+    const request = context.getRequest<AuthenticatedRequest>();
+    const requestId = request.requestId ?? 'unknown';
+    const timestamp = new Date().toISOString();
+    const normalized = this.normalize(exception);
+
+    if (normalized.status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        `[${requestId}] ${request.method} ${request.originalUrl} -> ${normalized.status} ${normalized.code}`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else {
+      this.logger.warn(
+        `[${requestId}] ${request.method} ${request.originalUrl} -> ${normalized.status} ${normalized.code}`,
+      );
+    }
+
+    response.status(normalized.status).json({
+      error: {
+        code: normalized.code,
+        message: normalized.message,
+        ...(normalized.details === undefined ? {} : { details: normalized.details }),
+      },
+      meta: { requestId, timestamp },
+    });
+  }
+
+  private normalize(exception: unknown): NormalizedError {
+    if (exception instanceof AppException) {
+      return {
+        status: exception.getStatus(),
+        code: exception.code,
+        message: exception.message,
+        details: exception.details,
+      };
+    }
+
+    if (exception instanceof HttpException) {
+      return this.fromHttpException(exception);
+    }
+
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      return this.fromPrismaError(exception);
+    }
+
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      code: 'internal_error',
+      message: 'Something went wrong. Please try again.',
+    };
+  }
+
+  private fromHttpException(exception: HttpException): NormalizedError {
+    const status = exception.getStatus();
+    const body = exception.getResponse();
+
+    if (typeof body === 'string') {
+      return { status, code: defaultCode(status), message: body };
+    }
+
+    const record = body as Record<string, unknown>;
+    const code = typeof record.code === 'string' ? record.code : defaultCode(status);
+    const message =
+      typeof record.message === 'string' ? record.message : exception.message;
+    const details =
+      record.details ??
+      (Array.isArray(record.message) ? record.message : undefined);
+
+    return { status, code, message, details };
+  }
+
+  private fromPrismaError(exception: Prisma.PrismaClientKnownRequestError): NormalizedError {
+    switch (exception.code) {
+      case 'P2002':
+        return {
+          status: HttpStatus.CONFLICT,
+          code: 'conflict',
+          message: 'That record already exists.',
+        };
+      case 'P2025':
+        return {
+          status: HttpStatus.NOT_FOUND,
+          code: 'not_found',
+          message: 'The requested record was not found.',
+        };
+      case 'P2003':
+        return {
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          code: 'invalid_reference',
+          message: 'A related record is missing or not accessible.',
+        };
+      default:
+        return {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          code: 'internal_error',
+          message: 'A database error occurred.',
+        };
+    }
+  }
+}
+
+function defaultCode(status: number): string {
+  switch (status) {
+    case HttpStatus.BAD_REQUEST:
+      return 'validation_error';
+    case HttpStatus.UNAUTHORIZED:
+      return 'unauthorized';
+    case HttpStatus.FORBIDDEN:
+      return 'forbidden';
+    case HttpStatus.NOT_FOUND:
+      return 'not_found';
+    case HttpStatus.CONFLICT:
+      return 'conflict';
+    case HttpStatus.UNPROCESSABLE_ENTITY:
+      return 'unprocessable';
+    case HttpStatus.TOO_MANY_REQUESTS:
+      return 'rate_limited';
+    default:
+      return 'internal_error';
+  }
+}
