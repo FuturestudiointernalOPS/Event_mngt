@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+/*
+ * Brand tokens. These defaults are replaced at runtime by ThemeProvider with the
+ * active workspace's branding (docs/05-branding-and-theming.md). They are applied on
+ * :root so portals, dialogs and toasts inherit the tenant theme too.
+ */
+:root {
+  --brand-primary: #173f5f;
+  --brand-secondary: #206a8a;
+  --brand-accent: #f5a623;
+  --brand-background: #ffffff;
+  --brand-surface: #f5f7fa;
+  --brand-text: #172b4d;
+  --brand-radius: 0.5rem;
+}
+
+@theme {
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-background: var(--brand-background);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-text: var(--brand-text);
+
+  --radius-brand: var(--brand-radius);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--brand-background);
+  color: var(--brand-text);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible focus everywhere. Accessibility is a requirement, not a nice-to-have. */
+:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
