@@ -1,0 +1,29 @@
+{
+  "name": "event-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant, white-label event management SaaS",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run build -w @event-platform/shared && concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run start:dev -w @event-platform/api",
+    "dev:web": "npm run dev -w @event-platform/web",
+    "build": "npm run build -w @event-platform/shared && npm run build -w @event-platform/api && npm run build -w @event-platform/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate -w @event-platform/api",
+    "db:migrate": "npm run db:migrate -w @event-platform/api",
+    "db:deploy": "npm run db:deploy -w @event-platform/api",
+    "db:studio": "npm run db:studio -w @event-platform/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
