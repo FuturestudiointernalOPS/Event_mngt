@@ -89,6 +89,13 @@ CREATE POLICY audit_logs_tenant_isolation ON audit_logs
   USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
   WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
 
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invitations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS invitations_tenant_isolation ON invitations;
+CREATE POLICY invitations_tenant_isolation ON invitations
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
 -- Child tables without organization_id — scoped through a constrained parent.
 -- Carrying organization_id directly is preferred; do it for new tables.
 ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
@@ -171,6 +178,58 @@ CREATE POLICY role_permissions_user_bootstrap ON role_permissions
       JOIN organization_members m ON m.organization_id = r.organization_id
       WHERE r.id = role_permissions.role_id
         AND m.user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+    )
+  );
+
+-- A signed-in user may record an audit row attributed to themselves when the action has
+-- no organisation (sign-in, sign-out). Any other write is refused.
+-- A signed-in user may record an audit row attributed to themselves when the action has
+-- no organisation (sign-in, sign-out). Any other write is refused.
+--
+-- The read policy is not optional: an INSERT ... RETURNING also evaluates SELECT, and the
+-- client returns the created row. Without it, the insert is rejected as a policy
+-- violation even though the insert policy matches.
+DROP POLICY IF EXISTS audit_logs_actor_read ON audit_logs;
+CREATE POLICY audit_logs_actor_read ON audit_logs
+  FOR SELECT
+  USING (
+    organization_id IS NULL
+    AND actor_user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+  );
+
+DROP POLICY IF EXISTS audit_logs_actor_insert ON audit_logs;
+CREATE POLICY audit_logs_actor_insert ON audit_logs
+  FOR INSERT
+  WITH CHECK (
+    organization_id IS NULL
+    AND actor_user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+  );
+
+-- An invited person can read and consume their own invitation before any tenant is
+-- known. Identity is the account email, never a token supplied by the client.
+DROP POLICY IF EXISTS invitations_recipient_read ON invitations;
+CREATE POLICY invitations_recipient_read ON invitations
+  FOR SELECT
+  USING (
+    email = (
+      SELECT u.email FROM users u
+      WHERE u.id = nullif(current_setting('app.current_user_id', true), '')::uuid
+    )
+  );
+
+DROP POLICY IF EXISTS invitations_recipient_consume ON invitations;
+CREATE POLICY invitations_recipient_consume ON invitations
+  FOR UPDATE
+  USING (
+    email = (
+      SELECT u.email FROM users u
+      WHERE u.id = nullif(current_setting('app.current_user_id', true), '')::uuid
+    )
+  )
+  WITH CHECK (
+    email = (
+      SELECT u.email FROM users u
+      WHERE u.id = nullif(current_setting('app.current_user_id', true), '')::uuid
     )
   );
 

@@ -13,6 +13,9 @@ export interface TenantContext {
   userId: string;
   membershipId: string;
   permissions: string[];
+  /** Correlation and origin of the request, when there is one (not set for jobs). */
+  requestId?: string;
+  ipAddress?: string;
 }
 
 @Injectable()

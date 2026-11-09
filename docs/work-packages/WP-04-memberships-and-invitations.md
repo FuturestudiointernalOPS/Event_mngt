@@ -61,3 +61,27 @@ edit the schema yourself.
 ## Out of scope
 
 Custom roles beyond the system templates, SSO, and bulk import.
+
+## Delivered
+
+- Five routes plus one: list members, list roles, invite, accept, change role, remove. The
+  roles route was added because the invitation screen needs something to choose from.
+- The invitation token is stored hashed, expires in seven days, and is single-use. Consumption
+  is a conditional update, so two concurrent accepts cannot both succeed.
+- Every invitation rejection shares one code and one message, including an address mismatch,
+  so a token cannot be probed.
+- A role id must belong to the same organisation; a foreign role is refused by reference.
+- The last person able to manage the team cannot be removed or demoted.
+- Removal takes effect on the next request because membership is resolved per request.
+- Invitations, role changes and removals are recorded in the audit trail.
+
+### Deviation
+
+Accepting runs in two scopes: the invitation is read in the user scope (the invited address
+can read only its own), then consumed and turned into a membership in the organisation scope.
+The organisation comes from the invitation, never from the URL, which is why the scope is
+organisation-wide rather than public.
+
+Verified end to end: a pending invitation accepted by the invited account appears in the
+member list, the audit trail records it, removing that member succeeds, and removing the last
+administrator is refused with its own code.

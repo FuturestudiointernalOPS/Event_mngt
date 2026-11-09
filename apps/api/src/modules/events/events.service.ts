@@ -6,6 +6,8 @@ import {
   ListEventsQuery,
 } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
@@ -32,6 +34,7 @@ export class EventsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly events: EventsRepository,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
@@ -123,7 +126,7 @@ export class EventsService {
   }
 
   async publish(eventId: string): Promise<EventDetail> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
 
       if (!event) {
@@ -138,6 +141,14 @@ export class EventsService {
 
       return toDetail(await this.events.publish(tx, event.id));
     });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventPublished,
+      targetType: 'event',
+      targetId: eventId,
+    });
+
+    return detail;
   }
 
   /**
@@ -152,7 +163,7 @@ export class EventsService {
       throw AppException.notFound('not_found', 'Event not found.');
     }
 
-    const row = await this.tenantTransaction.withPublicOrganization(
+    const row = await this.tenantTransaction.withOrganizationScope(
       located.organizationId,
       (tx) => this.events.findPublicContextById(tx, located.id, located.organizationId),
     );

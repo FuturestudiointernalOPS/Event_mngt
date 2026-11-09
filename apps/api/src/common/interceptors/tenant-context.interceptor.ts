@@ -28,6 +28,8 @@ export class TenantContextInterceptor implements NestInterceptor {
       userId: user.id,
       membershipId: tenant.membershipId,
       permissions: tenant.permissions,
+      requestId: request.requestId,
+      ipAddress: request.ip,
     };
 
     return new Observable((subscriber) =>

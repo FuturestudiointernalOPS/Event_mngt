@@ -29,6 +29,7 @@ const DIRECT_TABLES: Array<[table: string, column: string]> = [
   ['workspace_branding', 'organization_id'],
   ['events', 'organization_id'],
   ['audit_logs', 'organization_id'],
+  ['invitations', 'organization_id'],
 ];
 
 const CHILD_TABLES: Array<[table: string, countSql: string]> = [
@@ -76,6 +77,7 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
         (SELECT count(*) FROM role_permissions)::int AS grants,
         (SELECT count(*) FROM event_modules)::int AS modules,
         (SELECT count(*) FROM audit_logs)::int AS audit,
+        (SELECT count(*) FROM invitations)::int AS invitations,
         (SELECT count(*) FROM events WHERE status = 'DRAFT')::int AS drafts`),
     );
 
@@ -87,6 +89,7 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
       grants: 0,
       modules: 0,
       audit: 0,
+      invitations: 0,
       drafts: 0,
     });
   });

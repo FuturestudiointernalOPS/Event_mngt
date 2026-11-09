@@ -10,6 +10,8 @@ import {
 } from '@event-platform/shared';
 import { OrganizationStatus, WorkspaceSettings } from '../../database/prisma-client';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS, type AuditAction } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import { toBranding, toLocale } from '../../common/utils/branding';
 import {
   WCAG_AA_NORMAL_TEXT,
@@ -44,6 +46,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -64,7 +67,7 @@ export class WorkspacesService {
       throw AppException.notFound('tenant_not_found', 'Workspace not found.');
     }
 
-    return this.tenantTransaction.withPublicOrganization(organization.id, async (tx) => {
+    return this.tenantTransaction.withOrganizationScope(organization.id, async (tx) => {
       const row = await tx.organization.findUnique({
         where: { id: organization.id },
         select: {
@@ -115,7 +118,7 @@ export class WorkspacesService {
   }
 
   async updateSettings(input: UpdateWorkspaceSettingsRequest): Promise<WorkspaceSettingsView> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const view = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       if (input.name !== undefined) {
         await tx.organization.update({
           where: { id: tenant.organizationId },
@@ -144,6 +147,10 @@ export class WorkspacesService {
 
       return this.readSettingsInsideTransaction(tx, tenant.organizationId);
     });
+
+    await this.recordChange(AUDIT_ACTIONS.settingsUpdated, view.organization.id);
+
+    return view;
   }
 
   async getBranding(): Promise<BrandingView> {
@@ -158,7 +165,7 @@ export class WorkspacesService {
   }
 
   async updateBranding(input: UpdateBrandingRequest): Promise<BrandingView> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const view = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       const existing = await tx.workspaceBranding.findUnique({
         where: { organizationId: tenant.organizationId },
       });
@@ -176,6 +183,14 @@ export class WorkspacesService {
 
       return { branding: merged, contrastWarnings: checkContrast(merged) };
     });
+
+    await this.recordChange(AUDIT_ACTIONS.brandingUpdated);
+
+    return view;
+  }
+
+  private async recordChange(action: AuditAction, targetId?: string): Promise<void> {
+    await this.audit.record({ action, targetType: 'workspace', targetId: targetId ?? null });
   }
 
   private async readSettingsInsideTransaction(

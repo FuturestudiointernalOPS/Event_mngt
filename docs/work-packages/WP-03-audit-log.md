@@ -56,3 +56,28 @@ next wave applies them.
 ## Out of scope
 
 Exporting the log, alerting, and log shipping.
+
+## Delivered
+
+- `GET /workspaces/:slug/audit`, newest first, paginated, permission `audit:read`.
+- Action constants in one file; callers never pass a free-form string.
+- Metadata redaction is a pure function with its own spec: secrets are dropped by key,
+  regardless of casing or separators, at any depth.
+- Recording never breaks the operation: a failed write is logged and swallowed. An entry with
+  neither organisation nor actor is dropped rather than attributed to nobody.
+- Call sites wired for the integration requests: sign-in, workspace settings, branding, and
+  event publishing.
+
+### Deviation found while implementing
+
+A sign-in has no organisation, so its row is written in the user scope. Prisma returns the
+created row, and PostgreSQL evaluates the `SELECT` policy for an `INSERT ... RETURNING` as
+well — the insert policy alone was not enough, and every write was rejected as a policy
+violation. Two policies now exist: one to insert, one to read back, both restricted to the
+caller's own rows.
+
+Sign-in entries therefore carry no organisation and do not appear in the workspace listing.
+That is deliberate: they belong to a platform-level view, which does not exist yet.
+
+Verified end to end: two sign-in rows written, and a workspace listing containing the
+member-invitation entry.

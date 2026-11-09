@@ -63,11 +63,17 @@ that sets these; no feature code issues `SET` statements.
 | --- | --- | --- | --- |
 | Tenant | `withTenant` | an authenticated member | one organisation's rows |
 | Bootstrap | `withUserScope` | sign-in, and tenant resolution | this account's own membership, its organisations and their roles |
-| Public | `withPublicOrganization` | anonymous visitor | one organisation's settings and branding, after a public identifier resolved it |
+| Public | `withOrganizationScope` | anonymous visitor | one organisation's settings and branding, after a public identifier resolved it |
 
 Bootstrap exists because membership resolution happens **before** a tenant is known. With
 only tenant policies, that query returns nothing and every tenant route fails. The bootstrap
 policies are `SELECT`-only and keyed on `app.current_user_id`.
+
+Two further pre-tenant policies exist for single-purpose flows:
+
+- an audit row with no organisation may be written and read back by the account it is
+  attributed to (sign-in has no tenant);
+- an invitation may be read and consumed only by the account whose email it names.
 
 ### What is public
 

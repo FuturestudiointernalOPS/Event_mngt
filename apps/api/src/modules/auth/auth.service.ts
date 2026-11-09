@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { CurrentUserResponse, LoginRequest, SessionSummary } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import { generateOpaqueToken, hashOpaqueToken, ttlToSeconds } from '../../common/utils/tokens';
 import type { Env } from '../../config/env.validation';
 import { UserStatus } from '../../database/prisma-client';
@@ -25,6 +27,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<Env, true>,
     private readonly memberships: AccountMembershipsService,
+    private readonly audit: AuditService,
   ) {}
 
   async login(input: LoginRequest, meta: SessionMeta): Promise<LoginResult> {
@@ -73,6 +76,14 @@ export class AuthService {
         ipAddress: meta.ipAddress ?? null,
       },
       select: { id: true },
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.signedIn,
+      targetType: 'user',
+      targetId: user.id,
+      actorUserId: user.id,
+      ipAddress: meta.ipAddress ?? null,
     });
 
     return {

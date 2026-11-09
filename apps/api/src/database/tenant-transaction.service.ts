@@ -20,7 +20,7 @@ export type TenantPrismaClient = Prisma.TransactionClient;
  *   - withTenant          an authenticated member acting inside one organisation.
  *   - withUserScope       the caller's own identity, used to resolve a membership
  *                         before tenant context exists (bootstrap).
- *   - withPublicOrganization  a public read for one organisation, resolved from a
+ *   - withOrganizationScope  a public read for one organisation, resolved from a
  *                         public identifier such as a workspace slug or a published event.
  */
 @Injectable()
@@ -71,10 +71,12 @@ export class TenantTransactionService {
   }
 
   /**
-   * Public read scope for one organisation, resolved from a public identifier.
-   * There is no user: this is what an anonymous visitor is allowed to see.
+   * Organisation scope for a case that has no tenant context: a public read resolved
+   * from a workspace slug or a published event, or accepting an invitation whose
+   * organisation came from the invitation itself. The organisation always comes from
+   * a server-side identifier, never from the client.
    */
-  async withPublicOrganization<T>(
+  async withOrganizationScope<T>(
     organizationId: string,
     callback: (tx: TenantPrismaClient) => Promise<T>,
   ): Promise<T> {

@@ -95,7 +95,7 @@ now answers 403 with the same code.
 ## Handover
 
 - `TenantTransactionService` owns three scopes: `withTenant`, `withUserScope`,
-  `withPublicOrganization`. No other code sets these variables.
+  `withOrganizationScope`. No other code sets these variables.
 - Tenant resolution and the account's membership list run in the user scope.
 - `npm run db:roles` creates the non-owner role; `npm run db:policies` applies the policy
   file idempotently.

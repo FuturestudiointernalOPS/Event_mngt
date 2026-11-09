@@ -13,9 +13,11 @@ import { ttlToSeconds } from './common/utils/tokens';
 import { AppConfigService, CoreConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { HealthModule } from './modules/health/health.module';
+import { MembershipsModule } from './modules/memberships/memberships.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
@@ -43,10 +45,12 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
         },
       }),
     }),
+    AuditModule,
     PermissionsModule,
     HealthModule,
     AuthModule,
     WorkspacesModule,
+    MembershipsModule,
     EventsModule,
   ],
   providers: [

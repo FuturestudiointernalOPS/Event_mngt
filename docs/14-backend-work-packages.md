@@ -92,7 +92,8 @@ graph TD
 Briefs exist for every package in waves 0 and 1. Later briefs are written when their wave
 opens, so they describe the code that exists by then instead of guessing.
 
-**Delivered:** WP-01 (tenant bootstrap and RLS) and WP-02 (isolation suite).
+**Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log)
+and WP-04 (memberships and invitations).
 
 | Package | Wave | Owns | Depends on | Parallel-safe |
 | --- | --- | --- | --- | --- |

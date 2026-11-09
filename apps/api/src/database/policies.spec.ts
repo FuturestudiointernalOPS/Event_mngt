@@ -121,6 +121,22 @@ describe('row-level security coverage', () => {
     }
   });
 
+  it('allows a signed-in user to record and read back an unscoped audit row', () => {
+    // The read half is required: an INSERT ... RETURNING also evaluates SELECT.
+    const names = created.map((entry) => entry.policy);
+
+    expect(names).toEqual(
+      expect.arrayContaining(['audit_logs_actor_insert', 'audit_logs_actor_read']),
+    );
+  });
+
+  it('lets an invited person read and consume only their own invitation', () => {
+    const names = created.map((entry) => entry.policy);
+
+    expect(names).toContain('invitations_recipient_read');
+    expect(names).toContain('invitations_recipient_consume');
+  });
+
   it('only exposes public reads for active organisations and published events', () => {
     const publicPolicies = created.filter((entry) => entry.policy.endsWith('_public_read'));
 

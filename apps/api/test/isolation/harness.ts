@@ -150,9 +150,19 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
   const eventA = await event(orgA.id, accountA.id, 'a');
   const eventB = await event(orgB.id, accountB.id, 'b');
 
-  for (const organizationId of [orgA.id, orgB.id]) {
+  for (const [index, organizationId] of [orgA.id, orgB.id].entries()) {
     await owner.auditLog.create({
       data: { organizationId, action: 'isolation.fixture', targetType: 'test' },
+    });
+    await owner.invitation.create({
+      data: {
+        organizationId,
+        email: `pending-${index}-${runId}@example.test`,
+        roleId: index === 0 ? orgA.roleId : orgB.roleId,
+        tokenHash: randomUUID(),
+        invitedByUserId: index === 0 ? accountA.id : accountB.id,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      },
     });
   }
 
