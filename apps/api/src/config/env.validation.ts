@@ -11,7 +11,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
 
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
-  WEB_APP_URL: z.string().url().default('http://localhost:5173'),
+  WEB_APP_URL: z.url().default('http://localhost:5173'),
 
   /** Supabase PostgreSQL connection string. Database only — no Supabase services. */
   DATABASE_URL: z

@@ -48,7 +48,7 @@ export const paginationQuerySchema = z.object({
 
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
-export const uuidSchema = z.string().uuid();
+export const uuidSchema = z.uuid();
 
 export const localeSchema = z.enum(['fr', 'en']);
 export type Locale = z.infer<typeof localeSchema>;

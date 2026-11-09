@@ -22,7 +22,7 @@ export interface ModuleDefinition {
   dependsOn: string[];
   requiredPermissions: string[];
   configurable: boolean;
-  settingsSchema: z.ZodTypeAny;
+  settingsSchema: z.ZodType;
   defaults: Record<string, unknown>;
 }
 
@@ -224,20 +224,30 @@ export function missingDependencies(key: string, enabled: readonly string[]): st
   return resolveDependencies(key).filter((dependency) => !enabledSet.has(dependency));
 }
 
+export interface ModuleSettingsIssue {
+  path: string;
+  message: string;
+}
+
 export function validateModuleSettings(
   key: string,
   settings: unknown,
-): { success: true; data: Record<string, unknown> } | { success: false; issues: z.ZodIssue[] } {
+):
+  | { success: true; data: Record<string, unknown> }
+  | { success: false; issues: ModuleSettingsIssue[] } {
   const definition = getModuleDefinition(key);
   if (!definition) {
-    return {
-      success: false,
-      issues: [{ code: z.ZodIssueCode.custom, message: `Unknown module "${key}"`, path: [] }],
-    };
+    return { success: false, issues: [{ path: '', message: `Unknown module "${key}"` }] };
   }
   const parsed = definition.settingsSchema.safeParse(settings ?? {});
   if (!parsed.success) {
-    return { success: false, issues: parsed.error.issues };
+    return {
+      success: false,
+      issues: parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
+    };
   }
   return { success: true, data: parsed.data as Record<string, unknown> };
 }

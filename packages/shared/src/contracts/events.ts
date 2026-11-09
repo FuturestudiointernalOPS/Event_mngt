@@ -20,10 +20,9 @@ export type EventVisibility = z.infer<typeof eventVisibilitySchema>;
 export const eventFormatSchema = z.enum(['IN_PERSON', 'ONLINE', 'HYBRID']);
 export type EventFormat = z.infer<typeof eventFormatSchema>;
 
-const isoDateTimeSchema = z.string().datetime({ offset: true });
+const isoDateTimeSchema = z.iso.datetime({ offset: true });
 
-export const createEventRequestSchema = z
-  .object({
+const eventFieldsSchema = z.object({
     name: z.string().trim().min(3).max(180),
     slug: slugSchema.optional(),
     description: z.string().trim().max(4000).optional(),
@@ -35,15 +34,23 @@ export const createEventRequestSchema = z
     venueName: z.string().trim().max(180).optional(),
     venueAddress: z.string().trim().max(400).optional(),
     parentEventId: uuidSchema.optional(),
-  })
-  .refine((value) => new Date(value.endsAt) > new Date(value.startsAt), {
+  });
+
+export const createEventRequestSchema = eventFieldsSchema.refine(
+  (value) => new Date(value.endsAt) > new Date(value.startsAt),
+  {
     message: 'The end must be after the start',
     path: ['endsAt'],
-  });
+  },
+);
 
 export type CreateEventRequest = z.infer<typeof createEventRequestSchema>;
 
-export const updateEventRequestSchema = createEventRequestSchema.innerType().partial().omit({
+/**
+ * Updates reuse the same field definitions. Keeping them in a plain ZodObject means
+ * `.partial()` works without unwrapping a refined schema.
+ */
+export const updateEventRequestSchema = eventFieldsSchema.partial().omit({
   parentEventId: true,
 });
 

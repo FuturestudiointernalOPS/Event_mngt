@@ -5,7 +5,7 @@ export const emailSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .email('Enter a valid email address');
+  .pipe(z.email('Enter a valid email address'));
 
 /**
  * Minimum lengths follow current guidance for account passwords. Argon2id hashing is
