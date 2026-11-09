@@ -84,7 +84,12 @@ so these can be added without restructuring.
 
 ## Sources
 
-- `extracted.txt` § "EVENT PLATFORM — Product vision, architecture, functional scope and
-  implementation roadmap" (master plan)
-- `extracted.txt` § "PRODUCT REQUIREMENTS & TECHNICAL SPECIFICATION" (PRD)
-- `extracted.txt` § "Innovation Village Platform — Concept Note"
+The plans were consolidated from four source documents kept in the repository root:
+
+- `Event_Platform_Master_Project_Plan.docx` — product vision, architecture, functional
+  scope and implementation roadmap
+- `Future_Studio_Event_Platform_Full_PRD_and_Architecture.docx` — product requirements
+  and technical specification
+- `Innovation_Village_Concept.pdf` — the concept note for the first edition
+- `Event_Platform_Backend_Development_Plan.docx` and
+  `Event_Platform_Frontend_Development_Plan.docx` — per-workstream plans

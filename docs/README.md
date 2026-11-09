@@ -22,6 +22,7 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [09-frontend-architecture.md](09-frontend-architecture.md) | Route map, feature folders, server state, offline check-in |
 | [10-roadmap-and-backlog.md](10-roadmap-and-backlog.md) | Phases, exit criteria, epic backlog |
 | [11-open-decisions.md](11-open-decisions.md) | Unresolved product/business questions with owners |
+| [12-dependency-and-security.md](12-dependency-and-security.md) | Audit posture, applied upgrades, deferred migrations, re-review triggers |
 
 ## Decisions already made (do not re-litigate without cause)
 

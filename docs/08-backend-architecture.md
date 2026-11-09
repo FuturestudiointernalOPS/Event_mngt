@@ -61,9 +61,14 @@ modules/events/
   events.controller.ts      HTTP surface
   events.service.ts         business rules
   events.repository.ts      Prisma access, tenant-scoped
-  dto/events.contract.ts    re-exports shared Zod schemas + Swagger decorators
+  dto/events.contracts.ts   re-exports shared Zod schemas + Swagger decorators
   events.service.spec.ts    unit tests
 ```
+
+**Phase 1 note.** Branding is implemented inside `workspaces/` (context, settings and
+the brand-token editor) rather than as a standalone `branding/` module. The two are
+split once brand assets and event-level overrides land in Phase 2; until then separate
+modules would only add a pass-through layer.
 
 ## Dependency rules between modules
 
@@ -124,12 +129,12 @@ a readable listing of missing/invalid variables. Type-safe access through
 
 | Level | Tooling | Proves |
 | --- | --- | --- |
-| Unit | Jest | Services, state transitions, permission policies, token logic |
-| Integration | Jest + real PostgreSQL | Prisma queries, migrations, RLS, tenant transactions, adapters |
-| Contract | Jest against shared schemas | API payloads match `packages/shared` |
-| API/E2E | Supertest | Onboarding, publishing, registration, approval, check-in |
-| Security | Jest, dedicated suite | Tenant A/B isolation, escalation, refresh reuse, CSRF, rate limits |
-| Reliability | Jest + queue harness | Offline sync, duplicates, retries, restore |
+| Unit | Vitest | Services, state transitions, permission policies, token logic |
+| Integration | Vitest + real PostgreSQL | Prisma queries, migrations, RLS, tenant transactions, adapters |
+| Contract | Vitest against shared schemas | API payloads match `packages/shared` |
+| API/E2E | Supertest via Vitest | Onboarding, publishing, registration, approval, check-in |
+| Security | Vitest, dedicated suite | Tenant A/B isolation, escalation, refresh reuse, CSRF, rate limits |
+| Reliability | Vitest + queue harness | Offline sync, duplicates, retries, restore |
 | Performance | k6 (Phase 7) | Registration bursts, check-in peaks, report generation |
 
 The security suite is mandatory in CI from Phase 2 onward: a failing tenant-isolation test
