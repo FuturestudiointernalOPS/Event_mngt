@@ -56,3 +56,5 @@ export type Locale = z.infer<typeof localeSchema>;
 export const REQUEST_ID_HEADER = 'x-request-id';
 export const WORKSPACE_SLUG_HEADER = 'x-workspace-slug';
 export const CSRF_TOKEN_HEADER = 'x-csrf-token';
+/** Opt-in replay protection for a state-changing request. See WP-08. */
+export const IDEMPOTENCY_KEY_HEADER = 'idempotency-key';

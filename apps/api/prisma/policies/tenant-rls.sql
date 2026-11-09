@@ -96,6 +96,22 @@ CREATE POLICY invitations_tenant_isolation ON invitations
   USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
   WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
 
+-- Idempotency records are infrastructure, but a stored response can contain tenant
+-- data. A row with an organisation is visible only inside that tenant; an anonymous
+-- row (no organisation) is the only kind reachable without tenant context.
+ALTER TABLE idempotency_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_records FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS idempotency_records_tenant_isolation ON idempotency_records;
+CREATE POLICY idempotency_records_tenant_isolation ON idempotency_records
+  USING (
+    organization_id IS NULL
+    OR organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid
+  )
+  WITH CHECK (
+    organization_id IS NULL
+    OR organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid
+  );
+
 -- Child tables without organization_id — scoped through a constrained parent.
 -- Carrying organization_id directly is preferred; do it for new tables.
 ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
@@ -183,8 +199,6 @@ CREATE POLICY role_permissions_user_bootstrap ON role_permissions
 
 -- A signed-in user may record an audit row attributed to themselves when the action has
 -- no organisation (sign-in, sign-out). Any other write is refused.
--- A signed-in user may record an audit row attributed to themselves when the action has
--- no organisation (sign-in, sign-out). Any other write is refused.
 --
 -- The read policy is not optional: an INSERT ... RETURNING also evaluates SELECT, and the
 -- client returns the created row. Without it, the insert is rejected as a policy
@@ -259,6 +273,8 @@ CREATE POLICY events_public_read ON events
 -- Deliberately NOT row-level secured
 -- ---------------------------------------------------------------------------
 -- users, user_sessions, verification_tokens and permissions are not tenant-owned:
+--   * rate_limit_counters holds only a hashed caller key, a window and a count, and
+--     is never read by a product endpoint.
 --   * permissions is a global catalogue, read-only to the API.
 --   * identity tables are always queried by identifiers derived from a verified
 --     session (user id from the access token, session by refresh-token hash).

@@ -153,6 +153,7 @@ model Organization {
   invitations Invitation[]
   events     Event[]
   auditLogs  AuditLog[]
+  idempotencyRecords IdempotencyRecord[]
 
   @@map("organizations")
 }
@@ -334,6 +335,42 @@ model EventModule {
   @@unique([eventId, moduleKey])
   @@index([eventId])
   @@map("event_modules")
+}
+
+// ---------------------------------------------------------------------------
+// Infrastructure
+// ---------------------------------------------------------------------------
+
+/// Short-lived replay cache for requests carrying an Idempotency-Key header.
+/// Not product data: no product endpoint lists it, and rows expire after a day.
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// `org:<id>`, `user:<id>` or `anon:<method>:<route>:<ip>` — the caller's namespace.
+  scope          String
+  key            String
+  requestHash    String   @map("request_hash")
+  /// 0 while the request is in flight; the real status once stored.
+  responseStatus Int      @default(0) @map("response_status")
+  responseBody   Json?    @map("response_body")
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+/// Fixed-window counters for rate limiting. Keyed by route and caller, never by data.
+model RateLimitCounter {
+  key         String
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@map("rate_limit_counters")
 }
 
 // ---------------------------------------------------------------------------

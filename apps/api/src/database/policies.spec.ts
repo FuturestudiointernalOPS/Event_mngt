@@ -40,7 +40,19 @@ const CHILD_TENANT_TABLES: Array<{ table: string; parent: string }> = [
 ];
 
 /** Tables that carry no tenant rows, with the reason recorded in the policy file. */
-const NOT_TENANT_OWNED = ['users', 'user_sessions', 'verification_tokens', 'permissions'];
+const NOT_TENANT_OWNED = [
+  'users',
+  'user_sessions',
+  'verification_tokens',
+  'permissions',
+  'rate_limit_counters',
+];
+
+/**
+ * Tenant-owned rows with an optional organisation: an anonymous row belongs to no
+ * tenant, a row with an organisation is isolated to it.
+ */
+const NULLABLE_TENANT_TABLES = ['idempotency_records'];
 
 const models = readModels(SCHEMA);
 
@@ -72,6 +84,7 @@ describe('row-level security coverage', () => {
       ...tenantTables,
       ...childTables,
       ...NOT_TENANT_OWNED,
+      ...NULLABLE_TENANT_TABLES,
     ]);
 
     const unclassified = models
@@ -81,14 +94,17 @@ describe('row-level security coverage', () => {
     expect(unclassified).toEqual([]);
   });
 
-  it.each(tenantTables)('forces row-level security on %s', (table) => {
+  it.each([...tenantTables, ...NULLABLE_TENANT_TABLES])('forces row-level security on %s', (table) => {
     expect(POLICIES).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
     expect(POLICIES).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
   });
 
-  it.each([...tenantTables, ...childTables])('defines the tenant policy for %s', (table) => {
-    expect(created).toContainEqual({ policy: `${table}_tenant_isolation`, table });
-  });
+  it.each([...tenantTables, ...childTables, ...NULLABLE_TENANT_TABLES])(
+    'defines the tenant policy for %s',
+    (table) => {
+      expect(created).toContainEqual({ policy: `${table}_tenant_isolation`, table });
+    },
+  );
 
   it.each(CHILD_TENANT_TABLES)('scopes $table through its parent $parent', ({ table, parent }) => {
     const body = policyBody(table, `${table}_tenant_isolation`);

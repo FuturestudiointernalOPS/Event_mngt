@@ -34,6 +34,13 @@ export const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
+  /** Idempotent replays are scoped to a caller and expire after this many hours. */
+  IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+
+  /** Default fixed-window budget for routes annotated with @RateLimit(). */
+  RATE_LIMIT_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
+  RATE_LIMIT_DEFAULT_WINDOW_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
+
   EMAIL_PROVIDER: z.enum(['console', 'resend', 'ses']).default('console'),
   EMAIL_FROM: z.string().default('no-reply@example.com'),
 

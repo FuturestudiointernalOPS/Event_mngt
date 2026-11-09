@@ -30,6 +30,8 @@ export const API_PATHS = {
     context: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/context`,
     settings: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/settings`,
     branding: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/branding`,
+    brandingAsset: (slug: string, kind: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/branding/assets/${kind}`,
   },
 
   events: {
@@ -40,6 +42,10 @@ export const API_PATHS = {
       `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/modules`,
     publish: (slug: string, eventId: string) =>
       `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/publish`,
+    editions: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/editions`,
+    edition: (slug: string, eventId: string, editionId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/editions/${editionId}`,
   },
 
   publicEvents: {
@@ -47,7 +53,7 @@ export const API_PATHS = {
     detail: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}`,
   },
 
-  moduleRegistry: `${API_BASE_PATH}/module-registry`,
+  moduleRegistry: `${API_BASE_PATH}/modules`,
 } as const;
 
 export const ACCESS_TOKEN_COOKIE = 'ep_access';
