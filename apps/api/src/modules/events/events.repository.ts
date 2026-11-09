@@ -146,10 +146,15 @@ export class EventsRepository {
   }
 
   /**
-   * Public lookup: no session and no tenant context, so the filter itself carries the
-   * visibility, status and organisation-state rules.
+   * Locate a published event from its public slug.
+   *
+   * The only public query that runs without organisation context: the event policy
+   * allows reading published, non-private events, and the result carries the
+   * organisation so the projection can run scoped.
    */
-  findPublicContext(eventSlug: string): Promise<PublicEventContextRow | null> {
+  findPublicEventLocation(
+    eventSlug: string,
+  ): Promise<{ id: string; organizationId: string } | null> {
     return this.prisma.event.findFirst({
       where: {
         slug: eventSlug,
@@ -157,6 +162,18 @@ export class EventsRepository {
         status: { notIn: NON_PUBLIC_STATUSES },
         organization: { status: OrganizationStatus.ACTIVE },
       },
+      select: { id: true, organizationId: true },
+    });
+  }
+
+  /** The public projection for one event, read inside its organisation scope. */
+  findPublicContextById(
+    tx: TenantPrismaClient,
+    eventId: string,
+    organizationId: string,
+  ): Promise<PublicEventContextRow | null> {
+    return tx.event.findFirst({
+      where: { id: eventId, organizationId },
       select: PUBLIC_EVENT_CONTEXT_SELECT,
     });
   }

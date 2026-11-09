@@ -48,40 +48,51 @@ export class WorkspacesService {
 
   /**
    * Public context used by the SPA to render a tenant shell and apply branding.
-   * Runs without tenant context, so it selects an explicit public projection and
-   * filters by slug — no wildcard selects.
+   *
+   * Two steps, because the organisation is unknown until the slug is resolved: the
+   * first query reads only the public identity that policy allows (active
+   * organisations), then settings and branding are read inside the public
+   * organisation scope, so they stay protected by row-level security.
    */
   async getPublicContext(slug: string): Promise<WorkspaceContext> {
-    const organization = await this.prisma.organization.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        status: true,
-        branding: true,
-        settings: { select: { defaultLocale: true } },
-      },
+    const organization = await this.prisma.organization.findFirst({
+      where: { slug, status: OrganizationStatus.ACTIVE },
+      select: { id: true },
     });
 
-    if (!organization || organization.status !== OrganizationStatus.ACTIVE) {
+    if (!organization) {
       throw AppException.notFound('tenant_not_found', 'Workspace not found.');
     }
 
-    return {
-      organization: {
-        id: organization.id,
-        slug: organization.slug,
-        name: organization.name,
-      },
-      branding: organization.branding
-        ? toBranding(organization.branding)
-        : { ...DEFAULT_BRANDING },
-      locale: {
-        default: toLocale(organization.settings?.defaultLocale),
-        supported: ['fr', 'en'],
-      },
-    };
+    return this.tenantTransaction.withPublicOrganization(organization.id, async (tx) => {
+      const row = await tx.organization.findUnique({
+        where: { id: organization.id },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          branding: true,
+          settings: { select: { defaultLocale: true } },
+        },
+      });
+
+      if (!row) {
+        throw AppException.notFound('tenant_not_found', 'Workspace not found.');
+      }
+
+      return {
+        organization: {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+        },
+        branding: row.branding ? toBranding(row.branding) : { ...DEFAULT_BRANDING },
+        locale: {
+          default: toLocale(row.settings?.defaultLocale),
+          supported: ['fr', 'en'],
+        },
+      };
+    });
   }
 
   async getSettings(): Promise<WorkspaceSettingsView> {

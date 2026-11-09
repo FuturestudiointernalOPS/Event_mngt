@@ -28,8 +28,21 @@ tenant routes (never leakage of existence across tenants).
 | `platform_app` | API runtime | `NOLOGIN`-safe non-owner, RLS applies, least privilege |
 | `platform_migrator` | CI migrations | DDL rights, not used by the API |
 
-The API connects as `platform_app`. Table owners bypass RLS, so running the API as the
-owner silently disables this entire layer — this is checked in deployment review.
+The API connects as `platform_app`. This is not optional: `FORCE ROW LEVEL SECURITY` makes
+policies apply to the table owner, but **Supabase grants `BYPASSRLS` to its `postgres`
+role**, and a bypassing role ignores every policy regardless of `FORCE`. Running the API as
+`postgres` therefore leaves the second layer switched off while looking enabled. Create the
+role with `npm run db:roles`.
+
+Two connection strings are used:
+
+| Variable | Role | Used for |
+| --- | --- | --- |
+| `DATABASE_URL` | owner | Prisma CLI: migrations, generate, seed |
+| `APP_DATABASE_URL` | `platform_app` | the running API |
+
+On the Supabase pooler the username must be `<role>.<project-ref>`; a bare role name is
+rejected with "no tenant identifier provided".
 
 ### Session variables
 
@@ -43,6 +56,30 @@ SELECT set_config('app.current_user_id', $2, true);
 The third argument `true` means transaction-local. A pooled connection therefore returns
 to an empty context on commit or rollback. `TenantTransactionService` is the only place
 that sets these; no feature code issues `SET` statements.
+
+### The three scopes
+
+| Scope | Function | Who | What it can read |
+| --- | --- | --- | --- |
+| Tenant | `withTenant` | an authenticated member | one organisation's rows |
+| Bootstrap | `withUserScope` | sign-in, and tenant resolution | this account's own membership, its organisations and their roles |
+| Public | `withPublicOrganization` | anonymous visitor | one organisation's settings and branding, after a public identifier resolved it |
+
+Bootstrap exists because membership resolution happens **before** a tenant is known. With
+only tenant policies, that query returns nothing and every tenant route fails. The bootstrap
+policies are `SELECT`-only and keyed on `app.current_user_id`.
+
+### What is public
+
+Two policies intentionally expose rows without any context, because that is what a public
+page is:
+
+- `organizations` where `status = 'ACTIVE'` — the workspace identity (id, slug, name).
+- `events` that are `PUBLIC` or `UNLISTED` and not draft, cancelled or archived.
+
+Everything else stays invisible. Settings and branding are **not** public: they are read
+inside the public organisation scope once the slug or the published event has resolved the
+organisation.
 
 ### Policy shape
 

@@ -18,6 +18,13 @@ export const envSchema = z.object({
     .string()
     .min(1, 'DATABASE_URL is required (PostgreSQL connection string)'),
 
+  /**
+   * Runtime connection string. When set, the API connects as this role instead of the
+   * migration owner, which is what makes row-level security apply. Use the non-owner
+   * `platform_app` role. Migrations keep using DATABASE_URL.
+   */
+  APP_DATABASE_URL: z.string().min(1).optional(),
+
   JWT_ACCESS_SECRET: z
     .string()
     .min(32, 'Use at least 32 characters — generate with: openssl rand -base64 48'),

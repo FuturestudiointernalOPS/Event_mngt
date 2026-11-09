@@ -19,7 +19,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force && prisma generate",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:policies": "prisma db execute --file prisma/policies/tenant-rls.sql",
+    "db:roles": "prisma db execute --file prisma/policies/create-app-role.sql"
   },
   "dependencies": {
     "@event-platform/shared": "file:../../packages/shared",

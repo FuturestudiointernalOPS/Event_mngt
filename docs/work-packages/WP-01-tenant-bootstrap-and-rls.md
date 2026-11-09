@@ -76,6 +76,37 @@ to read A's data while claiming B, and a user with no membership must read nothi
 - Migration or script that creates the non-owner role and applies the policy file.
 - Seed: a second organisation with one member, used by the isolation suite.
 
+## Amendments after implementation
+
+The plan above met the code, and three points changed deliberately:
+
+1. **Public reads needed policy.** A strict "no context means zero rows" rule would break
+the public workspace and event pages. Two `SELECT`-only policies expose active
+organisations and published events; settings and branding remain protected and are read
+through the public organisation scope. Acceptance case 2 therefore reads: no context sees
+only what those two policies publish.
+2. **Tenant routes answer uniformly.** An unknown workspace slug used to return 404 while a
+non-member got 403, which revealed whether another organisation exists. Every tenant route
+now answers 403 with the same code.
+3. **The role is mandatory, not advisory.** The connected role turned out to have
+`BYPASSRLS`, so policies were silently inert. The runtime now prefers `APP_DATABASE_URL`
+(the `platform_app` role) while migrations keep using `DATABASE_URL`.
+
+## Handover
+
+- `TenantTransactionService` owns three scopes: `withTenant`, `withUserScope`,
+  `withPublicOrganization`. No other code sets these variables.
+- Tenant resolution and the account's membership list run in the user scope.
+- `npm run db:roles` creates the non-owner role; `npm run db:policies` applies the policy
+  file idempotently.
+- The policy coverage test (`src/database/policies.spec.ts`) fails when a model is added
+  without a policy or without being classified.
+- Verified against the database with the non-owner role: no context reads zero tenant rows,
+  the user scope reads only the caller's memberships, a forged organisation reads nothing,
+  and a cross-tenant insert is refused.
+- Not covered: an end-to-end authenticated tenant request (no credentials available); the
+  same path was exercised directly at the database level.
+
 ## Out of scope
 
 Invitations, audit events, new endpoints.

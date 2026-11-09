@@ -141,11 +141,21 @@ export class EventsService {
   }
 
   /**
-   * Public event context. Runs without a session: the projection is explicit and
-   * visibility is enforced in the query, never by hiding fields in the client.
+   * Public event context. Runs without a session: the event is located through the
+   * public read policy, then the projection is read inside the organisation scope so
+   * branding and settings stay protected. Visibility is enforced in both queries.
    */
   async getPublicContext(eventSlug: string): Promise<PublicEventContext> {
-    const row = await this.events.findPublicContext(eventSlug);
+    const located = await this.events.findPublicEventLocation(eventSlug);
+
+    if (!located) {
+      throw AppException.notFound('not_found', 'Event not found.');
+    }
+
+    const row = await this.tenantTransaction.withPublicOrganization(
+      located.organizationId,
+      (tx) => this.events.findPublicContextById(tx, located.id, located.organizationId),
+    );
 
     if (!row) {
       throw AppException.notFound('not_found', 'Event not found.');

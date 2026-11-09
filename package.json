@@ -24,7 +24,10 @@
     "db:migrate": "npm run db:migrate -w @event-platform/api",
     "db:deploy": "npm run db:deploy -w @event-platform/api",
     "db:seed": "npm run db:seed -w @event-platform/api",
-    "db:studio": "npm run db:studio -w @event-platform/api"
+    "db:studio": "npm run db:studio -w @event-platform/api",
+    "db:policies": "npm run db:policies -w @event-platform/api",
+    "check:policies": "npm run test -w @event-platform/api -- src/database/policies.spec.ts",
+    "db:roles": "npm run db:roles -w @event-platform/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

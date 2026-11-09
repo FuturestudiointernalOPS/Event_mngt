@@ -1,19 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import type {
-  CurrentUserResponse,
-  LoginRequest,
-  MembershipSummary,
-  SessionSummary,
-} from '@event-platform/shared';
+import type { CurrentUserResponse, LoginRequest, SessionSummary } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import { generateOpaqueToken, hashOpaqueToken, ttlToSeconds } from '../../common/utils/tokens';
 import type { Env } from '../../config/env.validation';
-import { MemberStatus, OrganizationStatus, UserStatus } from '../../database/prisma-client';
+import { UserStatus } from '../../database/prisma-client';
 import { PrismaService } from '../../database/prisma.service';
-import { toAuthUser, toMembershipSummary, toSessionSummary, USER_SELECT, type UserRecord } from './auth.mapper';
+import { toAuthUser, toSessionSummary, USER_SELECT, type UserRecord } from './auth.mapper';
 import type { LoginResult, RefreshedSession, SessionMeta } from './auth.types';
+import { AccountMembershipsService } from './account-memberships.service';
 import { equaliseTiming, verifyPassword } from './credentials';
 
 /**
@@ -28,6 +24,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly memberships: AccountMembershipsService,
   ) {}
 
   async login(input: LoginRequest, meta: SessionMeta): Promise<LoginResult> {
@@ -81,7 +78,7 @@ export class AuthService {
     return {
       session: {
         user: toAuthUser(user),
-        memberships: await this.loadMemberships(user.id),
+        memberships: await this.memberships.list(user.id),
         accessToken: await this.signAccessToken(user, session.id),
         expiresIn: this.accessTokenTtlSeconds(),
       },
@@ -183,7 +180,7 @@ export class AuthService {
 
     return {
       user: toAuthUser(user),
-      memberships: await this.loadMemberships(user.id),
+      memberships: await this.memberships.list(user.id),
     };
   }
 
@@ -212,28 +209,6 @@ export class AuthService {
     if (result.count === 0) {
       throw AppException.notFound('not_found', 'Session not found.');
     }
-  }
-
-  private async loadMemberships(userId: string): Promise<MembershipSummary[]> {
-    const memberships = await this.prisma.organizationMember.findMany({
-      where: {
-        userId,
-        status: MemberStatus.ACTIVE,
-        organization: { status: OrganizationStatus.ACTIVE },
-      },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        organization: { select: { id: true, slug: true, name: true } },
-        role: {
-          select: {
-            key: true,
-            permissions: { select: { permission: { select: { key: true } } } },
-          },
-        },
-      },
-    });
-
-    return memberships.map(toMembershipSummary);
   }
 
   private async revokeAllSessions(userId: string): Promise<void> {
