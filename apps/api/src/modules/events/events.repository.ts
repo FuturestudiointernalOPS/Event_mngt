@@ -83,6 +83,27 @@ export class EventsRepository {
     });
   }
 
+  update(
+    tx: TenantPrismaClient,
+    eventId: string,
+    data: Prisma.EventUpdateInput,
+  ): Promise<EventWithModules> {
+    return tx.event.update({ where: { id: eventId }, data, include: { modules: true } });
+  }
+
+  setStatus(
+    tx: TenantPrismaClient,
+    eventId: string,
+    status: EventStatus,
+    publishedAt?: null,
+  ): Promise<EventWithModules> {
+    return tx.event.update({
+      where: { id: eventId },
+      data: { status, ...(publishedAt === null ? { publishedAt: null } : {}) },
+      include: { modules: true },
+    });
+  }
+
   findSlugConflict(
     tx: TenantPrismaClient,
     organizationId: string,

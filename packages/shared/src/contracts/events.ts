@@ -22,12 +22,17 @@ export type EventFormat = z.infer<typeof eventFormatSchema>;
 
 const isoDateTimeSchema = z.iso.datetime({ offset: true });
 
+/**
+ * Field definitions without defaults. Defaults belong to creation only: if they lived
+ * here, `.partial()` would still apply them and a PATCH of `{ name }` would silently
+ * reset format and visibility.
+ */
 const eventFieldsSchema = z.object({
     name: z.string().trim().min(3).max(180),
     slug: slugSchema.optional(),
     description: z.string().trim().max(4000).optional(),
-    format: eventFormatSchema.default('IN_PERSON'),
-    visibility: eventVisibilitySchema.default('PRIVATE'),
+    format: eventFormatSchema,
+    visibility: eventVisibilitySchema,
     timeZone: z.string().trim().min(1).max(64),
     startsAt: isoDateTimeSchema,
     endsAt: isoDateTimeSchema,
@@ -36,7 +41,12 @@ const eventFieldsSchema = z.object({
     parentEventId: uuidSchema.optional(),
   });
 
-export const createEventRequestSchema = eventFieldsSchema.refine(
+export const createEventRequestSchema = eventFieldsSchema
+  .extend({
+    format: eventFormatSchema.default('IN_PERSON'),
+    visibility: eventVisibilitySchema.default('PRIVATE'),
+  })
+  .refine(
   (value) => new Date(value.endsAt) > new Date(value.startsAt),
   {
     message: 'The end must be after the start',
