@@ -11,6 +11,8 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import { assertCanBeParent } from './editions.rules';
+import { INITIAL_MODULE_KEYS } from './events.constants';
 import { assertPublishable, shouldActivatePublishingModule } from './events.lifecycle';
 import { toDetail, toSummary } from './events.mapper';
 import { toPublicContext, type PublicEventContext } from './events.projection';
@@ -20,7 +22,6 @@ import { EventsRepository } from './events.repository';
 export type { PublicEventContext } from './events.projection';
 
 /** Modules every new event starts with. Publishing adds its own module later. */
-const INITIAL_MODULE_KEYS = ['core', 'reporting'];
 
 /**
  * Event container: lifecycle, visibility and editions.
@@ -79,7 +80,7 @@ export class EventsService {
       }
 
       if (input.parentEventId) {
-        const parent = await this.events.existsById(
+        const parent = await this.events.findParentForCreate(
           tx,
           tenant.organizationId,
           input.parentEventId,
@@ -90,6 +91,9 @@ export class EventsService {
             'The parent event does not exist in this workspace.',
           );
         }
+
+        // Depth is one, whichever route creates the edition.
+        assertCanBeParent(parent);
       }
 
       const created = await this.events.create(tx, {

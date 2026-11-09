@@ -8,6 +8,7 @@ export const AUDIT_ACTIONS = {
   brandingUpdated: 'workspace.branding.updated',
   settingsUpdated: 'workspace.settings.updated',
   eventPublished: 'event.published',
+  eventModulesUpdated: 'event.modules.updated',
   memberInvited: 'member.invited',
   memberRoleChanged: 'member.role.changed',
   memberRemoved: 'member.removed',

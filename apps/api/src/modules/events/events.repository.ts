@@ -94,14 +94,14 @@ export class EventsRepository {
     });
   }
 
-  existsById(
+  findParentForCreate(
     tx: TenantPrismaClient,
     organizationId: string,
     eventId: string,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; parentEventId: string | null } | null> {
     return tx.event.findFirst({
       where: { id: eventId, organizationId },
-      select: { id: true },
+      select: { id: true, parentEventId: true },
     });
   }
 
