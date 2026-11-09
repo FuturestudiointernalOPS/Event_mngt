@@ -236,3 +236,17 @@ Nest packages is a bug in its own right, independent of any CVE score.
 - Before the registration endpoints ship (Zod).
 - When the file-upload/storage adapter lands (multer exposure becomes real).
 - Any time `npm audit` reports a *critical* in a package that runs server-side.
+
+
+## Dependencies added after Phase 1
+
+| Package | Where | Why |
+| --- | --- | --- |
+| `@nestjs/throttler` | api | Per-IP rate limiting; stricter limits on login, registration, password reset |
+| `bullmq`, `ioredis` | api | Queued e-mail with retry, daily retention sweep. BullMQ 6 needs `ioredis` installed explicitly and connects with host/port options (not a URL) |
+| `@aws-sdk/client-s3` | api | S3-compatible object storage adapter |
+| `qrcode`, `jsqr` (+ `@types/qrcode`) | web | Render badge QR codes locally; decode them from the camera. No third-party QR service |
+| `axe-core`, `@axe-core/playwright` | web (dev) | Accessibility checks in browser tests |
+
+Notes: TOTP and AES-GCM secret storage are implemented with Node's `crypto` (no dependency)
+and covered by the RFC 6238 test vectors. Never run `npm audit fix` (see `AGENTS.md`).

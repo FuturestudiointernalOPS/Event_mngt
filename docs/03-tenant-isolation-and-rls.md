@@ -130,3 +130,27 @@ SELECT count(*) FROM events;
 ```
 
 Run against the application role, not the owner.
+
+
+## Update: pre-tenant reads and the Super Admin scope
+
+Row-level security is **enforced end to end** and the API works with it on. Three kinds of
+read happen before a tenant is known, so they have their own narrow, SELECT-only policies
+(see `apps/api/prisma/policies/tenant-rls.sql`):
+
+- **Public identity**: an active organisation's name/slug, its branding and settings, and
+  *published* public/unlisted events (`*_public_read`). Needed for tenant shells and public
+  pages.
+- **Own memberships**: `app.current_user_id` lets a signed-in user read their own
+  membership and role rows (for `/auth/me` and membership resolution).
+- **Platform administration**: `app.platform_admin = 'true'`, set only by
+  `TenantTransactionService.withPlatform()` after the caller's flag was re-read from the
+  database, grants cross-tenant reads and organisation status changes.
+
+Writes are never widened: they stay bound to the caller's own `app.current_organization_id`.
+The participant portal and public registration enter an organisation's scope with
+`withOrganization()`, where the organisation id is either derived from a public event slug
+or proven by a secret credential, never trusted from a request.
+
+The isolation spec enforces the property structurally: any table with an `organization_id`
+column must have RLS forced and at least one policy.

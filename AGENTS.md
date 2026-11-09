@@ -67,6 +67,15 @@ Also confirm by hand for data-touching work: tenant predicate present, no databa
 in a controller or component, no file crossed 300 lines, and a test exists for the logic you
 added.
 
+## Running it locally
+
+```sh
+npm run local:setup   # Docker Postgres + Redis, migrations, RLS, runtime role, apps/api/.env
+npm run dev           # API :4000, web :5173 (e-mails are printed in the API log)
+```
+
+Deployment and operations: `docs/15-deployment-and-operations.md`.
+
 ## Traps that have already cost time
 
 - **Never run `npm audit fix`** — it downgrades to escape advisory ranges. `--force` is
@@ -78,5 +87,11 @@ added.
   `sslmode=no-verify` (the pooler's certificate chain is not trusted by Node).
 - A stale incremental build cache can replay errors that are already fixed. Delete the
   build cache before concluding that a config change failed.
-- Do not enable the row-level isolation policy until membership lookup happens after tenant
-  context exists. See `docs/03`.
+- Row-level security is now enforced end to end and the API works with it on. Reads that
+  happen before a tenant is known (workspace/public context, own memberships) rely on the
+  SELECT-only policies in `apps/api/prisma/policies/tenant-rls.sql`; apply the whole file with
+  the migrations, and run the API as the non-owner `platform_app` role. A new table with
+  `organization_id` must be added to that file (the isolation spec fails if it is not).
+- HTTP journey specs live in `apps/api/test/*.e2e-spec.ts` and are skipped unless
+  `E2E_BASE_URL`, `TEST_OWNER_DATABASE_URL` and `TEST_APP_DATABASE_URL` are set (a running API
+  against a database with the migrations, RLS and permission seed applied).

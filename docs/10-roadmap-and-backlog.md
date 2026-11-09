@@ -3,6 +3,8 @@
 Indicative: **12–17 weeks** for a focused team of 2–4 developers, backend and frontend in
 parallel. A planning estimate, not a commitment.
 
+> **Status:** phases 1–6 are implemented; see [14-implementation-status.md](14-implementation-status.md).
+
 ## Phases
 
 | Phase | Scope | Est. | Exit criteria |

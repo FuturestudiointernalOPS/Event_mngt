@@ -24,6 +24,9 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [11-open-decisions.md](11-open-decisions.md) | Unresolved product/business questions with owners |
 | [12-dependency-and-security.md](12-dependency-and-security.md) | Audit posture, applied upgrades, deferred migrations, re-review triggers |
 | [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → model, tenancy, enforcement |
+| [14-implementation-status.md](14-implementation-status.md) | What is built, deviations from the plans, quality evidence, known limits |
+| [15-deployment-and-operations.md](15-deployment-and-operations.md) | Supabase, configuration, processes, backups, security checklist, runbook |
+| [16-beta-runbook.md](16-beta-runbook.md) | Innovation Village beta: configure, simulate, run, roll back |
 
 ## Decisions already made (do not re-litigate without cause)
 
