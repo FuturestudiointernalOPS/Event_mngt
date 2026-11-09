@@ -20,6 +20,7 @@ import {
 import { AppException } from '../../common/app-exception';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { generateOpaqueToken } from '../../common/utils/tokens';
@@ -49,6 +50,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @RateLimit({ bucket: 'auth-register', key: 'ip' })
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   register(
@@ -58,6 +60,7 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit({ bucket: 'auth-verify', key: 'ip' })
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   verifyEmail(
@@ -67,6 +70,10 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit(
+    { bucket: 'auth-login-ip', key: 'ip' },
+    { bucket: 'auth-login-email', key: 'email' },
+  )
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -80,6 +87,7 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit({ bucket: 'auth-refresh', key: 'ip' })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
@@ -114,6 +122,10 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit(
+    { bucket: 'auth-forgot-ip', key: 'ip' },
+    { bucket: 'auth-forgot-email', key: 'email' },
+  )
   @Post('forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   async forgotPassword(
@@ -124,6 +136,7 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit({ bucket: 'auth-reset', key: 'ip' })
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(

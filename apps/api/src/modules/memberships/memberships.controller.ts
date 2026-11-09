@@ -21,6 +21,7 @@ import {
   type UpdateMemberRoleRequest,
 } from '@event-platform/shared';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { InvitationsService } from './invitations.service';
@@ -55,6 +56,7 @@ export class MembershipsController {
 
   @TenantScoped('slug')
   @RequirePermissions(PERMISSIONS.memberManage)
+  @Idempotent()
   @Post(':slug/invitations')
   invite(
     @Body(new ZodValidationPipe(inviteMemberRequestSchema)) body: InviteMemberRequest,

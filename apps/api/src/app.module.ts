@@ -3,6 +3,10 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
+import { IdempotencyModule } from './common/idempotency/idempotency.module';
+import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TenantAccessGuard } from './common/guards/tenant-access.guard';
@@ -18,6 +22,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { HealthModule } from './modules/health/health.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
+import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
@@ -34,6 +39,8 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     CoreConfigModule,
     DatabaseModule,
     IntegrationsModule,
+    IdempotencyModule,
+    RateLimitModule,
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
@@ -51,13 +58,16 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     AuthModule,
     WorkspacesModule,
     MembershipsModule,
+    ModuleRegistryModule,
     EventsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantAccessGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ResponseEnvelopeInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],

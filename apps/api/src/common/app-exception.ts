@@ -14,6 +14,8 @@ export class AppException extends HttpException {
     public readonly code: string,
     message: string,
     public readonly details?: unknown,
+    /** Extra response headers, e.g. Retry-After on a rate-limit refusal. */
+    public readonly headers?: Record<string, string>,
   ) {
     super({ code, message, details }, status);
   }
@@ -40,5 +42,19 @@ export class AppException extends HttpException {
 
   static unprocessable(code: string, message: string, details?: unknown): AppException {
     return new AppException(HttpStatus.UNPROCESSABLE_ENTITY, code, message, details);
+  }
+
+  static tooManyRequests(
+    code: string,
+    message: string,
+    retryAfterSeconds: number,
+  ): AppException {
+    return new AppException(
+      HttpStatus.TOO_MANY_REQUESTS,
+      code,
+      message,
+      undefined,
+      { 'Retry-After': String(retryAfterSeconds) },
+    );
   }
 }

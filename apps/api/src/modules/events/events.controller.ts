@@ -17,6 +17,7 @@ import {
   listEventsQuerySchema,
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -44,6 +45,7 @@ export class EventsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.eventManage)
+  @Idempotent()
   create(
     @Body(new ZodValidationPipe(createEventRequestSchema)) body: CreateEventRequest,
     @CurrentUser() user: AuthenticatedUser,

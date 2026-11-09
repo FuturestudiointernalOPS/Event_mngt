@@ -7,6 +7,7 @@ export interface NormalizedError {
   code: string;
   message: string;
   details?: unknown;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -22,6 +23,23 @@ export function normalizeException(exception: unknown): NormalizedError {
       code: exception.code,
       message: exception.message,
       details: exception.details,
+      headers: exception.headers,
+    };
+  }
+
+  if (isMulterError(exception)) {
+    if (exception.code === 'LIMIT_FILE_SIZE') {
+      return {
+        status: HttpStatus.PAYLOAD_TOO_LARGE,
+        code: 'file_too_large',
+        message: 'The uploaded file is too large.',
+      };
+    }
+
+    return {
+      status: HttpStatus.BAD_REQUEST,
+      code: 'invalid_upload',
+      message: 'The upload could not be read.',
     };
   }
 
@@ -94,6 +112,14 @@ function fromPrismaError(exception: Prisma.PrismaClientKnownRequestError): Norma
   }
 }
 
+function isMulterError(exception: unknown): exception is { code: string } {
+  return (
+    typeof exception === 'object' &&
+    exception !== null &&
+    (exception as { name?: unknown }).name === 'MulterError'
+  );
+}
+
 function defaultCode(status: number): string {
   switch (status) {
     case HttpStatus.BAD_REQUEST:
@@ -110,6 +136,8 @@ function defaultCode(status: number): string {
       return 'unprocessable';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'rate_limited';
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return 'file_too_large';
     case HttpStatus.SERVICE_UNAVAILABLE:
       return 'service_unavailable';
     default:
