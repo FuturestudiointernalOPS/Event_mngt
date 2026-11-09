@@ -33,7 +33,12 @@ const SKIP_DIRS = new Set(['node_modules', 'generated', 'dist', 'coverage']);
 const DB_ACCESS_DIRS = ['apps/api/src/database'];
 const DB_ACCESS_FILES = ['apps/api/prisma/seed.ts'];
 const ENV_ACCESS_DIRS = ['apps/api/src/config'];
-const ENV_ACCESS_FILES = ['apps/api/prisma/seed.ts', 'apps/api/prisma.config.ts'];
+const ENV_ACCESS_FILES = [
+  'apps/api/prisma/seed.ts',
+  'apps/api/prisma.config.ts',
+  // Integration test: needs the owner and app database URLs, not application config.
+  'apps/api/src/database/tenant-isolation.spec.ts',
+];
 
 const MODULE_PATH = /^apps\/api\/src\/modules\/([^/]+)\//;
 const INTERNAL_LAYER =
