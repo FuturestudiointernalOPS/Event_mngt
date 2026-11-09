@@ -89,8 +89,9 @@ graph TD
 
 ## Packages
 
-Briefs exist for every package in waves 0 and 1. Later briefs are written when their wave
-opens, so they describe the code that exists by then instead of guessing.
+Briefs exist for waves 0, 1 and 3. Wave 2's briefs are written when that wave opens, so
+they describe the code that exists by then instead of guessing. Wave 3 was written early to
+record its prerequisites; it stays blocked until wave 2 lands.
 
 **Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log)
 and WP-04 (memberships and invitations).
@@ -123,8 +124,8 @@ and WP-04 (memberships and invitations).
 
 ### Wave 3 briefs
 
-Wave 3 is now written but **cannot run**: every package depends on a wave 2 package that does
-not exist in the tree yet.
+Wave 3 is written but **cannot run yet**: every package depends on a wave 2 package that does
+not exist in the tree.
 
 | Package | Brief | Blocked by |
 | --- | --- | --- |
@@ -132,12 +133,25 @@ not exist in the tree yet.
 | WP-16 Offline sync | [WP-16-offline-sync.md](work-packages/WP-16-offline-sync.md) | WP-15, WP-08 |
 | WP-17 Meetings + introductions | [WP-17-meetings-and-introductions.md](work-packages/WP-17-meetings-and-introductions.md) | WP-05, WP-14 (profiles) |
 
-Current tree state: WP-01 is applied; waves 1 and 2 are not implemented, the schema still
-stops at Phase 1, and no wave 2 briefs exist. Running a wave 3 package now would force it to
-invent the `badges`, `registrations`, `participant_profiles` and `check_ins` tables that WP-13,
-WP-10 and WP-14 own — the exact conflict the wave model forbids. The order to restore is:
-wave 1 briefs and code, then wave 2, then wave 3. Each wave 3 brief repeats this prerequisite
-table at its top.
+### Wave 1 status — complete
+
+Waves 0 and 1 are implemented and their migrations are applied:
+
+| Package | State |
+| --- | --- |
+| WP-01 Tenant bootstrap + RLS | applied |
+| WP-02 Isolation suite | executable (`npm run test:isolation`) |
+| WP-03 Audit log | applied (`common/audit`, `modules/audit`) |
+| WP-04 Memberships + invitations | applied (`modules/memberships`, `invitations` table) |
+| WP-05 Module registry | applied (`modules/module-registry`) |
+| WP-06 Editions + recurrence | applied (`editions.*` inside `modules/events`) |
+| WP-07 Brand assets | applied (`branding-assets.*` inside `modules/workspaces`) |
+| WP-08 Idempotency + rate limits | applied (`common/idempotency`, `common/rate-limit`) |
+
+Wave 2 is the next wave: its briefs are not written and WP-09..WP-14 are not implemented.
+The schema now includes invitations, idempotency records and rate-limit counters, but still
+has no registration, profile or badge tables. Wave 3 stays blocked on wave 2, not on wave 1.
+Each wave 3 brief repeats the prerequisite table at its top.
 
 ## Conflict checklist before starting a package
 

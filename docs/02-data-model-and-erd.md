@@ -96,6 +96,9 @@ erDiagram
 | `workspace_branding` | Logo, colour tokens, appearance | `organization_id` unique |
 | `events` | Event container, lifecycle, visibility | `(organization_id, slug)` unique; `parent_event_id` self-relation |
 | `event_modules` | Enabled modules per event | `(event_id, module_key)` unique; `settings` JSONB |
+| `invitations` | Pending workspace invitations | `token_hash` unique; expires and is consumed once |
+| `idempotency_records` | Short-lived replay cache for `Idempotency-Key` | `(scope, key)` unique; `expires_at` |
+| `rate_limit_counters` | Fixed-window rate-limit counters | PK `(key, window_start)` |
 | `audit_logs` | Append-only sensitive action log | index on `(organization_id, created_at)` |
 
 ### Why title-case Prisma models but snake_case tables

@@ -133,6 +133,19 @@ metadata. Pure unit tests are unaffected. The first test that instantiates a Nes
 through dependency injection needs the SWC plugin (`unplugin-swc`); add it when that test
 appears, not before.
 
+### Rate limiting and idempotency (WP-08)
+
+No new dependency was added. `@nestjs/throttler` would add a package, and a Redis-backed
+limiter is premature before the worker queue lands. The implementation is database-backed
+instead, so it survives a restart and works across API instances:
+
+- `rate_limit_counters` is incremented with one atomic upsert per request; the window and
+  budget are environment configuration.
+- `idempotency_records` stores a pending row before the handler runs and fills in the
+  response afterwards, so a concurrent replay is refused rather than duplicated.
+
+Revisit the limiter when Redis/BullMQ is introduced; only the repository method changes.
+
 ## Deferred, with reasons
 
 ### `@nestjs/cli` 11 → 12 (and the Nest 12 family)

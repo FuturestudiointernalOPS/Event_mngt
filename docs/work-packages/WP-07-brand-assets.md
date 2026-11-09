@@ -53,3 +53,17 @@ tokens and contrast warnings are untouched by this package.
 ## Out of scope
 
 Image resizing, CDN invalidation, and uploading event-level branding (Phase 2).
+
+## Handover
+
+- Implemented as `branding-assets.controller.ts`-equivalent route on `WorkspacesController`,
+  plus `branding-assets.service.ts` and `branding-assets.rules.ts` in `modules/workspaces/`.
+- `POST /workspaces/:slug/branding/assets/:kind` accepts `logo`, `logoDark` and `favicon`.
+  PNG/JPEG/WebP are allowed; SVG is refused. Size and magic bytes are checked in memory
+  before `StoragePort.upload` is called.
+- Object keys are content-addressed (`<org>/branding/<kind>-<hash>.<ext>`); the stored URL
+  is written to `workspace_branding` and returned by the workspace context.
+- Risk: `StoragePort` accepts a `Buffer`, so a real S3 adapter should stream from that buffer
+  rather than the port accepting a stream. The console adapter is the default and is covered
+  by the service spec. The upload happens before the branding row is written, so a database
+  failure can leave an unreferenced object; a periodic bucket reconciliation is a follow-up.

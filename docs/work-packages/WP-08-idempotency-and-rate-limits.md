@@ -69,3 +69,24 @@ body, created at, expires at; unique on `(organizationId, key)`. Do not edit the
 ## Out of scope
 
 Distributed locks, per-user quotas, and billing.
+
+## Handover
+
+- Implemented in `common/idempotency/` and `common/rate-limit/`; both modules are global.
+  `Idempotent()` is applied to event creation, edition creation and invitation creation;
+  `RateLimit()` is applied to register, verify-email, login, refresh, forgot-password and
+  reset-password.
+- Idempotency stores a pending row before the handler runs, then the response, keyed by
+  `(scope, key)` and scoped by organisation, account or anonymous route+address. Concurrent
+  replays get `idempotency_in_progress`; a different payload gets `idempotency_conflict`.
+  Only successful (2xx) handler output is stored; a failed handler releases its pending row
+  so it can be retried. `@Idempotent()` is deliberately not applied to authentication routes,
+  so no session token can be captured in the replay cache.
+- Rate limits use a fixed window with one atomic upsert; `Retry-After` is returned on a 429.
+  Account identifiers are hashed, so the counter table is not an email list.
+- Deviation recorded in `docs/12`: a database-backed implementation was chosen instead of
+  adding `@nestjs/throttler`; Redis can replace the repository method later.
+- Risk: expired idempotency rows and old rate-limit windows are not pruned periodically.
+  Lazy expiry handles a reused key; a cleanup job belongs in wave 5. Anonymous idempotency
+  rows have no organisation and are reachable without tenant context by design; they expire
+  with the rest of the cache.

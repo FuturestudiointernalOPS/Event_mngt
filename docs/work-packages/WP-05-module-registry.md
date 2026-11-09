@@ -49,3 +49,16 @@ catalogue in the API.
 ## Out of scope
 
 Per-module feature implementation (that is the module's own package) and pricing/entitlements.
+
+## Handover
+
+- Implemented in `modules/module-registry/`: `GET /modules`, and
+  `GET/PATCH /workspaces/:slug/events/:eventId/modules`.
+- The service projects the shared catalogue, applies changes inside one tenant transaction,
+  validates dependency closure and settings, and preserves stored settings when a module is
+  disabled and re-enabled. `core` is refused as a disable target.
+- Rules are pure and tested (`module-registry.rules.spec.ts`): known keys, duplicate changes,
+  core, missing dependencies and required-by-other.
+- Risk: catalogue `name`/`summary` are the English registry strings; the localised keys
+  described in `docs/06` remain a frontend concern. No database integration test runs the
+  routes; the rules and the API boot are covered.

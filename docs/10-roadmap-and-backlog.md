@@ -135,7 +135,8 @@ instrumentation for the learning objectives.
 
 ## Current status
 
-Phase 1 scaffolding: architecture documentation, monorepo, shared contracts, API
-foundation (config, Prisma, tenant context, guards, envelope, health) and the web
-foundation (router, providers, branding host, API client, feature skeletons). Domain
-behaviour follows E2 onward.
+Foundation, tenancy, workspace/branding, events/editions and the module registry are
+implemented, together with the audit trail, memberships and invitations, brand asset uploads,
+and idempotency/rate limits (work packages WP-01..WP-08). The tenant-isolation suite runs
+against a real database. Registration, profiles, badges, event operations and reporting
+remain; those are wave 2 onward in `14-backend-work-packages.md`.

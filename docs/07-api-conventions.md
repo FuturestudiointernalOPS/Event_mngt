@@ -78,6 +78,12 @@ Rules:
 `module_dependency_unmet`, `registration_closed`, `duplicate_registration`,
 `rate_limited`, `internal_error`.
 
+Module activation and uploads add: `invalid_module`, `module_core_required`,
+`module_dependency_missing`, `module_required_by_other`, `invalid_module_settings`,
+`invalid_module_change`, `invalid_idempotency_key`, `idempotency_conflict`,
+`idempotency_in_progress`, `file_required`, `file_too_large`, `file_type_not_allowed`,
+`file_type_mismatch`.
+
 ## Versioning
 
 - The major version lives in the path (`/api/v1`). Breaking changes create `/api/v2`; v1

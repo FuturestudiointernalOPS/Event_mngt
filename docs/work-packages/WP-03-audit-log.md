@@ -57,6 +57,20 @@ next wave applies them.
 
 Exporting the log, alerting, and log shipping.
 
+## Handover
+
+- Implemented in `common/audit/` (actions, redaction, mapper, repository, service) and
+  `modules/audit/` (read-only controller).
+- `AuditService.record()` is called by auth, workspace settings/branding, event publish,
+  invitations and membership changes. Failures are logged and swallowed, by design.
+- The route is `GET /workspaces/:slug/audit`, paginated newest first; there is no update or
+  delete path.
+- Coverage: redaction spec, policy-coverage spec, and the isolation suite. There is no
+  database integration test for `record()`/`list()`; the logic is thin and the policy is
+  tested, but this is the remaining gap.
+- Risk: the read policy is permissive on `organization_id IS NULL` rows for the actor; only
+  the insert path creates them, and neither can be edited.
+
 ## Delivered
 
 - `GET /workspaces/:slug/audit`, newest first, paginated, permission `audit:read`.

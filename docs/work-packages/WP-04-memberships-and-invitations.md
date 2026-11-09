@@ -62,6 +62,21 @@ edit the schema yourself.
 
 Custom roles beyond the system templates, SSO, and bulk import.
 
+## Handover
+
+- Implemented in `modules/memberships/` with `Invitation` in the schema and its own
+  migration. `GET /workspaces/:slug/members`, `GET /workspaces/:slug/roles`,
+  `POST /workspaces/:slug/invitations`, `PATCH/DELETE /workspaces/:slug/members/:memberId`,
+  and `POST /auth/invitations/:token/accept`.
+- Only a token hash is stored; expiry, single use and email matching are in
+  `memberships.rules.ts` and tested. The last-administrator rule is enforced on role change
+  and removal.
+- Accepting runs in the user scope to read the invitation, then in the organisation scope to
+  consume it and create the membership; the conditional update makes a concurrent accept
+  impossible.
+- Risk: there is no provider-wiring test (the known test-harness gap in `docs/12`); the
+  routes are exercised only when the API boots.
+
 ## Delivered
 
 - Five routes plus one: list members, list roles, invite, accept, change role, remove. The

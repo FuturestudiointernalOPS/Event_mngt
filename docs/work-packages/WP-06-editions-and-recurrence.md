@@ -51,3 +51,16 @@ None. The relation, the routes' controller and the module registration already e
 
 Recurring schedules (RRULE), automatic edition generation, and copying content between
 editions.
+
+## Handover
+
+- Implemented as `editions.controller.ts`, `editions.service.ts`, `editions.repository.ts`
+  and `editions.rules.ts` inside `modules/events/`.
+- Routes: `GET/POST /workspaces/:slug/events/:eventId/editions` and
+  `GET .../editions/:editionId`. Depth is one, slugs stay unique per organisation, and every
+  query carries both the organisation and parent predicates.
+- The general event-create route now applies the same depth rule when it receives
+  `parentEventId`, so the two creation paths cannot disagree.
+- Publishing an edition reuses the existing event publish route and lifecycle rules.
+- Risk: the general event list still includes editions; that is intentional (acceptance 1),
+  but a future “series only” filter will need an explicit query parameter.

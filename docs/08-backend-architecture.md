@@ -50,7 +50,7 @@ src/modules/
   reports/              aggregates, CSV/PDF exports
   analytics/            live operational metrics
   consent/              consent purposes, versions, records
-  audit-logs/           append-only sensitive action log
+  audit/                append-only sensitive action log
 ```
 
 Folder convention:
