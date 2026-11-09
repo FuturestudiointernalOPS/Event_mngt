@@ -43,7 +43,7 @@ export function EmptyState({
   return (
     <div className="rounded-brand border border-dashed border-brand-primary/20 p-10 text-center">
       <p className="font-medium text-brand-text">{title}</p>
-      {description ? <p className="mt-1 text-sm text-brand-text/60">{description}</p> : null}
+      {description ? <p className="mt-1 text-sm text-brand-text/70">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );

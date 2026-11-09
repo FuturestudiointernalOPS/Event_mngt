@@ -1,4 +1,5 @@
 import type { TranslationKey } from './en';
+import { frFeatures } from './fr.features';
 
 export const fr: Record<TranslationKey, string> = {
   'app.name': 'Plateforme Événementielle',
@@ -87,4 +88,5 @@ export const fr: Record<TranslationKey, string> = {
 
   'notFound.title': 'Page introuvable',
   'notFound.body': 'La page que vous cherchez n’existe pas.',
+  ...frFeatures,
 };

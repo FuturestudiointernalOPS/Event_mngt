@@ -25,6 +25,8 @@ export default defineConfig({
     // spec coverage.
     environment: 'happy-dom',
     globals: true,
+    // Playwright specs run with `npm run e2e`, not under Vitest.
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     setupFiles: ['./src/test/setup.ts'],
   },
 });

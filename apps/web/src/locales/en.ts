@@ -1,3 +1,4 @@
+import { enFeatures } from './en.features';
 export const en = {
   'app.name': 'Event Platform',
   'common.loading': 'Loading…',
@@ -81,6 +82,7 @@ export const en = {
 
   'notFound.title': 'Page not found',
   'notFound.body': 'The page you are looking for does not exist.',
+  ...enFeatures,
 } as const;
 
 export type TranslationKey = keyof typeof en;

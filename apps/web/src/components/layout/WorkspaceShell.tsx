@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { BrandLogo } from '@/components/branding/BrandLogo';
 import { ThemeProvider } from '@/components/branding/ThemeProvider';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { cn } from '@/lib/cn';
+import { useSessionStore } from '@/stores/session.store';
 import { queryKeys } from '@/lib/query-keys';
 import { authApi } from '@/services/auth.api';
 import { workspacesApi } from '@/services/workspaces.api';
@@ -23,6 +24,10 @@ export function WorkspaceShell(): JSX.Element {
   const { slug = '' } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { t, locale, setLocale } = useI18n();
+  // Hooks must run before any early return below.
+  const permissions = useSessionStore(
+    (state) => state.memberships.find((m) => m.organizationSlug === slug)?.permissions ?? [],
+  );
 
   const contextQuery = useQuery({
     queryKey: queryKeys.workspaceContext(slug),
@@ -58,7 +63,10 @@ export function WorkspaceShell(): JSX.Element {
   const navigation = [
     { to: `/workspace/${slug}`, label: t('nav.dashboard'), end: true },
     { to: `/workspace/${slug}/events`, label: t('nav.events'), end: false },
+    { to: `/workspace/${slug}/team`, label: t('nav.team'), end: false },
     { to: `/workspace/${slug}/settings/branding`, label: t('nav.branding'), end: false },
+    ...(permissions.includes('workspace:manage') ? [{ to: `/workspace/${slug}/settings/privacy`, label: t('nav.privacy'), end: false }] : []),
+    ...(permissions.includes('audit:read') ? [{ to: `/workspace/${slug}/audit`, label: t('nav.audit'), end: false }] : []),
   ];
 
   return (
@@ -85,6 +93,8 @@ export function WorkspaceShell(): JSX.Element {
                 <option value="fr">FR</option>
                 <option value="en">EN</option>
               </select>
+
+              <Link to="/account/security" className="text-sm underline">{t('nav.security')}</Link>
 
               <Button
                 variant="ghost"

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginRequestSchema, type LoginRequest } from '@event-platform/shared';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { ThemeProvider } from '@/components/branding/ThemeProvider';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,13 @@ import { useSessionStore } from '@/stores/session.store';
 export default function LoginPage(): JSX.Element {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Only same-site paths are honoured, so the parameter cannot redirect off-site.
+  const requested = params.get('next');
+  const next = requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : null;
   const [failure, setFailure] = useState<string | null>(null);
+  const [needsCode, setNeedsCode] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
   const status = useSessionStore((state) => state.status);
   const memberships = useSessionStore((state) => state.memberships);
 
@@ -29,18 +35,22 @@ export default function LoginPage(): JSX.Element {
 
   if (status === 'authenticated') {
     const first = memberships[0];
-    return <Navigate to={first ? `/workspace/${first.organizationSlug}` : '/participant'} replace />;
+    return <Navigate to={next ?? (first ? `/workspace/${first.organizationSlug}` : '/onboarding')} replace />;
   }
 
   const onSubmit = handleSubmit(async (values) => {
     setFailure(null);
     try {
-      const session = await authApi.login(values);
+      const session = await authApi.login(needsCode ? { ...values, mfaCode } : values);
       const first = session.memberships[0];
-      navigate(first ? `/workspace/${first.organizationSlug}` : '/participant', {
+      navigate(next ?? (first ? `/workspace/${first.organizationSlug}` : '/onboarding'), {
         replace: true,
       });
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'mfa_required') {
+        setNeedsCode(true);
+        return;
+      }
       setFailure(
         error instanceof ApiRequestError ? error.message : t('common.error'),
       );
@@ -78,6 +88,12 @@ export default function LoginPage(): JSX.Element {
               />
             </Field>
 
+            {needsCode ? (
+              <Field label={t('mfa.code')} htmlFor="mfa-code" hint={t('mfa.loginHint')}>
+                <Input id="mfa-code" autoComplete="one-time-code" autoFocus required value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
+              </Field>
+            ) : null}
+
             {failure ? (
               <p role="alert" className="text-sm font-medium text-red-600">
                 {failure}
@@ -90,6 +106,7 @@ export default function LoginPage(): JSX.Element {
           </form>
 
           <p className="mt-6 text-sm text-brand-text/70">
+            <Link to="/forgot-password" className="block text-brand-primary underline">{t('auth.forgotPassword')}</Link>
             {t('auth.needAccount')}{' '}
             <Link to="/register" className="font-medium text-brand-primary underline">
               {t('auth.createAccount')}

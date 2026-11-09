@@ -55,7 +55,7 @@ export default function EventsListPage(): JSX.Element {
       {eventsQuery.data && eventsQuery.data.items.length > 0 ? (
         <div className="overflow-x-auto rounded-brand border border-brand-primary/10">
           <table className="min-w-full divide-y divide-brand-primary/10 text-sm">
-            <thead className="bg-brand-surface text-left text-xs uppercase tracking-wide text-brand-text/60">
+            <thead className="bg-brand-surface text-left text-xs uppercase tracking-wide text-brand-text/70">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">
                   {t('events.name')}
