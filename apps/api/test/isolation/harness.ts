@@ -164,6 +164,17 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
         expiresAt: new Date(Date.now() + 86_400_000),
       },
     });
+    await owner.idempotencyRecord.create({
+      data: {
+        scope: `org:${organizationId}`,
+        key: `isolation-fixture-${index}`,
+        requestHash: randomUUID(),
+        responseStatus: 201,
+        responseBody: { fixture: true },
+        organizationId,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
   }
 
   return {

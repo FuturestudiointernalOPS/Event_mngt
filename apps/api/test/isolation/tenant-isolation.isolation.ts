@@ -30,6 +30,7 @@ const DIRECT_TABLES: Array<[table: string, column: string]> = [
   ['events', 'organization_id'],
   ['audit_logs', 'organization_id'],
   ['invitations', 'organization_id'],
+  ['idempotency_records', 'organization_id'],
 ];
 
 const CHILD_TABLES: Array<[table: string, countSql: string]> = [
