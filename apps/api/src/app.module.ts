@@ -60,6 +60,8 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    // Nest 11 runs on Express 5, which uses path-to-regexp v8: a bare '*' is no longer
+    // a valid pattern. Named wildcards are required.
+    consumer.apply(RequestIdMiddleware).forRoutes('{*splat}');
   }
 }

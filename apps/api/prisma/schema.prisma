@@ -10,12 +10,18 @@
 // After editing: npm run db:migrate (dev) or npm run db:deploy (CI).
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // The API compiles to CommonJS, so generated imports stay extensionless. That keeps
+  // the client resolvable from TypeScript source (ts-node seed, tests) as well as from
+  // the compiled output, where sibling .js files exist.
+  moduleFormat        = "cjs"
+  importFileExtension = ""
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // The connection string lives in prisma.config.ts (required since Prisma 7).
 }
 
 // ---------------------------------------------------------------------------

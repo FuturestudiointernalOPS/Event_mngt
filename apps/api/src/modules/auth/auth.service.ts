@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   AuthUser,
@@ -13,7 +14,7 @@ import {
   OrganizationStatus,
   UserStatus,
   VerificationTokenType,
-} from '@prisma/client';
+} from '../../database/prisma-client';
 import * as argon2 from 'argon2';
 import { AppException } from '../../common/app-exception';
 import {
@@ -21,7 +22,7 @@ import {
   hashOpaqueToken,
   ttlToSeconds,
 } from '../../common/utils/tokens';
-import { AppConfigService } from '../../config/config.module';
+import type { Env } from '../../config/env.validation';
 import { PrismaService } from '../../database/prisma.service';
 import { EMAIL_PORT } from '../../integrations/email/email.port';
 import type { EmailPort } from '../../integrations/email/email.port';
@@ -80,7 +81,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly config: AppConfigService,
+    private readonly config: ConfigService<Env, true>,
     @Inject(EMAIL_PORT) private readonly email: EmailPort,
   ) {}
 

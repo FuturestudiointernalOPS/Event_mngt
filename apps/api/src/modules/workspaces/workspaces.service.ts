@@ -8,7 +8,7 @@ import {
   UpdateWorkspaceSettingsRequest,
   WorkspaceContext,
 } from '@event-platform/shared';
-import { OrganizationStatus, WorkspaceBranding, WorkspaceSettings } from '@prisma/client';
+import { OrganizationStatus, WorkspaceBranding, WorkspaceSettings } from '../../database/prisma-client';
 import { AppException } from '../../common/app-exception';
 import {
   WCAG_AA_NORMAL_TEXT,

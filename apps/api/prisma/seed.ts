@@ -12,15 +12,23 @@ import {
   SYSTEM_ROLES,
   SYSTEM_ROLE_TEMPLATES,
 } from '@event-platform/shared';
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import * as argon2 from 'argon2';
 import {
   MemberStatus,
   OrganizationStatus,
   PrismaClient,
   UserStatus,
-} from '@prisma/client';
-import * as argon2 from 'argon2';
+} from '../src/database/prisma-client';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required to seed the database.');
+}
+
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 async function main(): Promise<void> {
   // 1. Global permission catalogue

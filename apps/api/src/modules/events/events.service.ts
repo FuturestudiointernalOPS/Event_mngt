@@ -15,7 +15,7 @@ import {
   EventVisibility,
   OrganizationStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../database/prisma-client';
 import { AppException } from '../../common/app-exception';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MemberStatus, OrganizationStatus } from '@prisma/client';
+import { MemberStatus, OrganizationStatus } from '../../database/prisma-client';
 import { ALL_PERMISSIONS } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import type { TenantAccess } from '../../common/types/authenticated-user';

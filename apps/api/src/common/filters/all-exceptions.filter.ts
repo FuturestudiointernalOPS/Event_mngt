@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../database/prisma-client';
 import type { Response } from 'express';
 import { AppException } from '../app-exception';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
@@ -73,6 +73,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       return this.fromPrismaError(exception);
+    }
+
+    if (exception instanceof Prisma.PrismaClientInitializationError) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'database_unreachable',
+        message:
+          'The database is not reachable. Check DATABASE_URL and that the server is running.',
+      };
     }
 
     return {
@@ -147,6 +156,8 @@ function defaultCode(status: number): string {
       return 'unprocessable';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'rate_limited';
+    case HttpStatus.SERVICE_UNAVAILABLE:
+      return 'service_unavailable';
     default:
       return 'internal_error';
   }
