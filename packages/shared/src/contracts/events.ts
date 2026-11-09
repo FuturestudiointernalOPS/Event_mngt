@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { paginationQuerySchema, uuidSchema } from './common';
-import { slugSchema } from './workspace';
+import { brandColorSchema, slugSchema } from './workspace';
 
 export const eventStatusSchema = z.enum([
   'DRAFT',
@@ -56,13 +56,22 @@ export const createEventRequestSchema = eventFieldsSchema
 
 export type CreateEventRequest = z.infer<typeof createEventRequestSchema>;
 
+/** Event-level colour overrides. A missing key inherits the workspace branding. */
+export const brandOverridesSchema = z.object({
+  primaryColor: brandColorSchema.optional(),
+  secondaryColor: brandColorSchema.optional(),
+  accentColor: brandColorSchema.optional(),
+});
+export type BrandOverrides = z.infer<typeof brandOverridesSchema>;
+
 /**
  * Updates reuse the same field definitions. Keeping them in a plain ZodObject means
  * `.partial()` works without unwrapping a refined schema.
  */
-export const updateEventRequestSchema = eventFieldsSchema.partial().omit({
-  parentEventId: true,
-});
+export const updateEventRequestSchema = eventFieldsSchema
+  .partial()
+  .omit({ parentEventId: true })
+  .extend({ brandOverrides: brandOverridesSchema.nullable().optional() });
 
 export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
 
@@ -91,6 +100,8 @@ export const eventDetailSchema = eventSummarySchema.extend({
   registrationOpensAt: z.string().nullable(),
   registrationClosesAt: z.string().nullable(),
   enabledModules: z.array(z.string()),
+  bannerUrl: z.string().nullable(),
+  brandOverrides: brandOverridesSchema.nullable(),
 });
 
 export type EventDetail = z.infer<typeof eventDetailSchema>;
@@ -115,3 +126,22 @@ export const publicEventSchema = eventDetailSchema.pick({
 });
 
 export type PublicEvent = z.infer<typeof publicEventSchema>;
+
+export const setEventModuleRequestSchema = z.object({
+  enabled: z.boolean(),
+  settings: z.record(z.string(), z.unknown()).optional(),
+});
+export type SetEventModuleRequest = z.infer<typeof setEventModuleRequestSchema>;
+
+export const eventModuleViewSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  summary: z.string(),
+  priority: z.enum(['core', 'p0', 'p1', 'p2']),
+  dependsOn: z.array(z.string()),
+  configurable: z.boolean(),
+  available: z.boolean(),
+  enabled: z.boolean(),
+  settings: z.record(z.string(), z.unknown()),
+});
+export type EventModuleView = z.infer<typeof eventModuleViewSchema>;
