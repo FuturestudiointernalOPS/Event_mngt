@@ -23,7 +23,9 @@ import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { generateOpaqueToken } from '../../common/utils/tokens';
-import { AuthService, SessionMeta } from './auth.service';
+import { AuthService } from './auth.service';
+import type { SessionMeta } from './auth.types';
+import { AuthRegistrationService } from './auth-registration.service';
 import {
   ForgotPasswordRequest,
   LoginRequest,
@@ -42,6 +44,7 @@ import { AuthCookieService } from './session-cookies';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly registration: AuthRegistrationService,
     private readonly cookies: AuthCookieService,
   ) {}
 
@@ -51,7 +54,7 @@ export class AuthController {
   register(
     @Body(new ZodValidationPipe(registerRequestSchema)) body: RegisterRequest,
   ): Promise<{ accepted: true }> {
-    return this.authService.register(body);
+    return this.registration.register(body);
   }
 
   @Public()
@@ -60,7 +63,7 @@ export class AuthController {
   verifyEmail(
     @Body(new ZodValidationPipe(verifyEmailRequestSchema)) body: VerifyEmailRequest,
   ): Promise<{ verified: true }> {
-    return this.authService.verifyEmail(body.token);
+    return this.registration.verifyEmail(body.token);
   }
 
   @Public()
@@ -116,7 +119,7 @@ export class AuthController {
   async forgotPassword(
     @Body(new ZodValidationPipe(forgotPasswordRequestSchema)) body: ForgotPasswordRequest,
   ): Promise<{ accepted: true }> {
-    await this.authService.requestPasswordReset(body.email);
+    await this.registration.requestPasswordReset(body.email);
     return { accepted: true };
   }
 
@@ -126,7 +129,7 @@ export class AuthController {
   async resetPassword(
     @Body(new ZodValidationPipe(resetPasswordRequestSchema)) body: ResetPasswordRequest,
   ): Promise<void> {
-    await this.authService.resetPassword(body.token, body.password);
+    await this.registration.resetPassword(body.token, body.password);
   }
 
   @Get('me')
