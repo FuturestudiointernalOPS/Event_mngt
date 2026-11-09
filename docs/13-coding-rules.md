@@ -260,7 +260,8 @@ async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
 1. Folders are plural and feature-based: `modules/registrations/`.
 2. One primary export per file, named after the file.
 3. Fixed suffixes: `.module.ts`, `.controller.ts`, `.service.ts`, `.repository.ts`,
-   `.mapper.ts`, `.spec.ts`, `.tsx` for components.
+   `.mapper.ts`, `.spec.ts`, `.tsx` for components. `routes.ts` is the per-module route
+   catalogue; it has no runtime role and is checked by `common/routes/routes.spec.ts`.
 4. No barrel files inside feature modules; they hide cycles and defeat the layer rules.
 5. Pure helpers shared by two or more modules live in `common/utils/`.
 6. Cross-cutting concerns go in `common/`: guards, decorators, interceptors, filters, pipes.
@@ -277,6 +278,9 @@ async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
    internal ids, members, contacts or unpublished records.
 5. State-changing routes are tenant-scoped and permission-checked at the route.
 6. Pagination follows `07-api-conventions.md` consistently.
+7. Every controller route has an entry in its module's `routes.ts`; the route catalogue
+   test fails when the catalogue and the decorator metadata disagree. See
+   `15-route-catalogue.md`.
 
 ---
 

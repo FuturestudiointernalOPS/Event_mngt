@@ -59,6 +59,7 @@ Folder convention:
 modules/events/
   events.module.ts          NestJS wiring, imports/exports only
   events.controller.ts      HTTP surface
+  routes.ts                 per-module route catalogue, checked against the controllers
   events.service.ts         business rules
   events.repository.ts      Prisma access, tenant-scoped (only for complex queries)
   dto/events.contracts.ts   re-exports shared Zod schemas + Swagger decorators
