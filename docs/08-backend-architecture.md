@@ -19,7 +19,8 @@ graph TD
 - **Services** own business rules, transactions and audit events. Framework-agnostic where
   practical; they receive plain inputs and return plain domain objects.
 - **Repositories** own Prisma queries. They accept a tenant-scoped transaction client and
-  always include explicit tenant predicates.
+  always include explicit tenant predicates. This is the layer called **model** in
+  `13-coding-rules.md`: same layer, file suffix `.model.ts`.
 - **Adapters** implement provider ports (`StoragePort`, `EmailPort`) so S3 and the email
   vendor stay replaceable.
 
@@ -60,7 +61,7 @@ modules/events/
   events.module.ts          NestJS wiring, imports/exports only
   events.controller.ts      HTTP surface
   events.service.ts         business rules
-  events.repository.ts      Prisma access, tenant-scoped
+  events.model.ts           Prisma access, tenant-scoped (formerly events.repository.ts)
   dto/events.contracts.ts   re-exports shared Zod schemas + Swagger decorators
   events.service.spec.ts    unit tests
 ```
@@ -72,7 +73,7 @@ modules would only add a pass-through layer.
 
 ## Dependency rules between modules
 
-1. A module may import another module's **service**, never its repository or controller.
+1. A module may import another module's **service**, never its model or controller.
 2. No circular imports. If two modules need each other, extract the shared concern into a
    lower-level module (e.g. `permissions`, `audit-logs`).
 3. Cross-cutting concerns live in `common/` as guards, decorators, interceptors, filters
