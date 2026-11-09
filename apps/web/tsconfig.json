@@ -18,8 +18,8 @@
     "allowImportingTsExtensions": false,
     "noEmit": true,
     "types": ["vite/client", "vitest/globals"],
-    "baseUrl": ".",
     "paths": {
+      "@event-platform/shared": ["../../packages/shared/src/index.ts"],
       "@/*": ["./src/*"]
     }
   },

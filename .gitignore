@@ -28,3 +28,5 @@ test-results/
 
 # prisma
 apps/api/prisma/*.db
+# generated client (recreated by `prisma generate`, which runs on postinstall)
+apps/api/src/generated/
