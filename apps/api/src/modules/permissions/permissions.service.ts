@@ -4,6 +4,7 @@ import { ALL_PERMISSIONS } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import type { TenantAccess } from '../../common/types/authenticated-user';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantTransactionService } from '../../database/tenant-transaction.service';
 
 /**
  * RBAC evaluation and tenant resolution.
@@ -17,7 +18,10 @@ import { PrismaService } from '../../database/prisma.service';
  */
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantTransaction: TenantTransactionService,
+  ) {}
 
   async resolveTenantAccessBySlug(userId: string, slug: string): Promise<TenantAccess> {
     const organization = await this.prisma.organization.findUnique({
@@ -48,19 +52,26 @@ export class PermissionsService {
     userId: string,
     organizationId: string,
   ): Promise<TenantAccess> {
-    const membership = await this.prisma.organizationMember.findUnique({
-      where: { organizationId_userId: { organizationId, userId } },
-      select: {
-        id: true,
-        status: true,
-        role: {
+    // The organisation is known (public slug lookup) so this read runs inside its
+    // scope: membership resolution happens after tenant context exists, as RLS needs.
+    const membership = await this.tenantTransaction.withOrganization(
+      organizationId,
+      userId,
+      (tx) =>
+        tx.organizationMember.findUnique({
+          where: { organizationId_userId: { organizationId, userId } },
           select: {
-            key: true,
-            permissions: { select: { permission: { select: { key: true } } } },
+            id: true,
+            status: true,
+            role: {
+              select: {
+                key: true,
+                permissions: { select: { permission: { select: { key: true } } } },
+              },
+            },
           },
-        },
-      },
-    });
+        }),
+    );
 
     if (!membership || membership.status !== MemberStatus.ACTIVE) {
       throw AppException.forbidden(

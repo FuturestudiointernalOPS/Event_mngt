@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EventDetail, UpdateEventRequest } from '@event-platform/shared';
+import { writeAudit } from '../../common/audit/audit';
 import { AppException } from '../../common/app-exception';
 import { slugify, ensureUniqueSlug } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
@@ -62,11 +63,44 @@ export class EventChangesService {
         ...(input.timeZone !== undefined && { timeZone: input.timeZone }),
         ...(input.venueName !== undefined && { venueName: input.venueName }),
         ...(input.venueAddress !== undefined && { venueAddress: input.venueAddress }),
+        ...(input.brandOverrides !== undefined && {
+          brandOverrides: input.brandOverrides === null ? Prisma.JsonNull : input.brandOverrides,
+        }),
         startsAt,
         endsAt,
       };
 
-      return toDetail(await this.events.update(tx, event.id, data));
+      const updated = await this.events.update(tx, event.id, data);
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: tenant.userId,
+        action: 'event.updated',
+        targetType: 'event',
+        targetId: event.id,
+        metadata: { fields: Object.keys(input) },
+      });
+      return toDetail(updated);
+    });
+  }
+
+  async setBanner(eventId: string, bannerUrl: string | null): Promise<EventDetail> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findById(tx, tenant.organizationId, eventId);
+
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      assertEditable(event.status);
+      const updated = await this.events.update(tx, event.id, { bannerUrl });
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: tenant.userId,
+        action: bannerUrl ? 'event.banner_set' : 'event.banner_removed',
+        targetType: 'event',
+        targetId: event.id,
+      });
+      return toDetail(updated);
     });
   }
 
@@ -80,14 +114,21 @@ export class EventChangesService {
 
       const target = resolveTransition(transition, event.status);
 
-      return toDetail(
-        await this.events.setStatus(
-          tx,
-          event.id,
-          target,
-          transition === 'unpublish' ? null : undefined,
-        ),
+      const updated = await this.events.setStatus(
+        tx,
+        event.id,
+        target,
+        transition === 'unpublish' ? null : undefined,
       );
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: tenant.userId,
+        action: `event.${transition}`,
+        targetType: 'event',
+        targetId: event.id,
+        metadata: { from: event.status, to: target },
+      });
+      return toDetail(updated);
     });
   }
 
@@ -127,6 +168,14 @@ export class EventChangesService {
           .map((module) => module.moduleKey),
       });
 
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: userId,
+        action: 'event.duplicated',
+        targetType: 'event',
+        targetId: created.id,
+        metadata: { sourceEventId: source.id },
+      });
       return toDetail(created);
     });
   }

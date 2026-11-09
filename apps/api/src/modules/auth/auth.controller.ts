@@ -11,6 +11,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import {
   CurrentUserResponse,
@@ -23,6 +24,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { generateOpaqueToken } from '../../common/utils/tokens';
+import { SessionManagementService } from './session-management.service';
 import { AuthService } from './auth.service';
 import type { SessionMeta } from './auth.types';
 import { AuthRegistrationService } from './auth-registration.service';
@@ -46,9 +48,11 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly registration: AuthRegistrationService,
     private readonly cookies: AuthCookieService,
+    private readonly sessionService: SessionManagementService,
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   register(
@@ -58,6 +62,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   verifyEmail(
@@ -67,6 +72,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -114,6 +120,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   async forgotPassword(
@@ -124,6 +131,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(
@@ -139,7 +147,7 @@ export class AuthController {
 
   @Get('sessions')
   sessions(@CurrentUser() user: AuthenticatedUser): Promise<SessionSummary[]> {
-    return this.authService.listSessions(user.id, user.sessionId);
+    return this.sessionService.listSessions(user.id, user.sessionId);
   }
 
   @Delete('sessions/:sessionId')
@@ -148,7 +156,7 @@ export class AuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('sessionId', new ParseUUIDPipe()) sessionId: string,
   ): Promise<void> {
-    await this.authService.revokeSession(user.id, sessionId);
+    await this.sessionService.revokeSession(user.id, sessionId);
   }
 }
 

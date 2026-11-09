@@ -1,6 +1,7 @@
 import { Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { API_PREFIX } from '@event-platform/shared';
 import cookieParser from 'cookie-parser';
@@ -10,7 +11,7 @@ import { AppConfigService } from './config/config.module';
 import { parseCorsOrigins } from './config/env.validation';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get<AppConfigService>(ConfigService);
 
   // Swagger UI ships inline scripts, so a strict CSP is only enforced in production.
@@ -20,6 +21,12 @@ async function bootstrap(): Promise<void> {
         config.get('NODE_ENV', { infer: true }) === 'production' ? undefined : false,
     }),
   );
+  // Behind a reverse proxy the client IP is in X-Forwarded-For; trust exactly N hops so rate
+  // limits key on the real client and cannot be spoofed by a header from outside.
+  const hops = config.get('TRUST_PROXY', { infer: true });
+  if (hops > 0) {
+    app.set('trust proxy', hops);
+  }
   app.use(cookieParser());
 
   app.enableCors({
@@ -32,6 +39,11 @@ async function bootstrap(): Promise<void> {
     type: VersioningType.URI,
     defaultVersion: '1',
   });
+
+  if (config.get('STORAGE_PROVIDER', { infer: true }) === 'local') {
+    // Uploaded images only; the upload path validates their real type before storing.
+    app.useStaticAssets(config.get('STORAGE_LOCAL_DIR', { infer: true }), { prefix: '/static' });
+  }
 
   app.enableShutdownHooks();
 

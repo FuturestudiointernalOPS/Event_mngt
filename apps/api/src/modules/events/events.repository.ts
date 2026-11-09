@@ -8,6 +8,7 @@ import {
   OrganizationStatus,
   Prisma,
 } from '../../database/prisma-client';
+import type { PublishReadiness } from './events.lifecycle';
 import type { EventWithEditionCount, EventWithModules } from './events.mapper';
 import {
   NON_PUBLIC_STATUSES,
@@ -102,6 +103,33 @@ export class EventsRepository {
       data: { status, ...(publishedAt === null ? { publishedAt: null } : {}) },
       include: { modules: true },
     });
+  }
+
+  /** The facts publishing validation needs, in one round trip. */
+  async publishReadiness(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+  ): Promise<PublishReadiness> {
+    const [module, categories, event] = await Promise.all([
+      tx.eventModule.findUnique({
+        where: { eventId_moduleKey: { eventId, moduleKey: 'registration' } },
+        select: { enabled: true, settings: true },
+      }),
+      tx.participantCategory.count({ where: { organizationId, eventId, isActive: true } }),
+      tx.event.findFirst({
+        where: { id: eventId, organizationId },
+        select: { consentText: true },
+      }),
+    ]);
+    const settings = (module?.settings ?? {}) as { requiresConsent?: boolean };
+
+    return {
+      registrationEnabled: module?.enabled ?? false,
+      requiresConsent: settings.requiresConsent ?? true,
+      hasConsentText: Boolean(event?.consentText),
+      activeCategoryCount: categories,
+    };
   }
 
   findSlugConflict(

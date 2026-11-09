@@ -12,6 +12,8 @@ import { generateOpaqueToken, hashOpaqueToken, ttlToSeconds } from '../../common
 import type { Env } from '../../config/env.validation';
 import { MemberStatus, OrganizationStatus, UserStatus } from '../../database/prisma-client';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import { MfaService } from './mfa.service';
 import { toAuthUser, toMembershipSummary, toSessionSummary, USER_SELECT, type UserRecord } from './auth.mapper';
 import type { LoginResult, RefreshedSession, SessionMeta } from './auth.types';
 import { equaliseTiming, verifyPassword } from './credentials';
@@ -26,8 +28,10 @@ import { equaliseTiming, verifyPassword } from './credentials';
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly tenantTransaction: TenantTransactionService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly mfa: MfaService,
   ) {}
 
   async login(input: LoginRequest, meta: SessionMeta): Promise<LoginResult> {
@@ -64,6 +68,9 @@ export class AuthService {
         'Verify your email address before signing in.',
       );
     }
+
+    // The second factor is checked only after the password and account state are good.
+    await this.mfa.assertLoginAllowed(user.id, input.mfaCode);
 
     const refreshToken = generateOpaqueToken();
 
@@ -187,51 +194,28 @@ export class AuthService {
     };
   }
 
-  async listSessions(userId: string, currentSessionId: string): Promise<SessionSummary[]> {
-    const sessions = await this.prisma.userSession.findMany({
-      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        userAgent: true,
-        ipAddress: true,
-        createdAt: true,
-        expiresAt: true,
-      },
-    });
-
-    return sessions.map((session) => toSessionSummary(session, currentSessionId));
-  }
-
-  async revokeSession(userId: string, sessionId: string): Promise<void> {
-    const result = await this.prisma.userSession.updateMany({
-      where: { id: sessionId, userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-
-    if (result.count === 0) {
-      throw AppException.notFound('not_found', 'Session not found.');
-    }
-  }
-
   private async loadMemberships(userId: string): Promise<MembershipSummary[]> {
-    const memberships = await this.prisma.organizationMember.findMany({
-      where: {
-        userId,
-        status: MemberStatus.ACTIVE,
-        organization: { status: OrganizationStatus.ACTIVE },
-      },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        organization: { select: { id: true, slug: true, name: true } },
-        role: {
-          select: {
-            key: true,
-            permissions: { select: { permission: { select: { key: true } } } },
+    // No organisation is known yet, so this read is scoped to the user (own-membership
+    // row-level policy) rather than to a tenant.
+    const memberships = await this.tenantTransaction.withUser(userId, (tx) =>
+      tx.organizationMember.findMany({
+        where: {
+          userId,
+          status: MemberStatus.ACTIVE,
+          organization: { status: OrganizationStatus.ACTIVE },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          organization: { select: { id: true, slug: true, name: true } },
+          role: {
+            select: {
+              key: true,
+              permissions: { select: { permission: { select: { key: true } } } },
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     return memberships.map(toMembershipSummary);
   }

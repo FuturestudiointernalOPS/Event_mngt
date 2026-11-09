@@ -3,6 +3,7 @@ import { AppException } from '../../common/app-exception';
 import { EventStatus, EventVisibility } from '../../database/prisma-client';
 import {
   assertDateRange,
+  assertReadyToPublish,
   assertEditable,
   assertSlugChangeAllowed,
   assertPublishable,
@@ -90,6 +91,19 @@ describe('resolveTransition', () => {
   });
 });
 
+describe('registration window transitions', () => {
+  it('opens registration from published or closed, and closes it from published or open', () => {
+    expect(resolveTransition('open_registration', EventStatus.PUBLISHED)).toBe(EventStatus.REGISTRATION_OPEN);
+    expect(resolveTransition('open_registration', EventStatus.REGISTRATION_CLOSED)).toBe(EventStatus.REGISTRATION_OPEN);
+    expect(resolveTransition('close_registration', EventStatus.REGISTRATION_OPEN)).toBe(EventStatus.REGISTRATION_CLOSED);
+  });
+
+  it('refuses them on a draft or a finished event', () => {
+    expect(capture(() => resolveTransition('open_registration', EventStatus.DRAFT)).code).toBe('invalid_status_transition');
+    expect(capture(() => resolveTransition('close_registration', EventStatus.COMPLETED)).code).toBe('invalid_status_transition');
+  });
+});
+
 describe('assertEditable', () => {
   it('allows editing draft and live events', () => {
     expect(() => assertEditable(EventStatus.DRAFT)).not.toThrow();
@@ -122,5 +136,39 @@ describe('assertDateRange', () => {
 
     expect(() => assertDateRange(start, new Date('2026-06-01T17:00:00Z'))).not.toThrow();
     expect(capture(() => assertDateRange(start, start)).code).toBe('invalid_date_range');
+  });
+});
+
+describe('assertReadyToPublish', () => {
+  const ready = {
+    registrationEnabled: true,
+    requiresConsent: true,
+    hasConsentText: true,
+    activeCategoryCount: 1,
+  };
+
+  it('allows an event whose registration is fully set up', () => {
+    expect(() => assertReadyToPublish(ready)).not.toThrow();
+  });
+
+  it('does not ask for registration setup when the module is off', () => {
+    expect(() =>
+      assertReadyToPublish({ ...ready, registrationEnabled: false, activeCategoryCount: 0 }),
+    ).not.toThrow();
+  });
+
+  it('lists every missing piece at once', () => {
+    const error = capture(() =>
+      assertReadyToPublish({ ...ready, activeCategoryCount: 0, hasConsentText: false }),
+    );
+
+    expect(error.code).toBe('event_not_ready');
+    expect(error.details).toEqual({ missing: ['registration_category', 'consent_text'] });
+  });
+
+  it('does not require consent text when consent is switched off', () => {
+    expect(() =>
+      assertReadyToPublish({ ...ready, requiresConsent: false, hasConsentText: false }),
+    ).not.toThrow();
   });
 });

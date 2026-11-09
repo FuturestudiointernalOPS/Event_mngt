@@ -1,4 +1,4 @@
-import type { EventDetail, EventSummary } from '@event-platform/shared';
+import type { BrandOverrides, EventDetail, EventSummary } from '@event-platform/shared';
 import type { Event, EventModule } from '../../database/prisma-client';
 
 /** Row shapes the mappers accept. Named so the Prisma payload stays in one place. */
@@ -46,5 +46,7 @@ export function toDetail(event: EventWithModules): EventDetail {
       ? event.registrationClosesAt.toISOString()
       : null,
     enabledModules: event.modules.filter((module) => module.enabled).map((m) => m.moduleKey),
+    bannerUrl: event.bannerUrl,
+    brandOverrides: (event.brandOverrides as BrandOverrides | null) ?? null,
   };
 }

@@ -32,6 +32,17 @@ export interface TenantAccess {
   permissions: string[];
 }
 
+/**
+ * A registered participant acting through the portal credential they were e-mailed.
+ * The organisation was proven by the credential's secret, not trusted from the client.
+ */
+export interface ParticipantAccess {
+  organizationId: string;
+  registrationId: string;
+  eventId: string;
+  status: string;
+}
+
 export interface PaginatedResult<T> {
   items: T[];
   page: number;

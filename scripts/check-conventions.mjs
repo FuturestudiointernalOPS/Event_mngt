@@ -38,6 +38,7 @@ const ENV_ACCESS_FILES = [
   'apps/api/prisma.config.ts',
   // Integration test: needs the owner and app database URLs, not application config.
   'apps/api/src/database/tenant-isolation.spec.ts',
+  'apps/api/src/jobs/mail-queue.integration.spec.ts',
 ];
 
 const MODULE_PATH = /^apps\/api\/src\/modules\/([^/]+)\//;

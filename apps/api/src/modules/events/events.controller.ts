@@ -115,4 +115,16 @@ export class EventsController {
   ): Promise<EventDetail> {
     return this.changes.duplicate(eventId, user.id);
   }
+
+  @Post(':eventId/open-registration')
+  @RequirePermissions(PERMISSIONS.eventPublish)
+  openRegistration(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
+    return this.changes.transition(eventId, 'open_registration');
+  }
+
+  @Post(':eventId/close-registration')
+  @RequirePermissions(PERMISSIONS.eventPublish)
+  closeRegistration(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
+    return this.changes.transition(eventId, 'close_registration');
+  }
 }

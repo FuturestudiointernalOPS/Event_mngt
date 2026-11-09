@@ -146,11 +146,58 @@ describe.skipIf(!ownerUrl || !appUrl)('tenant isolation (row-level security)', (
     expect(modules).toHaveLength(1);
   });
 
-  it('shows a tenant only its own organisation row', async () => {
-    const orgs = await asTenant(ids.orgA, (tx) =>
+  it("treats organisation identity as public but never lets one tenant change another's", async () => {
+    // The workspace name and slug are public by design (branded public pages), so they are
+    // readable. Writes are still bound to the caller's own organisation.
+    const readable = await asTenant(ids.orgA, (tx) =>
       tx.organization.findMany({ where: { slug: { startsWith: tag } } }),
     );
+    const renamed = await asTenant(ids.orgA, (tx) =>
+      tx.organization.updateMany({ where: { id: ids.orgB }, data: { name: 'hijacked' } }),
+    );
+    const stillNamed = await owner.organization.findUnique({ where: { id: ids.orgB } });
 
-    expect(orgs.map((o) => o.id)).toEqual([ids.orgA]);
+    expect(readable.map((o) => o.id).sort()).toEqual([ids.orgA, ids.orgB].sort());
+    expect(renamed.count).toBe(0);
+    expect(stillNamed?.name).toBe('Org b');
+  });
+
+  it('has row-level security forced, with a policy, on every table that carries organization_id', async () => {
+    // A structural guard: a table added later without RLS fails here instead of leaking.
+    const tables = await owner.$queryRaw<{ relname: string; rls: boolean; forced: boolean; policies: bigint }[]>`
+      SELECT c.relname,
+             c.relrowsecurity AS rls,
+             c.relforcerowsecurity AS forced,
+             (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname AND p.schemaname = 'public') AS policies
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+      WHERE c.relkind = 'r'
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns col
+          WHERE col.table_schema = 'public' AND col.table_name = c.relname AND col.column_name = 'organization_id')`;
+
+    expect(tables.length).toBeGreaterThanOrEqual(15);
+    const unprotected = tables
+      .filter((t) => !t.rls || !t.forced || Number(t.policies) === 0)
+      .map((t) => t.relname);
+    expect(unprotected).toEqual([]);
+  });
+
+  it('shows public events (published, public) but never drafts, to a caller with no tenant', async () => {
+    await owner.event.update({ where: { id: ids.eventA }, data: { status: 'PUBLISHED', visibility: 'PUBLIC' } });
+    const visible = await app.event.findMany({ where: { slug: { startsWith: tag } } });
+
+    expect(visible.map((e) => e.id)).toEqual([ids.eventA]);
+  });
+
+  it('lets the platform scope read across tenants only when that scope is set', async () => {
+    const without = await app.registration.findMany({ take: 1 });
+    expect(without).toEqual([]);
+
+    const all = await app.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.platform_admin', 'true', true)`;
+      return tx.event.findMany({ where: { slug: { startsWith: tag } } });
+    });
+    expect(all.map((e) => e.id).sort()).toEqual([ids.eventA, ids.eventB].sort());
   });
 });

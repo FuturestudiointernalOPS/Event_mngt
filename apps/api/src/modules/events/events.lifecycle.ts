@@ -30,7 +30,13 @@ export function shouldActivatePublishingModule(visibility: EventVisibility): boo
   return visibility !== EventVisibility.PRIVATE;
 }
 
-export type EventTransition = 'unpublish' | 'complete' | 'cancel' | 'archive';
+export type EventTransition =
+  | 'unpublish'
+  | 'complete'
+  | 'cancel'
+  | 'archive'
+  | 'open_registration'
+  | 'close_registration';
 
 const LIVE: EventStatus[] = [
   EventStatus.PUBLISHED,
@@ -41,6 +47,14 @@ const LIVE: EventStatus[] = [
 /** Where each transition may start, and where it ends. */
 const TRANSITIONS: Record<EventTransition, { from: EventStatus[]; to: EventStatus }> = {
   unpublish: { from: [EventStatus.PUBLISHED], to: EventStatus.DRAFT },
+  open_registration: {
+    from: [EventStatus.PUBLISHED, EventStatus.REGISTRATION_CLOSED],
+    to: EventStatus.REGISTRATION_OPEN,
+  },
+  close_registration: {
+    from: [EventStatus.PUBLISHED, EventStatus.REGISTRATION_OPEN],
+    to: EventStatus.REGISTRATION_CLOSED,
+  },
   complete: { from: LIVE, to: EventStatus.COMPLETED },
   cancel: { from: [EventStatus.DRAFT, ...LIVE], to: EventStatus.CANCELLED },
   archive: {
@@ -56,7 +70,7 @@ export function resolveTransition(transition: EventTransition, status: EventStat
   if (!rule.from.includes(status)) {
     throw AppException.unprocessable(
       'invalid_status_transition',
-      `An event that is ${status.toLowerCase().replace('_', ' ')} cannot be ${transition}d.`,
+      `A ${status.toLowerCase().replace(/_/g, ' ')} event cannot be ${transition.replace(/_/g, ' ')}ed.`,
     );
   }
 
@@ -91,5 +105,34 @@ export function assertSlugChangeAllowed(status: EventStatus, slugChanged: boolea
 export function assertDateRange(startsAt: Date, endsAt: Date): void {
   if (endsAt <= startsAt) {
     throw AppException.badRequest('invalid_date_range', 'The end must be after the start.');
+  }
+}
+
+export interface PublishReadiness {
+  registrationEnabled: boolean;
+  requiresConsent: boolean;
+  hasConsentText: boolean;
+  activeCategoryCount: number;
+}
+
+/** Required settings are validated before an event goes public, with every gap reported. */
+export function assertReadyToPublish(facts: PublishReadiness): void {
+  const missing: string[] = [];
+
+  if (facts.registrationEnabled) {
+    if (facts.activeCategoryCount === 0) {
+      missing.push('registration_category');
+    }
+    if (facts.requiresConsent && !facts.hasConsentText) {
+      missing.push('consent_text');
+    }
+  }
+
+  if (missing.length > 0) {
+    throw AppException.unprocessable(
+      'event_not_ready',
+      'Complete the event setup before publishing.',
+      { missing },
+    );
   }
 }

@@ -18,17 +18,22 @@ export class TenantContextInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const tenant = request.tenant;
     const user = request.user;
+    const participant = request.participant;
 
-    if (!tenant || !user) {
+    if (!participant && (!tenant || !user)) {
       return next.handle();
     }
 
-    const store = {
-      organizationId: tenant.organizationId,
-      userId: user.id,
-      membershipId: tenant.membershipId,
-      permissions: tenant.permissions,
-    };
+    // A participant acts inside their organisation with no staff identity and no staff
+    // permissions: services read `organizationId` and the participant decorator only.
+    const store = participant
+      ? { organizationId: participant.organizationId, userId: '', membershipId: '', permissions: [] }
+      : {
+          organizationId: tenant!.organizationId,
+          userId: user!.id,
+          membershipId: tenant!.membershipId,
+          permissions: tenant!.permissions,
+        };
 
     return new Observable((subscriber) =>
       this.tenantContext.run(store, () => {

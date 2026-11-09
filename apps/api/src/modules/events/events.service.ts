@@ -5,11 +5,13 @@ import {
   EventSummary,
   ListEventsQuery,
 } from '@event-platform/shared';
+import { writeAudit } from '../../common/audit/audit';
 import { AppException } from '../../common/app-exception';
+import { isUniqueViolation, randomSuffix } from '../../common/utils/unique';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import { assertPublishable, shouldActivatePublishingModule } from './events.lifecycle';
+import { assertPublishable, assertReadyToPublish, shouldActivatePublishingModule } from './events.lifecycle';
 import { toDetail, toSummary } from './events.mapper';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
@@ -53,9 +55,36 @@ export class EventsService {
     });
   }
 
+  /**
+   * Public URLs are /e/:eventSlug, so slugs are unique platform-wide. Another
+   * organisation's slug is invisible to us (row-level security), so a generated slug that
+   * collides is retried with a random suffix; an explicit one is reported as taken.
+   */
   async create(input: CreateEventRequest, userId: string): Promise<EventDetail> {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.createOnce(input, userId, attempt);
+      } catch (error) {
+        if (!isUniqueViolation(error)) {
+          throw error;
+        }
+        if (input.slug || attempt >= 3) {
+          throw AppException.conflict(
+            'slug_taken',
+            'An event with this web address already exists.',
+          );
+        }
+      }
+    }
+  }
+
+  private async createOnce(
+    input: CreateEventRequest,
+    userId: string,
+    attempt: number,
+  ): Promise<EventDetail> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const slug = input.slug
+      const generated = input.slug
         ? slugify(input.slug)
         : await ensureUniqueSlug(input.name, async (candidate) => {
             const found = await this.events.findSlugConflict(
@@ -65,6 +94,7 @@ export class EventsService {
             );
             return found !== null;
           });
+      const slug = attempt > 0 ? `${generated}-${randomSuffix()}` : generated;
 
       const clash = await this.events.findSlugConflict(tx, tenant.organizationId, slug);
 
@@ -106,6 +136,13 @@ export class EventsService {
         initialModuleKeys: INITIAL_MODULE_KEYS,
       });
 
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: userId,
+        action: 'event.created',
+        targetType: 'event',
+        targetId: created.id,
+      });
       return toDetail(created);
     });
   }
@@ -131,12 +168,21 @@ export class EventsService {
       }
 
       assertPublishable(event.status);
+      assertReadyToPublish(await this.events.publishReadiness(tx, tenant.organizationId, event.id));
 
       if (shouldActivatePublishingModule(event.visibility)) {
         await this.events.enablePublishingModule(tx, event.id);
       }
 
-      return toDetail(await this.events.publish(tx, event.id));
+      const published = await this.events.publish(tx, event.id);
+      await writeAudit(tx, {
+        organizationId: tenant.organizationId,
+        actorUserId: tenant.userId,
+        action: 'event.published',
+        targetType: 'event',
+        targetId: event.id,
+      });
+      return toDetail(published);
     });
   }
 
