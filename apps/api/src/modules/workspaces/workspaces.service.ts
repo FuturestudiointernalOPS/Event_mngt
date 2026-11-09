@@ -8,8 +8,9 @@ import {
   UpdateWorkspaceSettingsRequest,
   WorkspaceContext,
 } from '@event-platform/shared';
-import { OrganizationStatus, WorkspaceBranding, WorkspaceSettings } from '../../database/prisma-client';
+import { OrganizationStatus, WorkspaceSettings } from '../../database/prisma-client';
 import { AppException } from '../../common/app-exception';
+import { toBranding, toLocale } from '../../common/utils/branding';
 import {
   WCAG_AA_NORMAL_TEXT,
   contrastRatio,
@@ -201,26 +202,6 @@ export function toSettingsView(
       contactEmail: settings?.contactEmail ?? null,
     },
   };
-}
-
-export function toBranding(row: WorkspaceBranding): Branding {
-  return {
-    primaryColor: row.primaryColor,
-    secondaryColor: row.secondaryColor,
-    accentColor: row.accentColor,
-    backgroundColor: row.backgroundColor,
-    surfaceColor: row.surfaceColor,
-    textColor: row.textColor,
-    colorMode: row.colorMode === 'dark' ? 'dark' : 'light',
-    logoUrl: row.logoUrl,
-    logoDarkUrl: row.logoDarkUrl,
-    faviconUrl: row.faviconUrl,
-    borderRadius: row.borderRadius,
-  };
-}
-
-function toLocale(value: string | null | undefined): Locale {
-  return value === 'en' ? 'en' : 'fr';
 }
 
 function stripUndefined(input: UpdateBrandingRequest): Partial<Branding> {
