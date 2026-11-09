@@ -58,16 +58,16 @@ is the bug.
 - **Accessibility**: axe (WCAG 2 A/AA, 2.1 A/AA) run on login, public event, registration,
   dashboard, team, branding, event tabs and the check-in screen: no violations. Mobile
   width: no horizontal overflow.
-- **Browser tests** (`apps/web/e2e`, Playwright): written, run with a stack up. See below.
+- **Browser tests** (`apps/web/e2e`, Playwright, Chromium): 8 tests pass: public registration
+  to staff confirmation, consent refusal, unknown event, WCAG A/AA on public pages (desktop
+  and phone), no horizontal overflow, and the app shell loading offline after one visit
+  (production build). Needs a running stack; see `apps/web/playwright.config.ts`.
 
 ## Not covered / known limits
 
 - **Never run against Supabase.** Everything was exercised on the Docker database.
   Follow `15-deployment-and-operations.md`, then re-run the journey specs and the load test
   against staging.
-- **Playwright specs have not been executed** in this repository's history (no browser was
-  installed in the authoring environment). Run `npx playwright install chromium` then
-  `npm run e2e -w @event-platform/web`.
 - **Camera scanning** (jsQR) is untested on real phones; the decode loop and the offline
   queue are covered by unit tests and the manual fallback.
 - **PDF export** is not implemented (CSV only). Exports are synchronous.

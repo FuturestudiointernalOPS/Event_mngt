@@ -21,10 +21,14 @@ test('a visitor registers, staff confirm, and the participant gets a QR badge', 
   await page.getByLabel('Email address').fill(seeded.email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  // Wait for the sign-in to finish: navigating away mid-request would drop the session.
+  await page.waitForURL(/\/workspace\//);
   await page.goto(`/workspace/${seeded.slug}/events/${seeded.eventId}/registrations`);
   await expect(page.getByText('Ines Playwright')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm' }).click();
-  await expect(page.getByText('Confirmed').first()).toBeVisible();
+  // The status pill of the row (not the hidden option of the status filter).
+  await expect(page.locator('li', { hasText: 'Ines Playwright' }).getByText('Confirmed')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toHaveCount(0);
 });
 
 test('the public form refuses a missing consent and names the problem', async ({ page, request }) => {
@@ -42,5 +46,5 @@ test('the public form refuses a missing consent and names the problem', async ({
 
 test('an unknown event shows a not-found state instead of a blank page', async ({ page }) => {
   await page.goto('/e/this-event-does-not-exist');
-  await expect(page.getByText(/not found/i)).toBeVisible();
+  await expect(page.getByText('Page not found')).toBeVisible();
 });
