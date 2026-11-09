@@ -92,6 +92,8 @@ graph TD
 Briefs exist for every package in waves 0 and 1. Later briefs are written when their wave
 opens, so they describe the code that exists by then instead of guessing.
 
+**Delivered:** WP-01 (tenant bootstrap and RLS) and WP-02 (isolation suite).
+
 | Package | Wave | Owns | Depends on | Parallel-safe |
 | --- | --- | --- | --- | --- |
 | WP-01 Tenant bootstrap + RLS | 0 | `database/`, `common/guards/`, `prisma/policies/` | — | **no** (blocking) |
@@ -117,6 +119,24 @@ opens, so they describe the code that exists by then instead of guessing.
 | WP-21 E2E journeys | 5 | `apps/api/test/` | all | no |
 | WP-22 Performance + limits | 5 | `scripts/`, `common/guards/` | WP-21 | yes |
 | WP-23 Backup + deployment review | 5 | `docs/`, `scripts/` | all | yes |
+
+### Wave 3 briefs
+
+Wave 3 is now written but **cannot run**: every package depends on a wave 2 package that does
+not exist in the tree yet.
+
+| Package | Brief | Blocked by |
+| --- | --- | --- |
+| WP-15 Check-in | [WP-15-check-in.md](work-packages/WP-15-check-in.md) | WP-05, WP-13 (badges) |
+| WP-16 Offline sync | [WP-16-offline-sync.md](work-packages/WP-16-offline-sync.md) | WP-15, WP-08 |
+| WP-17 Meetings + introductions | [WP-17-meetings-and-introductions.md](work-packages/WP-17-meetings-and-introductions.md) | WP-05, WP-14 (profiles) |
+
+Current tree state: WP-01 is applied; waves 1 and 2 are not implemented, the schema still
+stops at Phase 1, and no wave 2 briefs exist. Running a wave 3 package now would force it to
+invent the `badges`, `registrations`, `participant_profiles` and `check_ins` tables that WP-13,
+WP-10 and WP-14 own — the exact conflict the wave model forbids. The order to restore is:
+wave 1 briefs and code, then wave 2, then wave 3. Each wave 3 brief repeats this prerequisite
+table at its top.
 
 ## Conflict checklist before starting a package
 

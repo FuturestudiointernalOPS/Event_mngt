@@ -61,6 +61,9 @@ npm run typecheck           # all workspaces
 npm run build               # server and site
 ```
 
+For data-access work, also run `npm run test:isolation` (needs the database and the runtime
+role). It is not part of `npm test` because it requires a real database.
+
 Report which of these actually ran. Do not claim a check passed without running it.
 
 Also confirm by hand for data-touching work: tenant predicate present, no database import

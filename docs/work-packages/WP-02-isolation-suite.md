@@ -48,6 +48,31 @@ to a fresh worker with no knowledge of how the bootstrap transaction works.
 - `npm run test:isolation` script at the root.
 - Seed data: organisation A, organisation B, one member each, one event each.
 
+## Delivered
+
+- `npm run test:isolation` runs the suite; it is excluded from `npm test` because it needs a
+database, and it skips itself when `DATABASE_URL` or `APP_DATABASE_URL` is missing.
+- The suite creates its own fixtures per run through the owner connection and deletes them
+  afterwards. Two organisations, two accounts, roles with the full permission set, one draft
+  private event each, settings, branding, audit rows and event modules are covered.
+- Assertions run through a second client connected as the runtime role, so policies are
+  engaged rather than bypassed.
+- The API cases spawn the built server on a free port: the test transpiler cannot emit
+  decorator metadata, so the application cannot be constructed in-process.
+- Seven acceptance cases became fifteen tests, because some are parameterised per table.
+- Runtime is about one minute.
+
+### Deviations
+
+1. **The organisation row is public identity.** Reading another active organisation's
+   identity is allowed by policy, so "cannot read B's rows" covers its tenant-owned children
+   (members, roles, settings, branding, events, audit) rather than the organisation row.
+2. **Concurrency is sized to the pooler.** Twenty-four simultaneous transactions exhausted
+   the connection budget and timed out; eight alternating scopes prove the same property
+   without fighting the pool.
+3. **Two API cases test the same guarantee from different angles:** a foreign workspace and a
+   foreign event id, plus a crafted organisation identifier in the query string.
+
 ## Out of scope
 
 Performance, load, and any product behaviour. This suite only asserts separation.

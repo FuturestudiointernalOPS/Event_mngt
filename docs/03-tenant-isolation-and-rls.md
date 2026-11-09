@@ -147,6 +147,10 @@ executed through `TenantTransactionService.withTenant` and include an explicit
 
 ## Tests that must exist (Blocking)
 
+Implemented in `apps/api/test/isolation/` and run with `npm run test:isolation`. The suite
+creates its own fixtures, runs as the runtime role, and is deliberately outside `npm test`
+because it needs a database.
+
 1. Organisation A cannot read, list, update, delete B's records — for every tenant table.
 2. A nested relation cannot be traversed across tenants (e.g. event → modules → settings).
 3. A request with no tenant context returns empty, not everything.
