@@ -193,6 +193,21 @@ therefore uses `sslmode=no-verify` (encrypted, chain not validated).
 
 Result: `npm audit` reports **0 vulnerabilities** on the installed tree.
 
+### Test-harness gap: provider wiring
+
+The API test runner transpiles with esbuild, which does **not** emit decorator metadata, so a
+test cannot construct a Nest module the way the application does. Consequences:
+
+- Dependency-injection regressions (a constructor parameter whose type only exists at design
+time) are not caught by `npm run test`.
+- They are caught by booting the built server and calling the readiness route, which is part
+of the definition of done in `13-coding-rules.md`.
+- Logic is tested directly through pure functions, which is why mapping, query shaping and
+error normalisation were extracted into their own files.
+
+Closing the gap means adding the SWC plugin to the API test config. Not done yet: it is a new
+build dependency, and the current split covers the logic.
+
 ## Still open: connection-string and lockfile traps
 
 - **Use the Supabase Session pooler**, not `db.<ref>.supabase.co` (IPv6-only).

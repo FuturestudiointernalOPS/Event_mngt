@@ -18,7 +18,8 @@ Read this before writing code. `AGENTS.md` at the repository root is the short v
 
 | Layer | Mechanism |
 | --- | --- |
-| Machine-checked | `npm run check:conventions` — file size, controller/data-layer separation, single database client entry point, environment access |
+| Machine-checked | `npm run check:conventions` — file size, controller/data-layer separation, cross-module data access, single client entry point, environment access |
+| Machine-tested | `npm run test:conventions` — the gate itself is exercised against fixture violations |
 | Type-checked | `npm run typecheck` across all three workspaces |
 | Reviewed | Everything else in this document |
 | Blocking | Nothing merges with a failing check, a failing test, or a rule broken without a recorded reason |
@@ -34,34 +35,56 @@ Every rule in this part is a blocker.
 ### R1 — No source file over 300 lines
 
 No new file may exceed **300 lines**. Files between 270 and 300 are a warning: split before
-adding. Files already over the limit are listed in Part B and may only shrink.
-
-Applies to `.ts` and `.tsx` under `apps/api/src`, `apps/web/src`, `packages/shared/src`.
-Generated code, migrations and build output are excluded.
+adding. Applies to `.ts` and `.tsx` under `apps/api/src`, `apps/web/src`,
+`packages/shared/src`. Generated code, migrations and build output are excluded.
 
 ### R2 — A controller never touches the database
 
 Controllers read the request, call exactly one service method, and return. They MUST NOT
-import the database layer, hold a client, or contain business branching.
+import the data layer, hold a client, or contain business branching.
 
 Only exception: the health controller, which pings the database for readiness and returns
 no tenant data.
 
-### R3 — Layers are controller → service → model
+### R3 — Access is layered, and the layers are proportional
 
-Every feature that reads or writes data is split into those three files. No layer may skip
-downward or reach back up.
+The shape is **controller → service → repository**. The third layer is optional: it appears
+when it earns its place, not by default.
 
-### R4 — Only the model layer issues queries
+- A controller talks to a service, never to a repository.
+- A service may query the database directly for a **simple** operation (see R4).
+- When queries stop being simple, they move into a repository file for that feature.
 
-Queries, projections and raw SQL live in a model file. Services decide *what* should happen;
-models decide *how* it is fetched or stored.
+Do not add a layer that only forwards arguments. A service that does nothing but call a
+repository method is a pass-through layer and should be collapsed.
+
+### R4 — Simple queries stay in the service; complex queries move to a repository
+
+A query is **simple** — keep it inline in the service — when all of these hold:
+
+- one table, at most one related record;
+- no pagination, ordering or aggregate count;
+- no reuse by another method;
+- no public-facing projection;
+- the service file is comfortably under 300 lines.
+
+A query is **complex** — put it in `<feature>.repository.ts` — when any of these hold:
+
+- it joins or aggregates more than one table;
+- it paginates, sorts, or counts;
+- it defines a projection consumed by a public endpoint;
+- two or more methods need it;
+- it mixes several operations that must stay consistent;
+- the file would otherwise cross the limit.
+
+The layer is what NestJS calls a **repository**. Earlier revisions of this document called
+it a *model*; both names mean the same thing, and `repository` is the convention used here.
+The file suffix is `.repository.ts`.
 
 ### R5 — One entry point for the generated database client
 
 Application code MUST NOT import the generated client or the vendor package directly. Use
-the single local re-export in the database layer. This keeps a generator change a one-file
-edit.
+the single local re-export in the database layer.
 
 ### R6 — Configuration is injected, never read from the environment
 
@@ -88,9 +111,21 @@ before the service sees it.
 
 ### R10 — Modules import services, not internals
 
-A module may use another module's service. It MUST NOT import another module's model,
-controller, or module-internal helper. Cross-cutting code lives in `common/`; the database
-layer is global.
+A module may use another module's service. It MUST NOT import another module's repository,
+controller, or internal helper. Cross-cutting code lives in `common/`; the database layer is
+global. Pure helpers used by several modules belong in `common/`, not in a feature service.
+
+### R11 — Logic has a test, and every fix has a regression test
+
+- New logic (rules, mapping, validation, state transitions, token or date handling) ships
+  with a spec file beside it.
+- Every bug fix ships with a test that **fails on the previous code** and passes after.
+- Tests live next to the code: `<file>.spec.ts` (API and shared), `<Component>.test.tsx` or
+  `.test.ts` (web).
+- At least one test must exercise each documented rule that a machine can check; the
+  conventions gate is itself tested.
+- "I will add tests later" is not a completion state. If a rule is worth writing, it is
+  worth one assertion.
 
 ---
 
@@ -98,144 +133,150 @@ layer is global.
 
 ### Why
 
-A file that no longer fits on one screen hides two problems: it usually holds more than one
-responsibility, and it makes tenant predicates easy to miss during review.
+A file that no longer fits on one screen usually holds more than one responsibility, and it
+makes tenant predicates easy to miss during review.
 
 ### Counting
 
 Physical lines, including comments and blank lines, as reported by the conventions gate.
-Generated code and declarations are excluded.
 
 ### Current exceptions
 
-These exceed the limit and are on a **shrink list**. They may only get smaller; adding
-behaviour to them is a review failure.
+There are none. Both files that previously exceeded the limit were split:
+`auth.service.ts` into session and registration services, and `events.service.ts` into a
+service, a repository and a mapper.
 
-| File | Lines | Expected split |
-| --- | --- | --- |
-| `apps/api/src/modules/auth/auth.service.ts` | 529 | registration/verification, session lifecycle, password reset |
-| `apps/api/src/modules/events/events.service.ts` | 357 | event CRUD, lifecycle/publishing, public projections |
+The gate still supports an exception list, but it is empty and must stay empty. Adding an
+entry is a decision to postpone a split, and it has to be argued in this document.
 
 ### How to split, in order of preference
 
-1. **Extract a layer.** Move queries into the module's model file. This is the most common
-   cause of a fat service.
-2. **Extract a collaborator.** A second service with a name that describes one job
-   (`SessionRotation`, `BrandingResolution`) beats a private method pile.
-3. **Extract pure functions.** Validation, mapping and formatting belong in small modules
-   with no dependencies.
-4. **Extract a projection.** Public read models get their own file; they usually grow
-   independently of the write path.
+1. **Extract a repository.** Move the complex query surface out (see R4). This is the most
+   common cause of a fat service.
+2. **Extract a responsibility.** Two services with names that describe one job
+   (`SessionService`, `RegistrationService`) beat a private method pile.
+3. **Extract pure functions.** Mapping, sorting and validation belong in a small file with
+   no dependencies — and they become directly testable (R11).
+4. **Extract a projection.** Public read models grow independently of the write path.
 
 ### What not to do
 
 - Do not split by file position (`events.service.part2.ts`). Split by responsibility.
-- Do not raise the limit to make a check pass. If 300 is genuinely wrong, argue it in this
-  document first.
-- Do not move code into a new oversized file. The limit applies to the destination too.
+- Do not raise the limit to make a check pass. If 300 is genuinely wrong, argue it here.
+- Do not move code into a new oversized file; the limit applies to the destination.
 
 ---
 
-# Part C — The model layer
+# Part C — The repository layer
 
 ### Responsibility
 
-The model layer is the only code that talks to PostgreSQL. It is what
-`08-backend-architecture.md` means by "data access"; the earlier name "repository" refers to
-this same layer.
+A repository is the only place allowed to express a **complex** query. It receives the
+tenant-scoped transaction client and always includes the tenant predicate.
 
-A model file:
+A repository:
 
-- receives a **tenant-scoped transaction client** (or, for pre-tenant lookups, the plain
-  client with a stated reason);
-- always includes the tenant predicate on tenant-owned rows;
-- returns plain objects or domain-shaped records, never framework objects;
-- contains no HTTP concern, no status code, no request object.
+- accepts the client as a parameter, never creates one;
+- contains no business rules ("may this role publish?");
+- throws no framework-specific error for a business case;
+- returns plain records or projections, not HTTP objects.
 
-A model file MUST NOT:
-
-- set tenant context (that is the transaction service's single job);
-- decide business rules ("may this role publish?");
-- throw HTTP-shaped errors;
-- be imported by a controller or by another module.
-
-### Transition state
-
-The modules that exist today still query from their services: the model layer has not been
-extracted yet for auth, events or workspaces. That is not permission to keep doing it. When
-a module is next touched, move its queries into the module's model file **in the same
-change**, and never add a new query to a service. The oversized services in Part B are the
-first candidates, because they must shrink anyway.
+A repository MUST NOT open its own transaction — the service owns the transaction boundary,
+and a nested transaction breaks the tenant-context guarantee.
 
 ### Canonical shape
 
 ```
 modules/events/
-  events.module.ts       wiring: imports/exports only
-  events.controller.ts   HTTP: route in, one service call, response out
-  events.service.ts      rules, transactions, audit
-  events.model.ts        queries, tenant predicates, projections
-  dto/                   shared schema re-exports + documentation metadata
-  events.service.spec.ts unit tests
+  events.module.ts           wiring
+  events.controller.ts       HTTP: route in, one service call, response out
+  events.service.ts          rules, transaction boundary, orchestration
+  events.repository.ts       complex queries, tenant predicates, projections
+  events.mapper.ts           pure row → contract mapping
+  events.lifecycle.ts        pure state-transition rules
+  events.service.spec.ts     behaviour tests
 ```
 
 ```ts
-// events.model.ts — the only place that knows how events are stored
+// events.repository.ts — the only place that expresses this query
 @Injectable()
-export class EventsModel {
-  constructor(private readonly prisma: PrismaService) {}
+export class EventsRepository {
+  list(tx: TenantPrismaClient, filter: ListFilter) {
+    const where: Prisma.EventWhereInput = {
+      organizationId: filter.organizationId,
+      status: filter.status,
+      visibility: filter.visibility,
+      name: filter.search ? { contains: filter.search, mode: 'insensitive' } : undefined,
+    };
 
-  findMany(tx: TenantPrismaClient, filter: { organizationId: string; status?: EventStatus }) {
-    return tx.event.findMany({
-      where: { organizationId: filter.organizationId, status: filter.status },
-      orderBy: { startsAt: 'desc' },
-    });
+    return Promise.all([
+      tx.event.findMany({
+        where,
+        orderBy: filter.orderBy,
+        skip: filter.skip,
+        take: filter.take,
+        include: { _count: { select: { editions: true } } },
+      }),
+      tx.event.count({ where }),
+    ]);
   }
 }
 ```
 
 ```ts
-// events.service.ts — rules and transaction boundary, no query syntax
-async list(filter: ListEventsInput): Promise<EventSummary[]> {
-  const context = this.tenantContext.require();
+// events.service.ts — rules and orchestration, no query syntax
+async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
+  const tenant = this.tenantContext.require();
+  const orderBy = buildOrderBy(query.sort); // pure, tested
+
   return this.tenantTransaction.withTenant(async (tx) => {
-    const rows = await this.events.findMany(tx, { organizationId: context.organizationId });
-    return rows.map(toEventSummary);
+    const [rows, total] = await this.events.list(tx, {
+      organizationId: tenant.organizationId,
+      ...buildListFilter(query),
+      orderBy,
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    });
+
+    return { items: rows.map(toSummary), page: query.page, pageSize: query.pageSize, total };
   });
 }
 ```
 
-### Transactions belong to the service
+### Where the line sits, concretely
 
-The service opens the transaction and passes the scoped client down. A model must never open
-its own transaction: nested transactions break the tenant context guarantee.
+| Operation | Where it lives |
+| --- | --- |
+| Fetch one event by id for the current tenant | Service (one table, one row) |
+| List with search, status filter, sort, pagination and a count | Repository |
+| Public event context with organisation, branding and locale | Repository + mapper |
+| Publish: read status, decide transition, update | Service rules + repository writes |
+| Load memberships for the signed-in account | Service (one query, reused inside the same class) |
 
 ---
 
 # Part D — Structure and naming
 
-1. Folders are plural and feature-based: `modules/registrations/`, not `modules/registration-logic/`.
+1. Folders are plural and feature-based: `modules/registrations/`.
 2. One primary export per file, named after the file.
-3. File suffixes are fixed: `.module.ts`, `.controller.ts`, `.service.ts`, `.model.ts`,
-   `.spec.ts`, `.tsx` for components.
-4. No barrel files inside feature modules. They hide cycles and defeat the layer rules.
-5. Public read models live next to the module that owns them, not in `common/`.
+3. Fixed suffixes: `.module.ts`, `.controller.ts`, `.service.ts`, `.repository.ts`,
+   `.mapper.ts`, `.spec.ts`, `.tsx` for components.
+4. No barrel files inside feature modules; they hide cycles and defeat the layer rules.
+5. Pure helpers shared by two or more modules live in `common/utils/`.
 6. Cross-cutting concerns go in `common/`: guards, decorators, interceptors, filters, pipes.
-7. Nothing outside `common/`, `config/` and `database/` may be imported by more than one
-   module without becoming its own module.
+7. A module may export its service. It should not export its repository or mapper.
 
 ---
 
 # Part E — API surface
 
 1. Every response is wrapped by the global envelope. Do not build envelopes by hand.
-2. Errors are thrown as the application's error type with a stable code. Do not return
-   ad-hoc objects with status fields.
-3. Validation happens before the service: route input goes through the shared schema.
-4. Public endpoints are explicitly marked public and return projections that contain no
+2. Errors are thrown as the application's error type with a stable code.
+3. Validation happens before the service, through the shared schema.
+4. Public endpoints are explicitly marked public and return projections containing no
    internal ids, members, contacts or unpublished records.
-5. Anything that changes state is scoped to a tenant and permission-checked at the route.
-6. Pagination is cursor- or page-based consistently, following `07-api-conventions.md`.
+5. State-changing routes are tenant-scoped and permission-checked at the route.
+6. Pagination follows `07-api-conventions.md` consistently.
 
 ---
 
@@ -245,19 +286,33 @@ its own transaction: nested transactions break the tenant context guarantee.
 2. Screens do not call the network directly; they use the service layer.
 3. Shared shapes come from the contracts workspace — never redeclare a response type.
 4. No user-facing string in business logic. Locale files only, French and English.
-5. Branding comes from the resolved workspace context, never from hardcoded colours.
-6. Components stay under 300 lines too; extract subcomponents instead of nesting deeper.
+5. Branding comes from the resolved workspace context, never hardcoded colours.
+6. Components stay under 300 lines; extract subcomponents instead of nesting deeper.
 
 ---
 
 # Part G — Testing
 
-1. One test file beside the unit under test, named `.spec.ts` (or `.test.ts` for components).
-2. Test behaviour, not implementation: assert observable outcomes.
-3. Unit tests do not touch the database. Use a fake model or an in-memory double.
-4. Isolation tests are separate and explicit: two tenants, assert the second cannot read the
-   first.
-5. Every bug fix gets a test that fails before the fix.
+### What must be tested
+
+| Kind | Required when | Example |
+| --- | --- | --- |
+| Unit — logic | Any rule, mapping, sort whitelist, state transition, token or date handling | Publish refused for a cancelled event |
+| Unit — projection | A mapper shapes a contract consumed elsewhere | Branding row → contract object |
+| Regression | Every bug fix | A repository error is reported as a clear unavailability, not a generic failure |
+| Rules | The conventions gate changes | An oversized fixture file is rejected |
+| Isolation | A new tenant-owned query path exists | Tenant A cannot read tenant B's row |
+
+### How tests are written here
+
+1. One spec file beside the unit under test.
+2. Assert observable outcomes, not call sequences.
+3. Unit tests do not touch the database. Use a fake repository or an in-memory double.
+4. Tests must not depend on ambient configuration; set what they need locally.
+5. Provider-wiring tests are not used yet: the test transpiler does not emit decorator
+   metadata, so a Nest module cannot be constructed as the application does. Until that
+   changes, test the logic the providers call. This is a known gap, recorded in
+   `12-dependency-and-security.md`.
 
 ---
 
@@ -275,8 +330,8 @@ its own transaction: nested transactions break the tenant context guarantee.
 # Part I — Commits and documentation
 
 1. Commits follow `type(scope): summary` — `feat`, `fix`, `chore`, `docs`, `test`, `refactor`.
-2. A commit that changes behaviour also updates the document that describes that behaviour.
-3. Migrations are committed with the schema change that produced them, never afterwards.
+2. A commit that changes behaviour also updates the document that describes it.
+3. Migrations are committed with the schema change that produced them.
 4. Do not commit generated output, build artefacts, environment files or lockfile edits you
    did not intend.
 
@@ -284,12 +339,10 @@ its own transaction: nested transactions break the tenant context guarantee.
 
 # Part J — Definition of done
 
-Run these before calling work finished:
-
 ```sh
-npm run check:conventions   # rules in this document that a machine can decide
+npm run check:conventions   # rules a machine can decide
+npm run test                # runs the rules test, then API and web suites
 npm run typecheck           # all three workspaces
-npm run test                # API and web suites
 npm run build               # server and site actually compile
 ```
 
@@ -298,8 +351,7 @@ For anything touching data access, also verify by hand:
 - the new query carries the tenant predicate;
 - no controller or component gained a database import;
 - no file crossed 300 lines;
-- a fresh copy of the project still generates the database client without a configured
-  environment.
+- a fresh copy still generates the database client without a configured environment.
 
 Then state, in the final message, which of those checks was actually run — not which ones
 "should" pass.
@@ -312,11 +364,12 @@ Then state, in the final message, which of those checks was actually run — not
 | --- | --- |
 | R1 | 300-line file limit |
 | R2 | Controllers never touch the database |
-| R3 | Controller → service → model layering |
-| R4 | Only the model layer issues queries |
+| R3 | Proportionate layering: controller → service → repository |
+| R4 | Simple queries inline, complex queries in a repository |
 | R5 | Single entry point for the generated client |
 | R6 | Configuration is injected, not read from the environment |
 | R7 | Tenant identity is derived server-side |
 | R8 | No secrets in the repository |
 | R9 | Shared, validated contracts |
 | R10 | Modules import services only |
+| R11 | Logic tested, fixes regression-tested, rules machine-tested |

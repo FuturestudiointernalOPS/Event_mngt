@@ -1,27 +1,26 @@
 #!/usr/bin/env node
 /**
- * Conventions gate — enforces the checkable rules from docs/13-coding-rules.md.
+ * Conventions gate — enforces the machine-checkable rules from docs/13-coding-rules.md.
  *
  * Run with: npm run check:conventions
  *
- * Only rules a machine can decide without judgement live here. The rest of the
- * rulebook is reviewed by humans and by the coding agent.
+ * Implemented here: R1 (file size), R2 (controllers never reach the data layer),
+ * R5 (single client entry point), R6 (no environment reads in feature code),
+ * R10 (no cross-module repository or controller imports).
+ *
+ * The rest of the rulebook needs judgement and is reviewed, not scripted.
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
-
-const ROOT = process.cwd();
+import { join, posix, relative, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /** Rule R1 — no source file may grow past this many lines. */
-const MAX_LINES = 300;
+export const MAX_LINES = 300;
 
-/** Files allowed to exceed the limit today. Shrink this list; never extend it. */
-const LINE_COUNT_EXEMPT = new Set([
-  'apps/api/src/modules/auth/auth.service.ts',
-  'apps/api/src/modules/events/events.service.ts',
-]);
+/** Rule R1 — must stay empty. Adding an entry postpones a split; argue it in docs/13. */
+const LINE_COUNT_EXEMPT = new Set([]);
 
-/** Controllers that may touch the database, with the reason. */
+/** Rule R2 — controllers that may touch the database, with the reason. */
 const CONTROLLER_DB_ALLOWED = new Set([
   // Readiness must ping the database; it returns no tenant data.
   'apps/api/src/modules/health/health.controller.ts',
@@ -36,8 +35,11 @@ const DB_ACCESS_FILES = ['apps/api/prisma/seed.ts'];
 const ENV_ACCESS_DIRS = ['apps/api/src/config'];
 const ENV_ACCESS_FILES = ['apps/api/prisma/seed.ts', 'apps/api/prisma.config.ts'];
 
-const errors = [];
-const warnings = [];
+const MODULE_PATH = /^apps\/api\/src\/modules\/([^/]+)\//;
+const INTERNAL_LAYER =
+  /^apps\/api\/src\/modules\/([^/]+)\/(?:[^/]+\/)*[^/]+\.(repository|controller)$/;
+
+const IMPORT_SPECIFIER = /(?:from\s+|import\s*\(\s*|import\s+)['"]([^'"]+)['"]/g;
 
 function toPosix(path) {
   return path.split(sep).join('/');
@@ -75,7 +77,7 @@ function isUnder(relPath, roots) {
   return roots.some((root) => relPath.startsWith(`${root}/`));
 }
 
-function checkFileLength(relPath, source) {
+function checkFileLength(relPath, source, errors, warnings) {
   const lines = countLines(source);
 
   if (lines <= MAX_LINES) {
@@ -89,7 +91,7 @@ function checkFileLength(relPath, source) {
 
   if (LINE_COUNT_EXEMPT.has(relPath)) {
     warnings.push(
-      `${relPath} is ${lines} lines and is on the shrink list: extract a layer before adding anything.`,
+      `${relPath} is ${lines} lines and is exempt: extract a layer before adding anything.`,
     );
     return;
   }
@@ -97,29 +99,27 @@ function checkFileLength(relPath, source) {
   errors.push(`${relPath} is ${lines} lines, over the ${MAX_LINES}-line limit (see R1).`);
 }
 
-function checkControllerDatabaseAccess(relPath, source) {
+function checkControllerDatabaseAccess(relPath, source, errors) {
   if (!relPath.endsWith('.controller.ts') || CONTROLLER_DB_ALLOWED.has(relPath)) {
     return;
   }
 
   if (/from\s+['"][^'"]*\/database\//.test(source) || /\bPrismaService\b/.test(source)) {
-    errors.push(`${relPath} reaches the database layer directly; go through a service (see R2).`);
+    errors.push(`${relPath} reaches the data layer directly; go through a service (see R2).`);
   }
 }
 
-function checkDatabaseImports(relPath, source) {
+function checkDatabaseImports(relPath, source, errors) {
   if (isUnder(relPath, DB_ACCESS_DIRS) || DB_ACCESS_FILES.includes(relPath)) {
     return;
   }
 
   if (/from\s+['"][^'"]*generated\/prisma|from\s+['"]@prisma\/client['"]/.test(source)) {
-    errors.push(
-      `${relPath} imports the generated database client; use the shared entry point (see R5).`,
-    );
+    errors.push(`${relPath} imports the generated client; use the single entry point (see R5).`);
   }
 }
 
-function checkEnvironmentAccess(relPath, source) {
+function checkEnvironmentAccess(relPath, source, errors) {
   if (isUnder(relPath, ENV_ACCESS_DIRS) || ENV_ACCESS_FILES.includes(relPath)) {
     return;
   }
@@ -129,29 +129,74 @@ function checkEnvironmentAccess(relPath, source) {
   }
 }
 
-const files = SOURCE_ROOTS.flatMap((root) => walk(join(ROOT, root))).map((full) =>
-  toPosix(relative(ROOT, full)),
-);
-
-for (const relPath of files) {
-  const source = readFileSync(join(ROOT, relPath), 'utf8');
-
-  checkFileLength(relPath, source);
-  checkControllerDatabaseAccess(relPath, source);
-  checkDatabaseImports(relPath, source);
-  checkEnvironmentAccess(relPath, source);
-}
-
-for (const warning of warnings) {
-  console.warn(`  warn  ${warning}`);
-}
-
-if (errors.length > 0) {
-  for (const error of errors) {
-    console.error(`  fail  ${error}`);
+function checkCrossModuleAccess(relPath, source, errors) {
+  const ownModule = MODULE_PATH.exec(relPath);
+  if (!ownModule) {
+    return;
   }
-  console.error(`\n${errors.length} convention violation(s). See docs/13-coding-rules.md.`);
-  process.exit(1);
+
+  for (const match of source.matchAll(IMPORT_SPECIFIER)) {
+    const specifier = match[1];
+    if (!specifier.startsWith('.')) {
+      continue;
+    }
+
+    const resolved = posix.normalize(posix.join(posix.dirname(relPath), specifier));
+    const target = INTERNAL_LAYER.exec(resolved);
+
+    if (target && target[1] !== ownModule[1]) {
+      errors.push(
+        `${relPath} imports ${target[2]} from module "${target[1]}"; import its service instead (see R10).`,
+      );
+    }
+  }
 }
 
-console.log(`Conventions OK (${files.length} files checked, ${warnings.length} warning(s)).`);
+/**
+ * Inspects a project tree and reports rule violations.
+ * Returns { errors, warnings, files } so the gate itself can be tested.
+ */
+export function runConventions(root) {
+  const errors = [];
+  const warnings = [];
+
+  const files = SOURCE_ROOTS.flatMap((rootDir) => walk(join(root, rootDir))).map((full) =>
+    toPosix(relative(root, full)),
+  );
+
+  for (const relPath of files) {
+    const source = readFileSync(join(root, relPath), 'utf8');
+
+    checkFileLength(relPath, source, errors, warnings);
+    checkControllerDatabaseAccess(relPath, source, errors);
+    checkDatabaseImports(relPath, source, errors);
+    checkEnvironmentAccess(relPath, source, errors);
+    checkCrossModuleAccess(relPath, source, errors);
+  }
+
+  return { errors, warnings, files };
+}
+
+function report({ errors, warnings, files }) {
+  for (const warning of warnings) {
+    console.warn(`  warn  ${warning}`);
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      console.error(`  fail  ${error}`);
+    }
+    console.error(`\n${errors.length} convention violation(s). See docs/13-coding-rules.md.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`Conventions OK (${files.length} files checked, ${warnings.length} warning(s)).`);
+}
+
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  report(runConventions(process.cwd()));
+}
