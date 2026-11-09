@@ -23,7 +23,8 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [10-roadmap-and-backlog.md](10-roadmap-and-backlog.md) | Phases, exit criteria, epic backlog |
 | [11-open-decisions.md](11-open-decisions.md) | Unresolved product/business questions with owners |
 | [12-dependency-and-security.md](12-dependency-and-security.md) | Audit posture, applied upgrades, deferred migrations, re-review triggers |
-| [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → model, tenancy, enforcement |
+| [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → repository, tenancy, enforcement |
+| [14-backend-work-packages.md](14-backend-work-packages.md) | The backend plan split into self-contained packages that can run in parallel |
 
 ## Decisions already made (do not re-litigate without cause)
 
