@@ -8,6 +8,10 @@ import { AuditModule } from '../../modules/audit/audit.module';
 import { routes as auditRoutes } from '../../modules/audit/routes';
 import { AuthModule } from '../../modules/auth/auth.module';
 import { routes as authRoutes } from '../../modules/auth/routes';
+import { BadgesModule } from '../../modules/badges/badges.module';
+import { routes as badgeRoutes } from '../../modules/badges/routes';
+import { ConsentModule } from '../../modules/consent/consent.module';
+import { routes as consentRoutes } from '../../modules/consent/routes';
 import { EventsModule } from '../../modules/events/events.module';
 import { routes as eventRoutes } from '../../modules/events/routes';
 import { HealthModule } from '../../modules/health/health.module';
@@ -16,6 +20,14 @@ import { MembershipsModule } from '../../modules/memberships/memberships.module'
 import { routes as membershipRoutes } from '../../modules/memberships/routes';
 import { ModuleRegistryModule } from '../../modules/module-registry/module-registry.module';
 import { routes as moduleRegistryRoutes } from '../../modules/module-registry/routes';
+import { ParticipantsModule } from '../../modules/participants/participants.module';
+import { routes as participantRoutes } from '../../modules/participants/routes';
+import { ProfilesModule } from '../../modules/profiles/profiles.module';
+import { routes as profileRoutes } from '../../modules/profiles/routes';
+import { RegistrationFormsModule } from '../../modules/registration-forms/registration-forms.module';
+import { routes as registrationFormRoutes } from '../../modules/registration-forms/routes';
+import { RegistrationsModule } from '../../modules/registrations/registrations.module';
+import { routes as registrationRoutes } from '../../modules/registrations/routes';
 import { WorkspacesModule } from '../../modules/workspaces/workspaces.module';
 import { routes as workspaceRoutes } from '../../modules/workspaces/routes';
 import { describeController, type ControllerRoute } from './route-metadata';
@@ -33,20 +45,32 @@ import type { RouteDefinition } from './route-definition';
 const MODULES: Array<Type<unknown>> = [
   AuditModule,
   AuthModule,
+  BadgesModule,
+  ConsentModule,
   EventsModule,
   HealthModule,
   MembershipsModule,
   ModuleRegistryModule,
+  ParticipantsModule,
+  ProfilesModule,
+  RegistrationFormsModule,
+  RegistrationsModule,
   WorkspacesModule,
 ];
 
 const CATALOGUES: Record<string, RouteDefinition[]> = {
   audit: auditRoutes,
   auth: authRoutes,
+  badges: badgeRoutes,
+  consent: consentRoutes,
   events: eventRoutes,
   health: healthRoutes,
   memberships: membershipRoutes,
   'module-registry': moduleRegistryRoutes,
+  participants: participantRoutes,
+  profiles: profileRoutes,
+  'registration-forms': registrationFormRoutes,
+  registrations: registrationRoutes,
   workspaces: workspaceRoutes,
 };
 

@@ -175,6 +175,98 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
         expiresAt: new Date(Date.now() + 86_400_000),
       },
     });
+
+    // Wave 2: one row in every registration-owned table, so the isolation
+    // assertions have something to fail on if a policy is missing.
+    const eventId = index === 0 ? eventA : eventB;
+    const category = await owner.participantCategory.create({
+      data: { organizationId, eventId, key: 'isolation-category', name: 'Isolation category' },
+    });
+    const form = await owner.registrationForm.create({
+      data: { organizationId, eventId, title: 'Isolation form', version: 1 },
+    });
+    const field = await owner.registrationField.create({
+      data: {
+        organizationId,
+        formId: form.id,
+        key: 'motivation',
+        label: 'Motivation',
+        type: 'TEXT',
+        required: false,
+      },
+    });
+    const person = await owner.person.create({
+      data: {
+        organizationId,
+        email: `isolation-person-${index}-${runId}@example.test`,
+        firstName: 'Isolation',
+        lastName: `Person ${index}`,
+      },
+    });
+    const registration = await owner.registration.create({
+      data: {
+        organizationId,
+        eventId,
+        personId: person.id,
+        categoryId: category.id,
+        reference: `EP-ISO${index}${runId.slice(0, 4).toUpperCase()}`,
+        status: 'PENDING',
+        source: 'PUBLIC',
+      },
+    });
+    await owner.registrationAnswer.create({
+      data: {
+        organizationId,
+        registrationId: registration.id,
+        fieldId: field.id,
+        fieldKey: 'motivation',
+        value: 'fixture',
+      },
+    });
+    const document = await owner.consentDocument.create({
+      data: {
+        organizationId,
+        eventId,
+        key: 'privacy',
+        version: 1,
+        title: 'Privacy',
+        body: 'Fixture wording',
+        required: true,
+        publishedAt: new Date(),
+      },
+    });
+    await owner.consentRecord.create({
+      data: {
+        organizationId,
+        registrationId: registration.id,
+        documentId: document.id,
+        documentKey: 'privacy',
+        documentVersion: 1,
+        accepted: true,
+      },
+    });
+    await owner.badge.create({
+      data: { organizationId, eventId, registrationId: registration.id, tokenHash: randomUUID() },
+    });
+    const profile = await owner.participantProfile.create({
+      data: { organizationId, eventId, registrationId: registration.id },
+    });
+    await owner.organizationProfile.create({
+      data: {
+        organizationId,
+        name: `Isolation organisation ${index}`,
+        moderationStatus: 'APPROVED',
+        visibility: 'PRIVATE',
+      },
+    });
+    await owner.innovation.create({
+      data: {
+        organizationId,
+        eventId,
+        participantProfileId: profile.id,
+        title: 'Isolation listing',
+      },
+    });
   }
 
   return {
@@ -194,8 +286,14 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
 export async function destroyFixtures(owner: PrismaClient, fixtures: Fixtures): Promise<void> {
   const organizations = [fixtures.orgA, fixtures.orgB];
 
+  // Consent records hold a RESTRICT reference to their document on purpose, so the
+  // evidence cannot disappear with a wording row. Delete them before the organisation.
+  await owner.consentRecord.deleteMany({
+    where: { organizationId: { in: organizations } },
+  });
   await owner.auditLog.deleteMany({ where: { organizationId: { in: organizations } } });
-  // Cascades to members, roles, role permissions, events, modules, settings, branding.
+  // Cascades to members, roles, role permissions, events, modules, settings, branding,
+  // categories, forms, registrations, answers, badges, profiles and listing rows.
   await owner.organization.deleteMany({ where: { id: { in: organizations } } });
   await owner.user.deleteMany({
     where: { email: { endsWith: `${fixtures.runId}@example.test` } },

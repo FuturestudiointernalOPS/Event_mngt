@@ -62,8 +62,9 @@ profile" — the concrete relation is defined when the meetings module is implem
 ## Phase 1 schema (implemented in Prisma)
 
 Phase 1 covers identity, tenancy, access control, workspace, branding and the event
-container. Registration, profiles, operations and reporting tables arrive with their
-phases; the ERD above is the target so migrations never conflict.
+container. Wave 2 adds the registration and profile tables listed below. Operations and
+reporting tables (check-in, meetings, introductions, aggregates) arrive with their phases;
+the ERD above is the target so migrations never conflict.
 
 ```mermaid
 erDiagram
@@ -100,6 +101,27 @@ erDiagram
 | `idempotency_records` | Short-lived replay cache for `Idempotency-Key` | `(scope, key)` unique; `expires_at` |
 | `rate_limit_counters` | Fixed-window rate-limit counters | PK `(key, window_start)` |
 | `audit_logs` | Append-only sensitive action log | index on `(organization_id, created_at)` |
+
+## Wave 2 tables (registration and profiles)
+
+Every table below carries `organization_id` directly, including the child tables, so a
+tenant policy is a single predicate rather than a join. The wave 2 migration is
+`20261110120000_wave2_registration`.
+
+| Table | Purpose | Notable constraints |
+| --- | --- | --- |
+| `participant_categories` | Categories within one event | `(event_id, key)` unique; deactivate instead of delete |
+| `registration_forms` | One form per event | `event_id` unique; `version` increments on save |
+| `registration_fields` | Questions in the current form | `(form_id, key)` unique; options only for choice fields |
+| `people` | The human behind registrations, per organisation | `(organization_id, email)` unique (`docs/11` D4) |
+| `registrations` | Participation in one event | `(event_id, reference)` unique; duplicates are a policy, not a constraint |
+| `registration_answers` | One answer per field key | `(registration_id, field_key)` unique; `field_id` nullable so history survives a form edit |
+| `consent_documents` | Versioned consent wording | `(event_id, key, version)` unique; only the latest published version is required |
+| `consent_records` | Append-only acceptance evidence | snapshots key and version; `document_id` is `RESTRICT` |
+| `badges` | One badge per registration | `registration_id` unique; only the token hash is stored |
+| `participant_profiles` | Presentation attached to a registration | `registration_id` unique; moderation and visibility are independent |
+| `organization_profiles` | The workspace's own listing | `organization_id` unique |
+| `innovations` | Showcase listings for an event | attaches to exactly one participant or organisation profile |
 
 ### Why title-case Prisma models but snake_case tables
 

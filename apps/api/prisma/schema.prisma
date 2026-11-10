@@ -520,7 +520,7 @@ model Registration {
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
   person       Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
-  category     ParticipantCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category     ParticipantCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   decidedBy    User?               @relation("RegistrationDecision", fields: [decidedByUserId], references: [id], onDelete: SetNull)
   answers      RegistrationAnswer[]
   consents     ConsentRecord[]

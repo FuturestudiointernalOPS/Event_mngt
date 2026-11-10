@@ -57,17 +57,23 @@ The third argument `true` means transaction-local. A pooled connection therefore
 to an empty context on commit or rollback. `TenantTransactionService` is the only place
 that sets these; no feature code issues `SET` statements.
 
-### The three scopes
+### The scopes
 
-| Scope | Function | Who | What it can read |
+| Scope | Function | Who | What it can do |
 | --- | --- | --- | --- |
-| Tenant | `withTenant` | an authenticated member | one organisation's rows |
-| Bootstrap | `withUserScope` | sign-in, and tenant resolution | this account's own membership, its organisations and their roles |
-| Public | `withOrganizationScope` | anonymous visitor | one organisation's settings and branding, after a public identifier resolved it |
+| Tenant | `withTenant` | an authenticated member | read and write one organisation's rows |
+| Bootstrap | `withUserScope` | sign-in, and tenant resolution | read this account's own membership, its organisations and their roles |
+| Public read | `withOrganizationScope` | anonymous visitor | read one organisation's settings and branding, and approved showcase rows, after a public identifier resolved it |
+| Public submission | `withOrganizationScope` | anonymous registrant | insert registration-owned rows for the organisation resolved from a published event slug |
 
 Bootstrap exists because membership resolution happens **before** a tenant is known. With
 only tenant policies, that query returns nothing and every tenant route fails. The bootstrap
 policies are `SELECT`-only and keyed on `app.current_user_id`.
+
+Public submission reuses the organisation scope but is the only anonymous path that
+**writes**. The organisation comes from the published event slug, never from the request;
+only registration-owned tables are written; the route is rate-limited by IP and accepts an
+`Idempotency-Key` so a retry returns the first receipt.
 
 Two further pre-tenant policies exist for single-purpose flows:
 
@@ -134,7 +140,9 @@ executed through `TenantTransactionService.withTenant` and include an explicit
   worker. A job without tenant context fails loudly rather than running unscoped.
 - **Public endpoints** (`/public/events/:slug/...`) do not use a user session. They run in
   a read context scoped to the resolved organisation and select only approved fields via
-  dedicated projections — no `SELECT *` into a public response.
+  dedicated projections — no `SELECT *` into a public response. The single exception is
+  registration submission, which writes registration-owned rows inside the same
+  organisation scope; the organisation is resolved server-side from the published event.
 - **Platform admin endpoints** legitimately cross tenants. They are the only code paths
   allowed to bypass tenant predicates, they are audited, and they are covered by
   permissions that no organisation role holds.

@@ -93,8 +93,11 @@ Briefs exist for waves 0, 1, 2 and 3. Wave 2's briefs were written when the wave
 against the schema and contracts that existed by then. Wave 3 was written early to record
 its prerequisites; it stays blocked until wave 2 lands.
 
-**Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log)
-and WP-04 (memberships and invitations).
+**Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log),
+WP-04 (memberships and invitations), WP-05 (module registry), WP-06 (editions),
+WP-07 (brand assets), WP-08 (idempotency and rate limits) and the wave 2 packages
+WP-09..WP-14 (categories and forms, registration submission, consent, approval, badges,
+profiles and showcase).
 
 | Package | Wave | Owns | Depends on | Parallel-safe |
 | --- | --- | --- | --- | --- |
