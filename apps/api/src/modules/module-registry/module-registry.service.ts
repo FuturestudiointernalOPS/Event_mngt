@@ -42,6 +42,32 @@ export class ModuleRegistryService {
   }
 
   /**
+   * Feature gate for a route whose module must be on. Unlike `requireEnabledSettings`,
+   * this reports the refusal as `module_not_enabled` because the caller is staff and
+   * may legitimately see that the event exists.
+   */
+  async requireEnabled(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    moduleKey: string,
+  ): Promise<void> {
+    const row = await this.repository.findModuleRow(
+      tx,
+      organizationId,
+      eventId,
+      moduleKey,
+    );
+
+    if (!row || !row.enabled) {
+      throw AppException.unprocessable(
+        'module_not_enabled',
+        `The "${moduleKey}" module is not enabled for this event.`,
+      );
+    }
+  }
+
+  /**
    * Effective settings for an enabled module, for features in other modules (R10).
    *
    * Runs inside the caller's tenant transaction so the caller keeps one boundary. A

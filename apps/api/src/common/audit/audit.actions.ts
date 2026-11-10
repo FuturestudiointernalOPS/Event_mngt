@@ -15,6 +15,7 @@ export const AUDIT_ACTIONS = {
   registrationSubmitted: 'registration.submitted',
   registrationApproved: 'registration.approved',
   registrationRejected: 'registration.rejected',
+  checkInRecorded: 'checkin.recorded',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

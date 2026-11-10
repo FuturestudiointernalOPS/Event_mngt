@@ -245,6 +245,41 @@ CREATE POLICY innovations_tenant_isolation ON innovations
   WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
 
 -- ---------------------------------------------------------------------------
+-- Wave 3 — check-in, meetings and introductions
+-- ---------------------------------------------------------------------------
+-- Every wave 3 table carries organization_id directly, so the predicate stays
+-- index-friendly instead of joining a parent. Introduction history is append-only;
+-- the absence of an update/delete route is enforced by the API, not by the policy.
+
+ALTER TABLE check_ins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE check_ins FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS check_ins_tenant_isolation ON check_ins;
+CREATE POLICY check_ins_tenant_isolation ON check_ins
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE meetings FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS meetings_tenant_isolation ON meetings;
+CREATE POLICY meetings_tenant_isolation ON meetings
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE introduction_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE introduction_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS introduction_requests_tenant_isolation ON introduction_requests;
+CREATE POLICY introduction_requests_tenant_isolation ON introduction_requests
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE introduction_status_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE introduction_status_history FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS introduction_status_history_tenant_isolation ON introduction_status_history;
+CREATE POLICY introduction_status_history_tenant_isolation ON introduction_status_history
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------------------
 -- Bootstrap scope — resolve a membership before tenant context exists
 -- ---------------------------------------------------------------------------
 -- Read-only. A caller can see their own membership rows and the organisation and

@@ -122,8 +122,13 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     settingsSchema: z.object({
       allowOffline: z.boolean().default(true),
       duplicateWindowMinutes: z.number().int().min(0).max(120).default(5),
+      maxClockSkewMinutes: z.number().int().min(0).max(60).default(5),
     }),
-    defaults: { allowOffline: true, duplicateWindowMinutes: 5 },
+    defaults: {
+      allowOffline: true,
+      duplicateWindowMinutes: 5,
+      maxClockSkewMinutes: 5,
+    },
   },
   {
     key: 'reporting',

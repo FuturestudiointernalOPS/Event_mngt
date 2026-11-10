@@ -19,6 +19,12 @@ export interface BadgeRegistration {
   event: { name: string; slug: string };
 }
 
+export interface BadgeVerification {
+  badgeId: string;
+  registrationId: string;
+  status: BadgeStatus;
+}
+
 /**
  * Badge rows and the registration facts a badge email needs.
  *
@@ -55,6 +61,23 @@ export class BadgesRepository {
         event: { select: { name: true, slug: true } },
       },
     });
+  }
+
+  /** Hash lookup for check-in (WP-15). A token from another event is absent. */
+  async verifyForEvent(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    tokenHash: string,
+  ): Promise<BadgeVerification | null> {
+    const row = await tx.badge.findFirst({
+      where: { organizationId, eventId, tokenHash },
+      select: { id: true, registrationId: true, status: true },
+    });
+
+    return row
+      ? { badgeId: row.id, registrationId: row.registrationId, status: row.status }
+      : null;
   }
 
   findBadge(
