@@ -13,12 +13,12 @@ import {
 import {
   CAPABILITY_KEYS,
   inviteMemberRequestSchema,
-  updateMemberRoleRequestSchema,
+  updateMemberRequestSchema,
   type InvitationSummary,
   type InviteMemberRequest,
   type MemberSummary,
   type RoleSummary,
-  type UpdateMemberRoleRequest,
+  type UpdateMemberRequest,
 } from '@event-platform/shared';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
@@ -84,11 +84,11 @@ export class MembershipsController {
   @TenantScoped('slug')
   @RequireCapability(CAPABILITY_KEYS.organizationManagePermissions)
   @Patch(':slug/members/:memberId')
-  updateRole(
+  updateMember(
     @Param('memberId', new ParseUUIDPipe()) memberId: string,
-    @Body(new ZodValidationPipe(updateMemberRoleRequestSchema)) body: UpdateMemberRoleRequest,
+    @Body(new ZodValidationPipe(updateMemberRequestSchema)) body: UpdateMemberRequest,
   ): Promise<MemberSummary> {
-    return this.memberships.updateRole(memberId, body);
+    return this.memberships.updateMember(memberId, body);
   }
 
   @TenantScoped('slug')

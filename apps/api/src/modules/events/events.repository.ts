@@ -156,6 +156,30 @@ export class EventsRepository {
     });
   }
 
+  setStatus(
+    tx: TenantPrismaClient,
+    eventId: string,
+    status: EventStatus,
+  ): Promise<EventWithModules> {
+    return tx.event.update({
+      where: { id: eventId },
+      data: { status },
+      include: { modules: true },
+    });
+  }
+
+  update(
+    tx: TenantPrismaClient,
+    eventId: string,
+    data: Prisma.EventUpdateInput,
+  ): Promise<EventWithModules> {
+    return tx.event.update({
+      where: { id: eventId },
+      data,
+      include: { modules: true },
+    });
+  }
+
   /**
    * Internal seam for the public registration flow: the event is located from its public
    * slug and the caller gets the organisation, window and lifecycle in one read.

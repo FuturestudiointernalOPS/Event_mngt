@@ -31,6 +31,24 @@ export const routes: RouteDefinition[] = [
     handler: { controller: EventsController, method: 'publish' },
   },
   {
+    method: 'PATCH',
+    path: '/workspaces/:slug/events/:eventId',
+    capability: CAPABILITY_KEYS.eventsCreate,
+    handler: { controller: EventsController, method: 'update' },
+  },
+  {
+    method: 'POST',
+    path: '/workspaces/:slug/events/:eventId/transitions',
+    capability: CAPABILITY_KEYS.eventsPublish,
+    handler: { controller: EventsController, method: 'transition' },
+  },
+  {
+    method: 'POST',
+    path: '/workspaces/:slug/events/:eventId/duplicate',
+    capability: CAPABILITY_KEYS.eventsCreate,
+    handler: { controller: EventsController, method: 'duplicate' },
+  },
+  {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/editions',
     capability: CAPABILITY_KEYS.editionsView,

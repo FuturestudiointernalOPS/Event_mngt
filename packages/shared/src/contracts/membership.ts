@@ -42,6 +42,24 @@ export const updateMemberRoleRequestSchema = z.object({
 
 export type UpdateMemberRoleRequest = z.infer<typeof updateMemberRoleRequestSchema>;
 
+/**
+ * One route changes either field, or both.
+ *
+ * Suspension is expressed here rather than as a delete because a suspended member keeps
+ * their history; only an accepted membership can be suspended.
+ */
+export const updateMemberRequestSchema = z
+  .object({
+    roleId: uuidSchema.optional(),
+    status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  })
+  .refine((value) => value.roleId !== undefined || value.status !== undefined, {
+    message: 'Provide a role, a status, or both',
+    path: ['roleId'],
+  });
+
+export type UpdateMemberRequest = z.infer<typeof updateMemberRequestSchema>;
+
 /** Returned when an invitation is created; the raw token is only sent by email. */
 export const invitationSummarySchema = z.object({
   id: uuidSchema,

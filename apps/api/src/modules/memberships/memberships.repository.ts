@@ -125,6 +125,14 @@ export class MembershipsRepository {
     await tx.organizationMember.update({ where: { id: memberId }, data: { roleId } });
   }
 
+  async updateStatus(
+    tx: TenantPrismaClient,
+    memberId: string,
+    status: 'ACTIVE' | 'SUSPENDED',
+  ): Promise<void> {
+    await tx.organizationMember.update({ where: { id: memberId }, data: { status } });
+  }
+
   async removeMember(tx: TenantPrismaClient, memberId: string): Promise<void> {
     await tx.organizationMember.delete({ where: { id: memberId } });
   }

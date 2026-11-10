@@ -3,17 +3,20 @@ import {
   CreateEventRequest,
   EventDetail,
   EventSummary,
+  EventTransitionAction,
   ListEventsQuery,
+  UpdateEventRequest,
 } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
+import { Prisma } from '../../database/prisma-client';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import { assertCanBeParent } from './editions.rules';
 import { INITIAL_MODULE_KEYS } from './events.constants';
-import { assertPublishable, shouldActivatePublishingModule } from './events.lifecycle';
+import { assertPublishable, nextStatusFor, shouldActivatePublishingModule } from './events.lifecycle';
 import { toDetail, toSummary } from './events.mapper';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
@@ -151,6 +154,66 @@ export class EventsService {
       action: AUDIT_ACTIONS.eventPublished,
       targetType: 'event',
       targetId: eventId,
+    });
+
+    return detail;
+  }
+
+  /** Edits the container. The status is owned by the transition route, never by a PATCH. */
+  async update(eventId: string, input: UpdateEventRequest): Promise<EventDetail> {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
+
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      const data: Prisma.EventUpdateInput = {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.format !== undefined && { format: input.format }),
+        ...(input.visibility !== undefined && { visibility: input.visibility }),
+        ...(input.timeZone !== undefined && { timeZone: input.timeZone }),
+        ...(input.startsAt !== undefined && { startsAt: new Date(input.startsAt) }),
+        ...(input.endsAt !== undefined && { endsAt: new Date(input.endsAt) }),
+        ...(input.venueName !== undefined && { venueName: input.venueName }),
+        ...(input.venueAddress !== undefined && { venueAddress: input.venueAddress }),
+        ...(input.slug !== undefined && { slug: slugify(input.slug) }),
+      };
+
+      return toDetail(await this.events.update(tx, event.id, data));
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventUpdated,
+      targetType: 'event',
+      targetId: eventId,
+    });
+
+    return detail;
+  }
+
+  /** Any lifecycle move that is not a publish. The rule table decides what is legal. */
+  async transition(
+    eventId: string,
+    action: EventTransitionAction,
+  ): Promise<EventDetail> {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
+
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      const next = nextStatusFor(action, event.status);
+      return toDetail(await this.events.setStatus(tx, event.id, next));
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventTransitioned,
+      targetType: 'event',
+      targetId: eventId,
+      metadata: { transition: action },
     });
 
     return detail;

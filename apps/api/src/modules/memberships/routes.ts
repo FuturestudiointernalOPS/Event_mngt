@@ -38,7 +38,7 @@ export const routes: RouteDefinition[] = [
     method: 'PATCH',
     path: '/workspaces/:slug/members/:memberId',
     capability: CAPABILITY_KEYS.organizationManagePermissions,
-    handler: { controller: MembershipsController, method: 'updateRole' },
+    handler: { controller: MembershipsController, method: 'updateMember' },
   },
   {
     method: 'DELETE',

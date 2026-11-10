@@ -34,8 +34,15 @@ export type EventAction =
 export const eventAdminApi = {
   update: (slug: string, id: string, payload: UpdateEventRequest) =>
     apiRequest<EventDetail>(ev(slug, id), { method: 'PATCH', body: payload }),
-  act: (slug: string, id: string, action: EventAction) =>
-    apiRequest<EventDetail>(`${ev(slug, id)}/${action}`, { method: 'POST' }),
+  act: (slug: string, id: string, action: EventAction) => {
+    if (action === 'publish' || action === 'duplicate') {
+      return apiRequest<EventDetail>(`${ev(slug, id)}/${action}`, { method: 'POST' });
+    }
+    return apiRequest<EventDetail>(`${ev(slug, id)}/transitions`, {
+      method: 'POST',
+      body: { action },
+    });
+  },
 
   /** The shared registry: names, summaries and dependencies for every module. */
   moduleCatalogue: () => apiRequest<ModuleCatalogueEntry[]>('/api/v1/modules'),

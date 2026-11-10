@@ -54,6 +54,9 @@ see `docs/16-capability-authorization.md`.
 | events | POST | `/workspaces/:slug/events` | `events.create` | `EventsController.create` |
 | events | GET | `/workspaces/:slug/events/:eventId` | `events.view` | `EventsController.detail` |
 | events | POST | `/workspaces/:slug/events/:eventId/publish` | `events.publish` | `EventsController.publish` |
+| events | PATCH | `/workspaces/:slug/events/:eventId` | `events.create` | `EventsController.update` |
+| events | POST | `/workspaces/:slug/events/:eventId/transitions` | `events.publish` | `EventsController.transition` |
+| events | POST | `/workspaces/:slug/events/:eventId/duplicate` | `events.create` | `EventsController.duplicate` |
 | events | GET | `/workspaces/:slug/events/:eventId/editions` | `editions.view` | `EditionsController.list` |
 | events | POST | `/workspaces/:slug/events/:eventId/editions` | `editions.create` | `EditionsController.create` |
 | events | GET | `/workspaces/:slug/events/:eventId/editions/:editionId` | `editions.view` | `EditionsController.detail` |
@@ -73,7 +76,7 @@ see `docs/16-capability-authorization.md`.
 | memberships | GET | `/workspaces/:slug/invitations` | `organization.view_members` | `MembershipsController.listInvitations` |
 | memberships | POST | `/workspaces/:slug/invitations` | `organization.invite_members` | `MembershipsController.invite` |
 | memberships | DELETE | `/workspaces/:slug/invitations/:invitationId` | `organization.invite_members` | `MembershipsController.revokeInvitation` |
-| memberships | PATCH | `/workspaces/:slug/members/:memberId` | `organization.manage_permissions` | `MembershipsController.updateRole` |
+| memberships | PATCH | `/workspaces/:slug/members/:memberId` | `organization.manage_permissions` | `MembershipsController.updateMember` |
 | memberships | DELETE | `/workspaces/:slug/members/:memberId` | `organization.remove_members` | `MembershipsController.remove` |
 | memberships | POST | `/auth/invitations/:token/accept` | — | `InvitationsController.accept` |
 | module-registry | GET | `/modules` | — | `ModuleRegistryController.catalogue` |

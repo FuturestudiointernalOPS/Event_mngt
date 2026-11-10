@@ -28,7 +28,7 @@ export const teamApi = {
 
   members: (slug: string) => apiRequest<MemberSummary[]>(`${ws(slug)}/members`),
   roles: (slug: string) => apiRequest<RoleSummary[]>(`${ws(slug)}/roles`),
-  updateMember: (slug: string, id: string, payload: { roleId: string }) =>
+  updateMember: (slug: string, id: string, payload: { roleId?: string; status?: 'ACTIVE' | 'SUSPENDED' }) =>
     apiRequest<MemberSummary>(`${ws(slug)}/members/${id}`, { method: 'PATCH', body: payload }),
   removeMember: (slug: string, id: string) =>
     apiRequest<void>(`${ws(slug)}/members/${id}`, { method: 'DELETE' }),

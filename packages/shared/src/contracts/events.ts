@@ -75,6 +75,29 @@ export const updateEventRequestSchema = eventFieldsSchema
 
 export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
 
+/**
+ * Lifecycle transitions that are not a publish.
+ *
+ * They share one route because they differ only by the resulting status; the allowed
+ * source statuses live in the server's lifecycle rules.
+ */
+export const eventTransitionActionSchema = z.enum([
+  'unpublish',
+  'open-registration',
+  'close-registration',
+  'complete',
+  'cancel',
+  'archive',
+]);
+
+export type EventTransitionAction = z.infer<typeof eventTransitionActionSchema>;
+
+export const eventTransitionRequestSchema = z.object({
+  action: eventTransitionActionSchema,
+});
+
+export type EventTransitionRequest = z.infer<typeof eventTransitionRequestSchema>;
+
 export const eventSummarySchema = z.object({
   id: uuidSchema,
   organizationId: uuidSchema,

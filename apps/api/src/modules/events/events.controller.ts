@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -14,7 +15,11 @@ import {
   ListEventsQuery,
   CAPABILITY_KEYS,
   createEventRequestSchema,
+  eventTransitionRequestSchema,
   listEventsQuerySchema,
+  updateEventRequestSchema,
+  type EventTransitionRequest,
+  type UpdateEventRequest,
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
@@ -22,6 +27,7 @@ import { RequireCapability } from '../../common/decorators/require-capability.de
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
+import { DuplicateEventService } from './events.duplicate.service';
 import { EventsService } from './events.service';
 
 /**
@@ -33,7 +39,10 @@ import { EventsService } from './events.service';
 @Controller('workspaces/:slug/events')
 @TenantScoped('slug')
 export class EventsController {
-  constructor(private readonly eventsService: EventsService) {}
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly duplication: DuplicateEventService,
+  ) {}
 
   @Get()
   @RequireCapability(CAPABILITY_KEYS.eventsView)
@@ -67,5 +76,34 @@ export class EventsController {
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventDetail> {
     return this.eventsService.publish(eventId);
+  }
+
+  @Patch(':eventId')
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  update(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @Body(new ZodValidationPipe(updateEventRequestSchema)) body: UpdateEventRequest,
+  ): Promise<EventDetail> {
+    return this.eventsService.update(eventId, body);
+  }
+
+  @Post(':eventId/transitions')
+  @RequireCapability(CAPABILITY_KEYS.eventsPublish)
+  transition(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @Body(new ZodValidationPipe(eventTransitionRequestSchema))
+    body: EventTransitionRequest,
+  ): Promise<EventDetail> {
+    return this.eventsService.transition(eventId, body.action);
+  }
+
+  @Post(':eventId/duplicate')
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  @Idempotent()
+  duplicate(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<EventDetail> {
+    return this.duplication.duplicate(eventId, user.id);
   }
 }

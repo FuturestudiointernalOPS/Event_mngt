@@ -46,7 +46,8 @@ export default function TeamPage(): JSX.Element {
     onError: fail,
   });
   const update = useMutation({
-    mutationFn: (input: { id: string; roleId: string }) => teamApi.updateMember(slug, input.id, { roleId: input.roleId }),
+    mutationFn: (input: { id: string; roleId?: string; status?: 'ACTIVE' | 'SUSPENDED' }) =>
+      teamApi.updateMember(slug, input.id, { roleId: input.roleId, status: input.status }),
     onSuccess: () => void refresh(),
     onError: fail,
   });
@@ -96,6 +97,16 @@ export default function TeamPage(): JSX.Element {
                         <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </Select>
+                    {member.status !== 'INVITED' ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={update.isPending}
+                        onClick={() => update.mutate({ id: member.id, status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}
+                      >
+                        {member.status === 'ACTIVE' ? t('team.suspend') : t('team.activate')}
+                      </Button>
+                    ) : null}
                     <Button size="sm" variant="danger" onClick={() => remove.mutate(member.id)}>
                       {t('team.remove')}
                     </Button>
