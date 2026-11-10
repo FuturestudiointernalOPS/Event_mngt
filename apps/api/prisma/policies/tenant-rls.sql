@@ -153,6 +153,98 @@ CREATE POLICY event_modules_tenant_isolation ON event_modules
   );
 
 -- ---------------------------------------------------------------------------
+-- Wave 2 — registration, consent, badges and profiles
+-- ---------------------------------------------------------------------------
+-- Every wave 2 table carries organization_id directly, so the predicate stays
+-- index-friendly instead of joining a parent. A public registration submission
+-- writes these rows inside withOrganizationScope, resolved from the published
+-- event slug; the API decides which rows a public route may write.
+
+ALTER TABLE participant_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE participant_categories FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS participant_categories_tenant_isolation ON participant_categories;
+CREATE POLICY participant_categories_tenant_isolation ON participant_categories
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE registration_forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_forms FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS registration_forms_tenant_isolation ON registration_forms;
+CREATE POLICY registration_forms_tenant_isolation ON registration_forms
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE registration_fields ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_fields FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS registration_fields_tenant_isolation ON registration_fields;
+CREATE POLICY registration_fields_tenant_isolation ON registration_fields
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE people ENABLE ROW LEVEL SECURITY;
+ALTER TABLE people FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS people_tenant_isolation ON people;
+CREATE POLICY people_tenant_isolation ON people
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registrations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS registrations_tenant_isolation ON registrations;
+CREATE POLICY registrations_tenant_isolation ON registrations
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE registration_answers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_answers FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS registration_answers_tenant_isolation ON registration_answers;
+CREATE POLICY registration_answers_tenant_isolation ON registration_answers
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE consent_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consent_documents FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS consent_documents_tenant_isolation ON consent_documents;
+CREATE POLICY consent_documents_tenant_isolation ON consent_documents
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE consent_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consent_records FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS consent_records_tenant_isolation ON consent_records;
+CREATE POLICY consent_records_tenant_isolation ON consent_records
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE badges FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS badges_tenant_isolation ON badges;
+CREATE POLICY badges_tenant_isolation ON badges
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE participant_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE participant_profiles FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS participant_profiles_tenant_isolation ON participant_profiles;
+CREATE POLICY participant_profiles_tenant_isolation ON participant_profiles
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE organization_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organization_profiles FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS organization_profiles_tenant_isolation ON organization_profiles;
+CREATE POLICY organization_profiles_tenant_isolation ON organization_profiles
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE innovations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE innovations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS innovations_tenant_isolation ON innovations;
+CREATE POLICY innovations_tenant_isolation ON innovations
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------------------
 -- Bootstrap scope — resolve a membership before tenant context exists
 -- ---------------------------------------------------------------------------
 -- Read-only. A caller can see their own membership rows and the organisation and

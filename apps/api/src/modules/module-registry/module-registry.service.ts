@@ -41,6 +41,39 @@ export class ModuleRegistryService {
     return toCatalogue();
   }
 
+  /**
+   * Effective settings for an enabled module, for features in other modules (R10).
+   *
+   * Runs inside the caller's tenant transaction so the caller keeps one boundary. A
+   * module that is missing or disabled is reported exactly like a missing event, so a
+   * closed registration page cannot be used to probe an event's existence.
+   */
+  async requireEnabledSettings(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    moduleKey: string,
+  ): Promise<Record<string, unknown>> {
+    const row = await this.repository.findModuleRow(
+      tx,
+      organizationId,
+      eventId,
+      moduleKey,
+    );
+
+    if (!row || !row.enabled) {
+      throw AppException.notFound('not_found', 'Event not found.');
+    }
+
+    const definition = getModuleDefinition(moduleKey);
+    const parsed = validateModuleSettings(
+      moduleKey,
+      row.settings ?? definition?.defaults ?? {},
+    );
+
+    return parsed.success ? parsed.data : (definition?.defaults ?? {});
+  }
+
   list(eventId: string): Promise<EventModule[]> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
       await this.assertEvent(tx, tenant.organizationId, eventId);

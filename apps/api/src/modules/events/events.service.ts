@@ -17,9 +17,10 @@ import { assertPublishable, shouldActivatePublishingModule } from './events.life
 import { toDetail, toSummary } from './events.mapper';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
-import { EventsRepository } from './events.repository';
+import { EventsRepository, type PublicEventTarget } from './events.repository';
 
 export type { PublicEventContext } from './events.projection';
+export type { PublicEventTarget } from './events.repository';
 
 /** Modules every new event starts with. Publishing adds its own module later. */
 
@@ -153,6 +154,14 @@ export class EventsService {
     });
 
     return detail;
+  }
+
+  /**
+   * Public registration target, resolved from the event slug before any tenant context
+   * exists. The caller uses the organisation id from the row, never from the request.
+   */
+  findPublicTarget(eventSlug: string): Promise<PublicEventTarget | null> {
+    return this.events.findPublicTarget(eventSlug);
   }
 
   /**

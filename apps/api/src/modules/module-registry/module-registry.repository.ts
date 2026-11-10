@@ -34,6 +34,18 @@ export class ModuleRegistryRepository {
     });
   }
 
+  /** One module's row, used by features that need its settings before acting. */
+  findModuleRow(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    moduleKey: string,
+  ): Promise<EventModuleRow | null> {
+    return tx.eventModule.findFirst({
+      where: { eventId, moduleKey, event: { organizationId } },
+    });
+  }
+
   async upsert(
     tx: TenantPrismaClient,
     eventId: string,

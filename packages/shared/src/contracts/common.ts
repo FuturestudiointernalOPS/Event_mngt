@@ -50,6 +50,18 @@ export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
 export const uuidSchema = z.uuid();
 
+/** Stable, lowercase identifier for a category, field or consent document. */
+export const keySchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(2, 'Use at least 2 characters')
+  .max(40, 'Use at most 40 characters')
+  .regex(
+    /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+    'Use lowercase letters, numbers and single hyphens',
+  );
+
 export const localeSchema = z.enum(['fr', 'en']);
 export type Locale = z.infer<typeof localeSchema>;
 

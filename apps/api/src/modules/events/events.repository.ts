@@ -16,6 +16,17 @@ import {
   type PublicEventContextRow,
 } from './events.projection';
 
+export interface PublicEventTarget {
+  id: string;
+  organizationId: string;
+  slug: string;
+  name: string;
+  status: EventStatus;
+  visibility: EventVisibility;
+  registrationOpensAt: Date | null;
+  registrationClosesAt: Date | null;
+}
+
 export interface CreateEventData {
   organizationId: string;
   createdByUserId: string;
@@ -142,6 +153,31 @@ export class EventsRepository {
       where: { id: eventId },
       data: { status: EventStatus.PUBLISHED, publishedAt: new Date() },
       include: { modules: true },
+    });
+  }
+
+  /**
+   * Internal seam for the public registration flow: the event is located from its public
+   * slug and the caller gets the organisation, window and lifecycle in one read.
+   */
+  findPublicTarget(eventSlug: string): Promise<PublicEventTarget | null> {
+    return this.prisma.event.findFirst({
+      where: {
+        slug: eventSlug,
+        visibility: { in: PUBLIC_VISIBILITIES },
+        status: { notIn: NON_PUBLIC_STATUSES },
+        organization: { status: OrganizationStatus.ACTIVE },
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        slug: true,
+        name: true,
+        status: true,
+        visibility: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+      },
     });
   }
 
