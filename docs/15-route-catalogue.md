@@ -15,6 +15,7 @@ Paths are relative to `/api/v1`. `—` means the route is public or only needs a
 <!-- routes:start -->
 | Module | Method | Path | Permission | Handler |
 | --- | --- | --- | --- | --- |
+| analytics | GET | `/public/events/:eventSlug/metrics` | — | `PublicMetricsController.get` |
 | audit | GET | `/workspaces/:slug/audit` | `audit:read` | `AuditController.list` |
 | auth | POST | `/auth/register` | — | `AuthController.register` |
 | auth | POST | `/auth/verify-email` | — | `AuthController.verifyEmail` |
@@ -88,6 +89,13 @@ Paths are relative to `/api/v1`. `—` means the route is public or only needs a
 | registrations | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/approve` | `registration:manage` | `RegistrationsController.approve` |
 | registrations | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/reject` | `registration:manage` | `RegistrationsController.reject` |
 | registrations | POST | `/public/events/:eventSlug/registrations` | — | `PublicRegistrationsController.submit` |
+| reports | GET | `/workspaces/:slug/events/:eventId/reports/summary` | `report:read` | `ReportsController.eventSummary` |
+| reports | GET | `/workspaces/:slug/reports/summary` | `report:read` | `ReportsController.organizationSummary` |
+| reports | GET | `/workspaces/:slug/events/:eventId/reports/editions` | `report:read` | `ReportsController.editions` |
+| reports | POST | `/workspaces/:slug/events/:eventId/exports` | `report:export` | `ExportsController.create` |
+| reports | GET | `/workspaces/:slug/events/:eventId/exports` | `report:read` | `ExportsController.list` |
+| reports | GET | `/workspaces/:slug/exports/:exportId` | `report:read` | `ExportsController.detail` |
+| reports | GET | `/workspaces/:slug/exports/:exportId/download` | `report:export` | `ExportsController.download` |
 | workspaces | GET | `/workspaces/:slug/context` | — | `WorkspacesController.context` |
 | workspaces | GET | `/workspaces/:slug/settings` | `workspace:read` | `WorkspacesController.settings` |
 | workspaces | PATCH | `/workspaces/:slug/settings` | `workspace:manage` | `WorkspacesController.updateSettings` |

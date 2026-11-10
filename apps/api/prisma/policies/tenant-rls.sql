@@ -245,6 +245,19 @@ CREATE POLICY innovations_tenant_isolation ON innovations
   WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
 
 -- ---------------------------------------------------------------------------
+-- Wave 4 — report exports
+-- ---------------------------------------------------------------------------
+-- An export is tenant data: it contains participant rows. The generated file is
+-- readable only inside the organisation that requested it.
+
+ALTER TABLE report_exports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_exports FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS report_exports_tenant_isolation ON report_exports;
+CREATE POLICY report_exports_tenant_isolation ON report_exports
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------------------
 -- Wave 3 — check-in, meetings and introductions
 -- ---------------------------------------------------------------------------
 -- Every wave 3 table carries organization_id directly, so the predicate stays

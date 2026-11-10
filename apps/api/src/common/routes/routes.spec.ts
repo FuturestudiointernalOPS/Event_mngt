@@ -6,6 +6,8 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { AuditModule } from '../../modules/audit/audit.module';
 import { routes as auditRoutes } from '../../modules/audit/routes';
+import { AnalyticsModule } from '../../modules/analytics/analytics.module';
+import { routes as analyticsRoutes } from '../../modules/analytics/routes';
 import { AuthModule } from '../../modules/auth/auth.module';
 import { routes as authRoutes } from '../../modules/auth/routes';
 import { BadgesModule } from '../../modules/badges/badges.module';
@@ -34,6 +36,8 @@ import { RegistrationFormsModule } from '../../modules/registration-forms/regist
 import { routes as registrationFormRoutes } from '../../modules/registration-forms/routes';
 import { RegistrationsModule } from '../../modules/registrations/registrations.module';
 import { routes as registrationRoutes } from '../../modules/registrations/routes';
+import { ReportsModule } from '../../modules/reports/reports.module';
+import { routes as reportRoutes } from '../../modules/reports/routes';
 import { WorkspacesModule } from '../../modules/workspaces/workspaces.module';
 import { routes as workspaceRoutes } from '../../modules/workspaces/routes';
 import { describeController, type ControllerRoute } from './route-metadata';
@@ -49,6 +53,7 @@ import type { RouteDefinition } from './route-definition';
  */
 
 const MODULES: Array<Type<unknown>> = [
+  AnalyticsModule,
   AuditModule,
   AuthModule,
   BadgesModule,
@@ -64,10 +69,12 @@ const MODULES: Array<Type<unknown>> = [
   ProfilesModule,
   RegistrationFormsModule,
   RegistrationsModule,
+  ReportsModule,
   WorkspacesModule,
 ];
 
 const CATALOGUES: Record<string, RouteDefinition[]> = {
+  analytics: analyticsRoutes,
   audit: auditRoutes,
   auth: authRoutes,
   badges: badgeRoutes,
@@ -83,6 +90,7 @@ const CATALOGUES: Record<string, RouteDefinition[]> = {
   profiles: profileRoutes,
   'registration-forms': registrationFormRoutes,
   registrations: registrationRoutes,
+  reports: reportRoutes,
   workspaces: workspaceRoutes,
 };
 

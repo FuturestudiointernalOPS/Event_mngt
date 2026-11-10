@@ -143,5 +143,6 @@ hashed-QR badges, participant and organisation profiles, showcase listings and t
 participant read model (WP-09..WP-14). The tenant-isolation suite runs against a real
 database and covers every tenant table. Event operations add online check-in with one
 attendance row per registration, offline scan sync with per-scan outcomes, meetings and
-the introduction queue with append-only status history (WP-15..WP-17). Reporting remains
-(wave 4), followed by the wave 5 launch gates.
+the introduction queue with append-only status history (WP-15..WP-17). Reporting adds
+event, organisation and edition aggregates, asynchronous CSV/PDF exports and anonymised
+public metrics (WP-18..WP-20). The wave 5 launch gates remain.

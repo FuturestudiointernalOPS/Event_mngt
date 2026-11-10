@@ -51,6 +51,22 @@ export const API_PATHS = {
   publicEvents: {
     context: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}/context`,
     detail: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}`,
+    metrics: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}/metrics`,
+  },
+
+  reports: {
+    eventSummary: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/reports/summary`,
+    organizationSummary: (slug: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/reports/summary`,
+    editions: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/reports/editions`,
+    exports: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/exports`,
+    exportDetail: (slug: string, exportId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/exports/${exportId}`,
+    exportDownload: (slug: string, exportId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/exports/${exportId}/download`,
   },
 
   moduleRegistry: `${API_BASE_PATH}/modules`,

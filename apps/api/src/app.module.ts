@@ -18,6 +18,7 @@ import { AppConfigService, CoreConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BadgesModule } from './modules/badges/badges.module';
 import { CheckInModule } from './modules/check-in/check-in.module';
@@ -33,6 +34,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { RegistrationFormsModule } from './modules/registration-forms/registration-forms.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
 /**
@@ -64,6 +66,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     AuditModule,
     PermissionsModule,
     HealthModule,
+    AnalyticsModule,
     AuthModule,
     WorkspacesModule,
     MembershipsModule,
@@ -78,6 +81,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     ParticipantsModule,
     IntroductionsModule,
     MeetingsModule,
+    ReportsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

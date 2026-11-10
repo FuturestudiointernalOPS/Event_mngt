@@ -15,6 +15,7 @@ export const AUDIT_ACTIONS = {
   registrationSubmitted: 'registration.submitted',
   registrationApproved: 'registration.approved',
   registrationRejected: 'registration.rejected',
+  reportExportRequested: 'report.export.requested',
   checkInRecorded: 'checkin.recorded',
 } as const;
 

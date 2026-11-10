@@ -302,6 +302,22 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
       },
     });
 
+    // Wave 4: an export is tenant data because it snapshots participant rows.
+    await owner.reportExport.create({
+      data: {
+        organizationId,
+        eventId,
+        requestedByUserId: index === 0 ? accountA.id : accountB.id,
+        format: 'CSV',
+        status: 'COMPLETED',
+        fileName: `isolation-${index}-${runId}.csv`,
+        contentType: 'text/csv; charset=utf-8',
+        content: Buffer.from('reference\r\n'),
+        rowCount: 1,
+        byteSize: 11,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
   }
 
   return {

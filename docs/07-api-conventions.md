@@ -84,6 +84,8 @@ Module activation and uploads add: `invalid_module`, `module_core_required`,
 `idempotency_in_progress`, `file_required`, `file_too_large`, `file_type_not_allowed`,
 `file_type_mismatch`.
 
+Reporting adds: `export_not_ready`, `export_expired`, `export_failed`.
+
 ## Versioning
 
 - The major version lives in the path (`/api/v1`). Breaking changes create `/api/v2`; v1

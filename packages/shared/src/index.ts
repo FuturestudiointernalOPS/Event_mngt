@@ -12,6 +12,8 @@ export * from './contracts/check-in';
 export * from './contracts/meetings';
 export * from './contracts/introductions';
 export * from './contracts/audit';
+export * from './contracts/reports';
+export * from './contracts/analytics';
 export * from './contracts/membership';
 export * from './contracts/modules';
 export * from './contracts/branding-assets';
