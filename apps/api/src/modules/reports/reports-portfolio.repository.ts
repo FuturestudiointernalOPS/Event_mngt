@@ -87,6 +87,11 @@ export class ReportsPortfolioRepository {
     return this.groupStatus(tx, { organizationId, eventId: { in: eventIds } });
   }
 
+  /** People recorded at the door, across every event in the organisation. */
+  countCheckIns(tx: TenantPrismaClient, organizationId: string): Promise<number> {
+    return tx.checkIn.count({ where: { organizationId } });
+  }
+
   private groupStatus(
     tx: TenantPrismaClient,
     where: { organizationId: string; eventId?: string | { in: string[] } },

@@ -120,6 +120,8 @@ export const organizationReportSchema = z.object({
     events: z.number().int().min(0),
     publishedEvents: z.number().int().min(0),
     registrations: registrationBreakdownSchema,
+    /** People recorded at the door across the whole portfolio. */
+    checkedIn: z.number().int().min(0),
   }),
   events: z.array(organizationReportEventSchema),
 });

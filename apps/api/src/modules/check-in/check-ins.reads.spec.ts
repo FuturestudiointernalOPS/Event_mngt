@@ -19,10 +19,16 @@ describe('attendance reads', () => {
     expect(page.items[0].duplicate).toBe(false);
   });
 
-  it('returns the event total', async () => {
-    const { service } = harness({ total: 42 });
+  it('returns the event total and the attendance per category', async () => {
+    const { service } = harness({
+      total: 42,
+      byCategory: [{ key: 'vip', name: 'VIP', checkedIn: 7 }],
+    });
 
-    await expect(service.summary('event-1')).resolves.toEqual({ total: 42 });
+    await expect(service.summary('event-1')).resolves.toEqual({
+      total: 42,
+      byCategory: [{ key: 'vip', name: 'VIP', checkedIn: 7 }],
+    });
   });
 
   it('refuses reads when the module is disabled', async () => {

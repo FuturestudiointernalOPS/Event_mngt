@@ -120,14 +120,15 @@ export class ReportsService {
 
   organizationSummary(): Promise<OrganizationReport> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const [events, counts] = await Promise.all([
+      const [events, counts, checkedIn] = await Promise.all([
         this.portfolio.eventsForOrganization(tx, tenant.organizationId),
         this.portfolio.organizationStatusCounts(tx, tenant.organizationId),
+        this.portfolio.countCheckIns(tx, tenant.organizationId),
       ]);
 
       return {
         generatedAt: new Date().toISOString(),
-        totals: buildOrganizationTotals(events, counts),
+        totals: { ...buildOrganizationTotals(events, counts), checkedIn },
         events: buildOrganizationEvents(events, counts),
       };
     });

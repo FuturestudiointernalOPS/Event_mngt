@@ -80,7 +80,24 @@ export class BadgesRepository {
       : null;
   }
 
-  findBadge(
+  /** Staff check-in without a token: the badge is resolved from the registration. */
+  async verifyForRegistration(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    registrationId: string,
+  ): Promise<BadgeVerification | null> {
+    const row = await tx.badge.findFirst({
+      where: { organizationId, eventId, registrationId },
+      select: { id: true, registrationId: true, status: true },
+    });
+
+    return row
+      ? { badgeId: row.id, registrationId: row.registrationId, status: row.status }
+      : null;
+  }
+
+  async findBadge(
     tx: TenantPrismaClient,
     organizationId: string,
     registrationId: string,

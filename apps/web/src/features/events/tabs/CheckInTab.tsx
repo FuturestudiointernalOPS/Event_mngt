@@ -47,10 +47,10 @@ export default function CheckInTab(): JSX.Element {
         actions={can('checkin:operate') ? <Link to={`/staff/${slug}/${eventId}/check-in`}><Button size="sm">{t('checkin.openScanner')}</Button></Link> : null}
       >
         <ul className="divide-y divide-brand-primary/10 text-sm">
-          {report.data.registrations.byCategory.map((category) => (
+          {attendance.data.byCategory.map((category) => (
             <li key={category.key} className="flex justify-between py-2">
               <span>{category.name}</span>
-              <span>{category.count}{category.capacity === null ? '' : ` / ${category.capacity}`}</span>
+              <span>{category.checkedIn}</span>
             </li>
           ))}
         </ul>

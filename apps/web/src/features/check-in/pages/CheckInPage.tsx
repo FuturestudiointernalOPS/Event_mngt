@@ -127,6 +127,28 @@ export default function CheckInPage(): JSX.Element {
     }
   }
 
+  /** Staff check-in by name: the registration identifies the badge, never a raw token. */
+  async function manual(registrationId: string): Promise<void> {
+    try {
+      const checkIn = await staffOpsApi.recordCheckIn(slug, eventId, {
+        registrationId,
+        scannedAt: new Date().toISOString(),
+      });
+      const value: Shown = checkIn.duplicate
+        ? { tone: 'dup', title: t('checkin.already', { name: checkIn.participant.displayName }), detail: '' }
+        : { tone: 'ok', title: t('checkin.welcome', { name: checkIn.participant.displayName }), detail: checkIn.participant.category ?? '' };
+      setShown(value);
+      navigator.vibrate?.(value.tone === 'ok' ? 60 : [80, 60, 80]);
+      await search();
+    } catch (error) {
+      setShown({
+        tone: 'bad',
+        title: error instanceof ApiRequestError ? error.message : t('common.error'),
+        detail: '',
+      });
+    }
+  }
+
   return (
     <div className="mx-auto max-w-md space-y-4 p-4">
       <div className="flex items-center justify-between">
@@ -178,7 +200,12 @@ export default function CheckInPage(): JSX.Element {
                 <br />
                 <span className="text-xs text-brand-text/70">{match.person.email}</span>
               </span>
-              <span className="text-xs">{statusLabel(match.status)}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-xs">{statusLabel(match.status)}</span>
+                <Button size="sm" disabled={!online} onClick={() => void manual(match.id)}>
+                  {t('checkin.checkIn')}
+                </Button>
+              </span>
             </li>
           ))}
         </ul>

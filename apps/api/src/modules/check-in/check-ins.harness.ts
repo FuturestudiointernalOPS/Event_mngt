@@ -87,6 +87,7 @@ export interface HarnessOptions {
   settings?: Record<string, unknown>;
   rows?: CheckInWithParticipant[];
   total?: number;
+  byCategory?: Array<{ key: string; name: string; checkedIn: number }>;
 }
 
 export function harness(options: HarnessOptions = {}) {
@@ -143,6 +144,7 @@ export function harness(options: HarnessOptions = {}) {
       ];
     },
     count: async () => total,
+    countByCategory: async () => options.byCategory ?? [],
   } as unknown as CheckInsRepository;
 
   const badges = {

@@ -76,13 +76,14 @@ export default function WorkspaceDashboardPage(): JSX.Element {
       {report.isLoading ? <LoadingState label={t('common.loading')} /> : null}
       {report.data ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Stat label={t('nav.events')} value={report.data.totals.events} />
             <Stat label={t('events.published')} value={report.data.totals.publishedEvents} />
             <Stat
               label={t('reports.registrations')}
               value={report.data.totals.registrations.total}
             />
+            <Stat label={t('checkin.checkedIn')} value={report.data.totals.checkedIn} />
           </div>
           <Section
             title={t('dashboard.recent')}

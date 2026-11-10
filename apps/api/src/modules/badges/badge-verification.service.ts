@@ -58,4 +58,24 @@ export class BadgeVerificationService {
       hashBadgeToken(token),
     );
   }
+
+  /**
+   * Staff check-in without a token.
+   *
+   * The badge token is never retrievable, so a member of staff working from the name
+   * search resolves the badge through the registration instead of inventing one.
+   */
+  verifyRegistrationInTransaction(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    registrationId: string,
+  ): Promise<BadgeVerification | null> {
+    return this.repository.verifyForRegistration(
+      tx,
+      organizationId,
+      eventId,
+      registrationId,
+    );
+  }
 }

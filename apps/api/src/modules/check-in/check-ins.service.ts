@@ -65,12 +65,20 @@ export class CheckInsService {
           CHECK_IN_MODULE,
         );
 
-        const badge = await this.badges.verifyForEventInTransaction(
-          tx,
-          tenant.organizationId,
-          eventId,
-          input.badgeToken,
-        );
+        const badge =
+          'badgeToken' in input
+            ? await this.badges.verifyForEventInTransaction(
+                tx,
+                tenant.organizationId,
+                eventId,
+                input.badgeToken,
+              )
+            : await this.badges.verifyRegistrationInTransaction(
+                tx,
+                tenant.organizationId,
+                eventId,
+                input.registrationId,
+              );
 
         if (!badge) {
           throw AppException.notFound('not_found', 'Badge not found.');
@@ -123,7 +131,7 @@ export class CheckInsService {
             organizationId: tenant.organizationId,
             eventId,
             registrationId: badge.registrationId,
-            source: 'ONLINE',
+            source: 'badgeToken' in input ? 'ONLINE' : 'MANUAL',
             scanId: input.scanId ?? null,
             scannedAt,
             receivedAt: new Date(),
@@ -180,13 +188,12 @@ export class CheckInsService {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
       await this.assertEnabled(tx, tenant.organizationId, eventId);
 
-      const total = await this.repository.count(
-        tx,
-        tenant.organizationId,
-        eventId,
-      );
+      const [total, byCategory] = await Promise.all([
+        this.repository.count(tx, tenant.organizationId, eventId),
+        this.repository.countByCategory(tx, tenant.organizationId, eventId),
+      ]);
 
-      return { total };
+      return { total, byCategory };
     });
   }
 

@@ -20,11 +20,22 @@ export const checkInParticipantSchema = z.object({
 
 export type CheckInParticipant = z.infer<typeof checkInParticipantSchema>;
 
-export const createCheckInRequestSchema = z.object({
-  badgeToken: z.string().trim().min(1).max(512),
-  scanId: uuidSchema.optional(),
-  scannedAt: isoDateTimeSchema,
-});
+export const createCheckInRequestSchema = z.union([
+  z.object({
+    badgeToken: z.string().trim().min(1).max(512),
+    scanId: uuidSchema.optional(),
+    scannedAt: isoDateTimeSchema,
+  }),
+  /**
+   * Staff check-in without a token. The badge token is never retrievable, so a manual
+   * check-in identifies the registration instead of guessing a credential.
+   */
+  z.object({
+    registrationId: uuidSchema,
+    scanId: uuidSchema.optional(),
+    scannedAt: isoDateTimeSchema,
+  }),
+]);
 
 export type CreateCheckInRequest = z.infer<typeof createCheckInRequestSchema>;
 
@@ -44,8 +55,18 @@ export type CheckIn = z.infer<typeof checkInSchema>;
 export const listCheckInsQuerySchema = paginationQuerySchema;
 export type ListCheckInsQuery = z.infer<typeof listCheckInsQuerySchema>;
 
+export const checkInCategorySummarySchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  checkedIn: z.number().int(),
+});
+
+export type CheckInCategorySummary = z.infer<typeof checkInCategorySummarySchema>;
+
 export const checkInSummarySchema = z.object({
   total: z.number().int(),
+  /** Attendance per participant category, so the event screen can show who is arriving. */
+  byCategory: z.array(checkInCategorySummarySchema),
 });
 
 export type CheckInSummary = z.infer<typeof checkInSummarySchema>;

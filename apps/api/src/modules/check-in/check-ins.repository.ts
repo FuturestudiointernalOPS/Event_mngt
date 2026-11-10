@@ -198,6 +198,42 @@ export class CheckInsRepository {
   ): Promise<number> {
     return tx.checkIn.count({ where: { organizationId, eventId } });
   }
+
+  /**
+   * Attendance per category, counted on the registration rather than on the check-in so
+   * the grouping happens in the database. Registrations without a category are grouped
+   * under a single unlabelled bucket.
+   */
+  async countByCategory(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+  ): Promise<Array<{ key: string; name: string; checkedIn: number }>> {
+    const [groups, categories] = await Promise.all([
+      tx.registration.groupBy({
+        by: ['categoryId'],
+        where: { organizationId, eventId, checkIns: { some: {} } },
+        _count: { _all: true },
+      }),
+      tx.participantCategory.findMany({
+        where: { organizationId, eventId },
+        select: { id: true, key: true, name: true },
+      }),
+    ]);
+
+    const byId = new Map(categories.map((category) => [category.id, category]));
+
+    return groups
+      .map((group) => {
+        const category = group.categoryId ? byId.get(group.categoryId) : undefined;
+        return {
+          key: category?.key ?? 'uncategorised',
+          name: category?.name ?? '—',
+          checkedIn: group._count._all,
+        };
+      })
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {
