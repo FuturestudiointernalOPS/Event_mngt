@@ -57,12 +57,15 @@ export const authApi = {
     });
   },
 
-  mfaStatus: () => apiRequest<MfaStatus>('/api/v1/auth/mfa'),
-  mfaSetup: () => apiRequest<MfaSetup>('/api/v1/auth/mfa/setup', { method: 'POST' }),
+  mfaStatus: () => apiRequest<MfaStatus>(API_PATHS.auth.mfa),
+  mfaSetup: () => apiRequest<MfaSetup>(API_PATHS.auth.mfaSetup, { method: 'POST' }),
   mfaEnable: (code: string) =>
-    apiRequest<{ recoveryCodes: string[] }>('/api/v1/auth/mfa/enable', { method: 'POST', body: { code } }),
+    apiRequest<{ recoveryCodes: string[] }>(API_PATHS.auth.mfaEnable, {
+      method: 'POST',
+      body: { code },
+    }),
   mfaDisable: (code: string) =>
-    apiRequest<void>('/api/v1/auth/mfa/disable', { method: 'POST', body: { code } }),
+    apiRequest<void>(API_PATHS.auth.mfaDisable, { method: 'POST', body: { code } }),
 
   me(): Promise<CurrentUserResponse> {
     return apiRequest<CurrentUserResponse>(API_PATHS.auth.me);

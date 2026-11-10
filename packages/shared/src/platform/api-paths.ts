@@ -24,6 +24,10 @@ export const API_PATHS = {
     me: `${API_BASE_PATH}/auth/me`,
     sessions: `${API_BASE_PATH}/auth/sessions`,
     session: (sessionId: string) => `${API_BASE_PATH}/auth/sessions/${sessionId}`,
+    mfa: `${API_BASE_PATH}/auth/mfa`,
+    mfaSetup: `${API_BASE_PATH}/auth/mfa/setup`,
+    mfaEnable: `${API_BASE_PATH}/auth/mfa/enable`,
+    mfaDisable: `${API_BASE_PATH}/auth/mfa/disable`,
   },
 
   workspaces: {

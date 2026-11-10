@@ -13,6 +13,7 @@ import { toAuthUser, toSessionSummary, USER_SELECT, type UserRecord } from './au
 import type { LoginResult, RefreshedSession, SessionMeta } from './auth.types';
 import { AccountMembershipsService } from './account-memberships.service';
 import { equaliseTiming, verifyPassword } from './credentials';
+import { MfaService } from './mfa.service';
 
 /**
  * Session lifecycle: sign in, rotate, sign out, list and revoke.
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly config: ConfigService<Env, true>,
     private readonly memberships: AccountMembershipsService,
     private readonly audit: AuditService,
+    private readonly mfa: MfaService,
   ) {}
 
   async login(input: LoginRequest, meta: SessionMeta): Promise<LoginResult> {
@@ -64,6 +66,10 @@ export class AuthService {
         'Verify your email address before signing in.',
       );
     }
+
+    // The password is correct; a second factor, when enabled, must be verified before
+    // any session row or token exists.
+    await this.mfa.assertLoginAllowed(user.id, input.mfaCode);
 
     const refreshToken = generateOpaqueToken();
 

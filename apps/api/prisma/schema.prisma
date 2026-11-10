@@ -178,6 +178,14 @@ model User {
   status          UserStatus @default(PENDING_VERIFICATION)
   isPlatformAdmin Boolean    @default(false) @map("is_platform_admin")
   emailVerifiedAt DateTime?  @map("email_verified_at")
+  /// TOTP secret, AES-256-GCM encrypted. Active only once mfaEnabledAt is set.
+  mfaSecretEnc      String?   @map("mfa_secret_enc")
+  mfaEnabledAt      DateTime? @map("mfa_enabled_at")
+  /// Highest accepted TOTP time step, so a code cannot be replayed.
+  mfaLastStep       BigInt?   @map("mfa_last_step")
+  mfaRecoveryHashes String[]  @default([]) @map("mfa_recovery_hashes")
+  mfaFailedAttempts Int       @default(0) @map("mfa_failed_attempts")
+  mfaLockedUntil    DateTime? @map("mfa_locked_until")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 

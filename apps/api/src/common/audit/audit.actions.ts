@@ -5,6 +5,8 @@
 export const AUDIT_ACTIONS = {
   signedIn: 'auth.signed_in',
   signedOut: 'auth.signed_out',
+  mfaEnabled: 'auth.mfa.enabled',
+  mfaDisabled: 'auth.mfa.disabled',
   brandingUpdated: 'workspace.branding.updated',
   settingsUpdated: 'workspace.settings.updated',
   eventPublished: 'event.published',

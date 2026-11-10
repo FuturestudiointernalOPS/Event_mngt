@@ -1,5 +1,6 @@
 import type { RouteDefinition } from '../../common/routes/route-definition';
 import { AuthController } from './auth.controller';
+import { MfaController } from './mfa.controller';
 
 /**
  * Every route the auth surface exposes. Public routes carry no capability; the
@@ -65,5 +66,29 @@ export const routes: RouteDefinition[] = [
     path: '/auth/sessions/:sessionId',
     capability: null,
     handler: { controller: AuthController, method: 'revokeSession' },
+  },
+  {
+    method: 'GET',
+    path: '/auth/mfa',
+    capability: null,
+    handler: { controller: MfaController, method: 'status' },
+  },
+  {
+    method: 'POST',
+    path: '/auth/mfa/setup',
+    capability: null,
+    handler: { controller: MfaController, method: 'setup' },
+  },
+  {
+    method: 'POST',
+    path: '/auth/mfa/enable',
+    capability: null,
+    handler: { controller: MfaController, method: 'enable' },
+  },
+  {
+    method: 'POST',
+    path: '/auth/mfa/disable',
+    capability: null,
+    handler: { controller: MfaController, method: 'disable' },
   },
 ];
