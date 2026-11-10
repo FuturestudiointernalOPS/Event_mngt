@@ -30,6 +30,10 @@ see `docs/16-capability-authorization.md`.
 | auth | GET | `/auth/me` | — | `AuthController.me` |
 | auth | GET | `/auth/sessions` | — | `AuthController.sessions` |
 | auth | DELETE | `/auth/sessions/:sessionId` | — | `AuthController.revokeSession` |
+| auth | GET | `/auth/mfa` | — | `MfaController.status` |
+| auth | POST | `/auth/mfa/setup` | — | `MfaController.setup` |
+| auth | POST | `/auth/mfa/enable` | — | `MfaController.enable` |
+| auth | POST | `/auth/mfa/disable` | — | `MfaController.disable` |
 | badges | GET | `/workspaces/:slug/events/:eventId/badges` | `registrations.view_badges` | `BadgesController.list` |
 | badges | GET | `/workspaces/:slug/events/:eventId/registrations/:registrationId/badge` | `registrations.view_badges` | `BadgesController.detail` |
 | badges | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/badge/reissue` | `registrations.manage_badges` | `BadgesController.reissue` |

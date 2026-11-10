@@ -13,7 +13,7 @@ is the bug.
 | 3. Event management | Done | Lifecycle, editions, module registry with dependencies, publish validation |
 | 4. Registration & profiles | Done | Categories, dynamic form, consent, approval, QR badges, showcase moderation |
 | 5. Event operations | Done | Meetings (with staff confirmation), introduction queue, check-in with offline sync |
-| 6. Reporting | Done (sync) | Dashboards, edition comparison, CSV export, anonymised public figures |
+| 6. Reporting | Done (durable) | Dashboards, edition comparison, CSV export, anonymised public figures |
 | 7. QA & security | Partly | See "Quality evidence" and "Not covered" below |
 | 8. Innovation Village beta | Not started | Needs the decisions in `11-open-decisions.md`; runbook in `19-beta-runbook.md` |
 
@@ -25,11 +25,13 @@ is the bug.
   reactivate and read an audited support summary across tenants.
 - Self-service **personal-data rights**: participant export and erasure, staff erasure,
   per-workspace retention period with a daily sweep.
-- **Two-factor authentication** (TOTP, recovery codes, lockout) for any account.
 - **Event-level branding**: banner image and colour overrides, inheriting the workspace.
 - **Super Admin module availability** and organisation suspension.
-- **Rate limiting**, **queued e-mail** with retry (Redis/BullMQ), Resend and S3 adapters,
-  an offline **service worker**, one-command **local environment**.
+- **Rate limiting**, a **durable Redis/BullMQ job runner** for e-mail and exports
+  (retries, fallback when Redis is absent), an offline **service worker**, one-command
+  **local environment**.
+- **Two-factor authentication** (TOTP, recovery codes, lockout) for any account, with
+  encrypted secrets and audit entries.
 
 ## Deliberate deviations from the source plans
 
@@ -54,6 +56,10 @@ is the bug.
 - **Permission catalogue guard**: every key in `packages/shared` must be inserted by a
   migration.
 - **Redis integration spec** (`REDIS_TEST_URL`): e-mail delivery, retry, give-up.
+- **Job runner unit specs**: Redis URL parsing, durable-queue fallback, export retry and
+  stale-claim recovery.
+- **MFA specs**: RFC 6238 TOTP vectors, encrypted secrets, recovery-code single use,
+  lockout, enrolment and disable.
 - **Rate limit spec** (`E2E_THROTTLED_URL`): needs an API with limits on.
 - **Load and correctness test** (`apps/api/scripts/load-test.ts`): registration burst never
   oversells a category, check-in never double counts. Local single node, 50 concurrent:
@@ -74,7 +80,8 @@ is the bug.
   against staging.
 - **Camera scanning** (jsQR) is untested on real phones; the decode loop and the offline
   queue are covered by unit tests and the manual fallback.
-- **PDF export** is not implemented (CSV only). Exports are synchronous.
+- **PDF export** is not implemented (CSV only). Exports are queued when Redis is
+  configured and run in-process otherwise.
 - **S3** adapter is unit-tested with a stubbed client, not against a real bucket.
 - **Resend** adapter is unit-tested with a stubbed `fetch`, not against the real API.
 - MFA is optional, including for platform administrators.

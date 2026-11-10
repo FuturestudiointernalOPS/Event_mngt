@@ -77,9 +77,24 @@ account are revoked and an audit entry is written.
 
 `user_sessions` supports listing (device, user agent, IP, last used), individual revocation
 and global revocation. Suspension flips `users.status`; the short access-token lifetime
-bounds staleness, and refresh fails immediately. Privileged roles are eligible for MFA;
-the schema keeps the door open by treating MFA state as account-level data added in
-Phase 7.
+bounds staleness, and refresh fails immediately.
+
+## Two-factor authentication
+
+MFA is optional per account, including for privileged accounts. It is TOTP (RFC 6238,
+SHA-1, 6 digits, 30 seconds) so any authenticator app works.
+
+- The secret is encrypted at rest with AES-256-GCM under a key derived from
+  `JWT_ACCESS_SECRET`; it never leaves the API after enrolment.
+- Enrolment is two-step: `setup` stores a pending secret, `enable` confirms a code and
+  returns eight recovery codes **once**. Only SHA-256 hashes of recovery codes are stored.
+- Each accepted TOTP time step is recorded, so a code cannot be replayed. Recovery codes
+  are single use and are removed when consumed.
+- Five consecutive wrong codes lock the second factor for five minutes. Sign-in returns
+  `mfa_required` before any session row or token is created, then `mfa_invalid` or
+  `mfa_locked`.
+- Turning MFA off requires a valid authenticator or recovery code.
+- Enrolment is audited as `auth.mfa.enabled` / `auth.mfa.disabled`.
 
 ## Access control
 
@@ -126,6 +141,10 @@ the limitation is stated in the UI.
 | POST | `/api/v1/auth/reset-password` | Single-use token |
 | GET | `/api/v1/auth/sessions` | List active sessions |
 | DELETE | `/api/v1/auth/sessions/:id` | Revoke one session |
+| GET | `/api/v1/auth/mfa` | Whether MFA is on and recovery codes left |
+| POST | `/api/v1/auth/mfa/setup` | Begin enrolment, returns secret and otpauth URL |
+| POST | `/api/v1/auth/mfa/enable` | Confirm a code, returns recovery codes once |
+| POST | `/api/v1/auth/mfa/disable` | Turn off after a valid code |
 
 ## Rate limiting
 
