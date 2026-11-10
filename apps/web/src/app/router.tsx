@@ -27,9 +27,6 @@ const EventRegistrationPage = lazy(
   () => import('@/features/public/pages/EventRegistrationPage'),
 );
 const CheckInPage = lazy(() => import('@/features/check-in/pages/CheckInPage'));
-const ParticipantPage = lazy(
-  () => import('@/features/participant/pages/ParticipantPage'),
-);
 const VerifyEmailPage = lazy(() => import('@/features/auth/pages/VerifyEmailPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'));
@@ -146,9 +143,8 @@ export const router = createBrowserRouter([
   { path: '/e/:eventSlug/register', element: suspended(<EventRegistrationPage />) },
   { path: '/e/:eventSlug/showcase', element: suspended(<PublicShowcasePage />) },
 
-  // Participant experience
-  // Opened from the e-mailed link: authenticated by its credential, not by a staff session.
-  { path: '/participant', element: suspended(<ParticipantPage />) },
+  // Participant experience: the server has no participant portal yet, so the route is
+  // intentionally absent until that surface returns.
 
   // Event staff / check-in
   {
