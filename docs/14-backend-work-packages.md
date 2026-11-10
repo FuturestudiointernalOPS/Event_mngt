@@ -89,9 +89,9 @@ graph TD
 
 ## Packages
 
-Briefs exist for waves 0, 1 and 3. Wave 2's briefs are written when that wave opens, so
-they describe the code that exists by then instead of guessing. Wave 3 was written early to
-record its prerequisites; it stays blocked until wave 2 lands.
+Briefs exist for waves 0, 1, 2 and 3. Wave 2's briefs were written when the wave opened,
+against the schema and contracts that existed by then. Wave 3 was written early to record
+its prerequisites; it stays blocked until wave 2 lands.
 
 **Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log)
 and WP-04 (memberships and invitations).
@@ -122,6 +122,28 @@ and WP-04 (memberships and invitations).
 | WP-22 Performance + limits | 5 | `scripts/`, `common/guards/` | WP-21 | yes |
 | WP-23 Backup + deployment review | 5 | `docs/`, `scripts/` | all | yes |
 
+### Wave 2 briefs
+
+Wave 2 is registration and profiles. The pre-flight froze one migration (categories, forms,
+people, registrations, consent, badges, profiles, listings), the five contract files under
+`packages/shared/src/contracts/`, the five module registrations, the policy file and the
+route catalogues. No new permission keys were needed: `registration:read`,
+`registration:manage`, `participant:read`, `profile:read` and `profile:moderate` already
+exist in the catalogue.
+
+| Package | Brief | Notes |
+| --- | --- | --- |
+| WP-09 Categories + forms | [WP-09-categories-and-forms.md](work-packages/WP-09-categories-and-forms.md) | own `modules/registration-forms/` |
+| WP-10 Registration submission | [WP-10-registration-submission.md](work-packages/WP-10-registration-submission.md) | own `modules/registrations/` |
+| WP-11 Consent records | [WP-11-consent.md](work-packages/WP-11-consent.md) | own `modules/consent/` |
+| WP-12 Approval workflow | [WP-12-approval-workflow.md](work-packages/WP-12-approval-workflow.md) | approval slice inside `modules/registrations/` |
+| WP-13 Badges | [WP-13-badges.md](work-packages/WP-13-badges.md) | own `modules/badges/` |
+| WP-14 Profiles + showcase | [WP-14-profiles-and-showcase.md](work-packages/WP-14-profiles-and-showcase.md) | own `modules/profiles/`, `modules/participants/` |
+
+WP-10 and WP-12 share a folder and run in order. WP-10 imports `BadgesService` so that
+approval (manual and automatic) issues a badge in the same transaction; the badges module
+reads registrations itself, so the code dependency stays one-way.
+
 ### Wave 3 briefs
 
 Wave 3 is written but **cannot run yet**: every package depends on a wave 2 package that does
@@ -148,10 +170,9 @@ Waves 0 and 1 are implemented and their migrations are applied:
 | WP-07 Brand assets | applied (`branding-assets.*` inside `modules/workspaces`) |
 | WP-08 Idempotency + rate limits | applied (`common/idempotency`, `common/rate-limit`) |
 
-Wave 2 is the next wave: its briefs are not written and WP-09..WP-14 are not implemented.
-The schema now includes invitations, idempotency records and rate-limit counters, but still
-has no registration, profile or badge tables. Wave 3 stays blocked on wave 2, not on wave 1.
-Each wave 3 brief repeats the prerequisite table at its top.
+Wave 2 is in progress; its briefs and pre-flight are recorded above. The schema now includes
+the registration, consent, badge and profile tables, and wave 3 stays blocked on the wave 2
+routes that it consumes. Each wave 3 brief repeats the prerequisite table at its top.
 
 ## Conflict checklist before starting a package
 
