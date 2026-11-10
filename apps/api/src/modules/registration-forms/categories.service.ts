@@ -110,6 +110,28 @@ export class CategoriesService {
     });
   }
 
+  /**
+   * Category lookup for registration submission (WP-10), inside the caller's
+   * transaction. The key is event-scoped, so this never crosses an event boundary.
+   */
+  async findCategoryByKey(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    key: string,
+  ): Promise<{ id: string; key: string; name: string; isActive: boolean } | null> {
+    const row = await this.repository.findCategoryByKey(
+      tx,
+      organizationId,
+      eventId,
+      key,
+    );
+
+    return row
+      ? { id: row.id, key: row.key, name: row.name, isActive: row.isActive }
+      : null;
+  }
+
   private async assertEvent(
     tx: TenantPrismaClient,
     organizationId: string,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  RegistrationField,
   RegistrationForm,
   SaveRegistrationFormRequest,
 } from '@event-platform/shared';
@@ -58,6 +59,20 @@ export class RegistrationFormService {
 
       return toRegistrationForm(row);
     });
+  }
+
+  /**
+   * The field set registration submission validates against, inside the caller's
+   * transaction. Returns null when the event has no form yet.
+   */
+  async formSnapshot(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+  ): Promise<RegistrationField[] | null> {
+    const row = await this.repository.findForm(tx, organizationId, eventId);
+
+    return row ? toRegistrationForm(row).fields : null;
   }
 
   private async assertEvent(

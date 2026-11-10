@@ -12,6 +12,9 @@ export const AUDIT_ACTIONS = {
   memberInvited: 'member.invited',
   memberRoleChanged: 'member.role.changed',
   memberRemoved: 'member.removed',
+  registrationSubmitted: 'registration.submitted',
+  registrationApproved: 'registration.approved',
+  registrationRejected: 'registration.rejected',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
