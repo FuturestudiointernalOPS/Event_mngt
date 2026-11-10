@@ -48,23 +48,23 @@ erDiagram
     registrations ||--o{ participant_profiles : completes
     organizations ||--o{ organization_profiles : describes
     events ||--o{ innovations : showcases
-    participants_or_orgs ||--o{ meetings : proposes
+    participant_profiles ||--o{ meetings : proposes
     events ||--o{ introduction_requests : queues
-    introduction_requests ||--o| outcomes : records
+    introduction_requests ||--o{ introduction_status_history : logs
     organizations ||--o{ audit_logs : logs
     events ||--o{ notifications : triggers
 ```
 
-`participants_or_orgs` is shorthand for "either participant profile or organisation
-profile" — the concrete relation is defined when the meetings module is implemented
-(Phase 5).
+Meetings pair two participant profiles. Organisation-profile meetings are not modelled;
+the participant slice and organisation pairing can be added without changing the
+existing tables.
 
 ## Phase 1 schema (implemented in Prisma)
 
 Phase 1 covers identity, tenancy, access control, workspace, branding and the event
-container. Wave 2 adds the registration and profile tables listed below. Operations and
-reporting tables (check-in, meetings, introductions, aggregates) arrive with their phases;
-the ERD above is the target so migrations never conflict.
+container. Wave 2 adds the registration and profile tables, wave 3 adds the event-operations
+tables (attendance, meetings and introductions), and wave 4 adds report exports. The ERD
+above is the target so migrations never conflict.
 
 ```mermaid
 erDiagram
@@ -122,6 +122,19 @@ tenant policy is a single predicate rather than a join. The wave 2 migration is
 | `participant_profiles` | Presentation attached to a registration | `registration_id` unique; moderation and visibility are independent |
 | `organization_profiles` | The workspace's own listing | `organization_id` unique |
 | `innovations` | Showcase listings for an event | attaches to exactly one participant or organisation profile |
+
+## Wave 3 tables (event operations)
+
+Every table below carries `organization_id` and `event_id` directly, so the tenant policy
+stays a single predicate. The wave 3 migration is
+`20261110150000_wave3_operations`.
+
+| Table | Purpose | Notable constraints |
+| --- | --- | --- |
+| `check_ins` | Attendance for one registration | `(event_id, registration_id)` unique; `(event_id, scan_id)` unique when present; `source` enum |
+| `meetings` | A proposed meeting between two profiles | status enum; `requires_staff_confirmation` snapshotted from module settings |
+| `introduction_requests` | Staff introduction queue entry | status enum; assignment and decision columns; history is separate |
+| `introduction_status_history` | Append-only log of every transition | no update or delete route; indexed by `(organization_id, event_id, request_id, created_at)` |
 
 ### Why title-case Prisma models but snake_case tables
 

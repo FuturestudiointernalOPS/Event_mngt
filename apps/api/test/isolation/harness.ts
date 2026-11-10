@@ -267,6 +267,41 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
         title: 'Isolation listing',
       },
     });
+
+    // Wave 3: attendance, one meeting, and one introduction with its first history row.
+    const operatorUserId = index === 0 ? accountA.id : accountB.id;
+    await owner.checkIn.create({
+      data: {
+        organizationId,
+        eventId,
+        registrationId: registration.id,
+        source: 'ONLINE',
+        scannedAt: new Date(),
+        receivedAt: new Date(),
+        checkedInByUserId: operatorUserId,
+      },
+    });
+    await owner.meeting.create({
+      data: {
+        organizationId,
+        eventId,
+        proposerProfileId: profile.id,
+        recipientProfileId: profile.id,
+      },
+    });
+    const introduction = await owner.introductionRequest.create({
+      data: { organizationId, eventId, requestingProfileId: profile.id },
+    });
+    await owner.introductionStatusHistory.create({
+      data: {
+        organizationId,
+        eventId,
+        requestId: introduction.id,
+        toStatus: 'REQUESTED',
+        actorUserId: operatorUserId,
+      },
+    });
+
   }
 
   return {
@@ -293,7 +328,8 @@ export async function destroyFixtures(owner: PrismaClient, fixtures: Fixtures): 
   });
   await owner.auditLog.deleteMany({ where: { organizationId: { in: organizations } } });
   // Cascades to members, roles, role permissions, events, modules, settings, branding,
-  // categories, forms, registrations, answers, badges, profiles and listing rows.
+  // categories, forms, registrations, answers, badges, profiles, listings, check-ins,
+  // meetings, introductions and their history rows.
   await owner.organization.deleteMany({ where: { id: { in: organizations } } });
   await owner.user.deleteMany({
     where: { email: { endsWith: `${fixtures.runId}@example.test` } },

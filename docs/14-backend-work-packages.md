@@ -90,14 +90,15 @@ graph TD
 ## Packages
 
 Briefs exist for waves 0, 1, 2 and 3. Wave 2's briefs were written when the wave opened,
-against the schema and contracts that existed by then. Wave 3 was written early to record
-its prerequisites; it stays blocked until wave 2 lands.
+against the schema and contracts that existed by then. Wave 3's briefs were authored early
+and were implemented once the wave 2 prerequisites landed.
 
 **Delivered:** WP-01 (tenant bootstrap and RLS), WP-02 (isolation suite), WP-03 (audit log),
 WP-04 (memberships and invitations), WP-05 (module registry), WP-06 (editions),
-WP-07 (brand assets), WP-08 (idempotency and rate limits) and the wave 2 packages
+WP-07 (brand assets), WP-08 (idempotency and rate limits), the wave 2 packages
 WP-09..WP-14 (categories and forms, registration submission, consent, approval, badges,
-profiles and showcase).
+profiles and showcase), and the wave 3 packages WP-15..WP-17 (check-in, offline sync,
+meetings and introductions).
 
 | Package | Wave | Owns | Depends on | Parallel-safe |
 | --- | --- | --- | --- | --- |
@@ -171,6 +172,27 @@ so the packages are unblocked. The table records what each one consumes.
 | WP-16 Offline sync | [WP-16-offline-sync.md](work-packages/WP-16-offline-sync.md) | WP-15, WP-08 |
 | WP-17 Meetings + introductions | [WP-17-meetings-and-introductions.md](work-packages/WP-17-meetings-and-introductions.md) | WP-05, WP-14 (profiles) |
 
+### Wave 3 handover
+
+- Delivered: online check-in with hashed-token verification, one attendance row per
+  registration and a staff-only participant projection; offline batch sync with per-scan
+  `created` / `duplicate` / `rejected` outcomes, per-scan idempotency and bounded clock
+  skew; meetings with the proposal state machine and duplicate proposal cap; the
+  introduction queue with assignment validation and append-only status history.
+- Pre-flight added: the four tables and their migration, the three contract files, the
+  badge verification surface, the `module_not_enabled` gate, the `checkin.recorded` audit
+  action and the `maxClockSkewMinutes` check-in setting. Permissions already existed.
+- Checks run: `check:conventions`, `check:policies`, the API and web suites, `typecheck`
+  across all workspaces and `build`. The isolation suite was **not** run in this environment
+  because it needs `DATABASE_URL` and `APP_DATABASE_URL`; its fixtures, table list and
+  empty-context assertions were updated for the four new tables.
+- Risks: participant self-service for meetings and introductions waits on the
+  participant-account decision (`docs/11` D4), so staff act on the participant's behalf and
+  the recipient-only accept/decline rule is deferred to that slice; the duplicate-window
+  classification is logged rather than returned because the frozen contract exposes only
+  `duplicate: boolean`; offline sync commits each scan separately, so a mid-batch transport
+  failure leaves the scans already accepted committed and the rest replayed.
+
 ### Wave 1 status — complete
 
 Waves 0 and 1 are implemented and their migrations are applied:
@@ -186,10 +208,10 @@ Waves 0 and 1 are implemented and their migrations are applied:
 | WP-07 Brand assets | applied (`branding-assets.*` inside `modules/workspaces`) |
 | WP-08 Idempotency + rate limits | applied (`common/idempotency`, `common/rate-limit`) |
 
-Wave 2 is complete. Its migration is applied, the policies cover every new table, the route
-catalogue matches the controllers, and the isolation suite creates a row in each new table
-and proves both the empty-context and cross-tenant cases. The checks that ran are recorded
-in the wave 2 handover above; wave 3 is next.
+Waves 2 and 3 are complete. Their migrations are applied, the policies cover every new
+table, the route catalogue matches the controllers, and the isolation suite creates a row in
+each new table and proves both the empty-context and cross-tenant cases. The checks that ran
+are recorded in the handovers above; wave 4, reporting, is next.
 
 ## Conflict checklist before starting a package
 

@@ -43,6 +43,10 @@ const DIRECT_TABLES: Array<[table: string, column: string]> = [
   ['participant_profiles', 'organization_id'],
   ['organization_profiles', 'organization_id'],
   ['innovations', 'organization_id'],
+  ['check_ins', 'organization_id'],
+  ['meetings', 'organization_id'],
+  ['introduction_requests', 'organization_id'],
+  ['introduction_status_history', 'organization_id'],
 ];
 
 const CHILD_TABLES: Array<[table: string, countSql: string]> = [
@@ -103,6 +107,10 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
         (SELECT count(*) FROM participant_profiles)::int AS participant_profiles,
         (SELECT count(*) FROM organization_profiles)::int AS organization_profiles,
         (SELECT count(*) FROM innovations)::int AS innovations,
+        (SELECT count(*) FROM check_ins)::int AS check_ins,
+        (SELECT count(*) FROM meetings)::int AS meetings,
+        (SELECT count(*) FROM introduction_requests)::int AS introduction_requests,
+        (SELECT count(*) FROM introduction_status_history)::int AS introduction_history,
         (SELECT count(*) FROM events WHERE status = 'DRAFT')::int AS drafts`),
     );
 
@@ -127,6 +135,10 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
       participant_profiles: 0,
       organization_profiles: 0,
       innovations: 0,
+      check_ins: 0,
+      meetings: 0,
+      introduction_requests: 0,
+      introduction_history: 0,
       drafts: 0,
     });
   });

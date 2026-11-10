@@ -10,12 +10,18 @@ import { AuthModule } from '../../modules/auth/auth.module';
 import { routes as authRoutes } from '../../modules/auth/routes';
 import { BadgesModule } from '../../modules/badges/badges.module';
 import { routes as badgeRoutes } from '../../modules/badges/routes';
+import { CheckInModule } from '../../modules/check-in/check-in.module';
+import { routes as checkInRoutes } from '../../modules/check-in/routes';
 import { ConsentModule } from '../../modules/consent/consent.module';
 import { routes as consentRoutes } from '../../modules/consent/routes';
 import { EventsModule } from '../../modules/events/events.module';
 import { routes as eventRoutes } from '../../modules/events/routes';
 import { HealthModule } from '../../modules/health/health.module';
 import { routes as healthRoutes } from '../../modules/health/routes';
+import { IntroductionsModule } from '../../modules/introductions/introductions.module';
+import { routes as introductionRoutes } from '../../modules/introductions/routes';
+import { MeetingsModule } from '../../modules/meetings/meetings.module';
+import { routes as meetingRoutes } from '../../modules/meetings/routes';
 import { MembershipsModule } from '../../modules/memberships/memberships.module';
 import { routes as membershipRoutes } from '../../modules/memberships/routes';
 import { ModuleRegistryModule } from '../../modules/module-registry/module-registry.module';
@@ -46,9 +52,12 @@ const MODULES: Array<Type<unknown>> = [
   AuditModule,
   AuthModule,
   BadgesModule,
+  CheckInModule,
   ConsentModule,
   EventsModule,
   HealthModule,
+  IntroductionsModule,
+  MeetingsModule,
   MembershipsModule,
   ModuleRegistryModule,
   ParticipantsModule,
@@ -62,9 +71,12 @@ const CATALOGUES: Record<string, RouteDefinition[]> = {
   audit: auditRoutes,
   auth: authRoutes,
   badges: badgeRoutes,
+  'check-in': checkInRoutes,
   consent: consentRoutes,
   events: eventRoutes,
   health: healthRoutes,
+  introductions: introductionRoutes,
+  meetings: meetingRoutes,
   memberships: membershipRoutes,
   'module-registry': moduleRegistryRoutes,
   participants: participantRoutes,

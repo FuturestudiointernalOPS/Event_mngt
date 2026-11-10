@@ -141,5 +141,7 @@ and idempotency/rate limits (work packages WP-01..WP-08). Wave 2 adds event cate
 forms, public registration with consent and duplicate policy, the approval workflow,
 hashed-QR badges, participant and organisation profiles, showcase listings and the
 participant read model (WP-09..WP-14). The tenant-isolation suite runs against a real
-database and covers every tenant table. Event operations (check-in, offline sync, meetings)
-and reporting remain; those are waves 3 and 4.
+database and covers every tenant table. Event operations add online check-in with one
+attendance row per registration, offline scan sync with per-scan outcomes, meetings and
+the introduction queue with append-only status history (WP-15..WP-17). Reporting remains
+(wave 4), followed by the wave 5 launch gates.

@@ -20,9 +20,12 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BadgesModule } from './modules/badges/badges.module';
+import { CheckInModule } from './modules/check-in/check-in.module';
 import { ConsentModule } from './modules/consent/consent.module';
 import { EventsModule } from './modules/events/events.module';
 import { HealthModule } from './modules/health/health.module';
+import { IntroductionsModule } from './modules/introductions/introductions.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { ParticipantsModule } from './modules/participants/participants.module';
@@ -69,9 +72,12 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     ConsentModule,
     RegistrationFormsModule,
     BadgesModule,
+    CheckInModule,
     RegistrationsModule,
     ProfilesModule,
     ParticipantsModule,
+    IntroductionsModule,
+    MeetingsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

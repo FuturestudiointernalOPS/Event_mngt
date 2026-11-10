@@ -30,6 +30,10 @@ Paths are relative to `/api/v1`. `—` means the route is public or only needs a
 | badges | GET | `/workspaces/:slug/events/:eventId/registrations/:registrationId/badge` | `registration:read` | `BadgesController.detail` |
 | badges | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/badge/reissue` | `registration:manage` | `BadgesController.reissue` |
 | badges | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/badge/revoke` | `registration:manage` | `BadgesController.revoke` |
+| check-in | POST | `/workspaces/:slug/events/:eventId/check-ins` | `checkin:operate` | `CheckInsController.record` |
+| check-in | POST | `/workspaces/:slug/events/:eventId/check-ins/sync` | `checkin:operate` | `CheckInsController.sync` |
+| check-in | GET | `/workspaces/:slug/events/:eventId/check-ins` | `checkin:read` | `CheckInsController.list` |
+| check-in | GET | `/workspaces/:slug/events/:eventId/check-ins/summary` | `checkin:read` | `CheckInsController.summary` |
 | consent | GET | `/workspaces/:slug/events/:eventId/consent-documents` | `registration:read` | `ConsentController.list` |
 | consent | POST | `/workspaces/:slug/events/:eventId/consent-documents` | `registration:manage` | `ConsentController.create` |
 | events | GET | `/workspaces/:slug/events` | `event:read` | `EventsController.list` |
@@ -43,6 +47,13 @@ Paths are relative to `/api/v1`. `—` means the route is public or only needs a
 | events | GET | `/public/events/:eventSlug` | — | `PublicEventsController.detail` |
 | health | GET | `/health` | — | `HealthController.check` |
 | health | GET | `/health/ready` | — | `HealthController.ready` |
+| introductions | GET | `/workspaces/:slug/events/:eventId/introductions` | `introduction:read` | `IntroductionsController.list` |
+| introductions | POST | `/workspaces/:slug/events/:eventId/introductions` | `introduction:manage` | `IntroductionsController.create` |
+| introductions | GET | `/workspaces/:slug/events/:eventId/introductions/:introductionId` | `introduction:read` | `IntroductionsController.detail` |
+| introductions | PATCH | `/workspaces/:slug/events/:eventId/introductions/:introductionId` | `introduction:manage` | `IntroductionsController.update` |
+| meetings | GET | `/workspaces/:slug/events/:eventId/meetings` | `meeting:read` | `MeetingsController.list` |
+| meetings | POST | `/workspaces/:slug/events/:eventId/meetings` | `meeting:manage` | `MeetingsController.propose` |
+| meetings | PATCH | `/workspaces/:slug/events/:eventId/meetings/:meetingId` | `meeting:manage` | `MeetingsController.update` |
 | memberships | GET | `/workspaces/:slug/members` | `member:read` | `MembershipsController.list` |
 | memberships | GET | `/workspaces/:slug/roles` | `member:read` | `MembershipsController.roles` |
 | memberships | POST | `/workspaces/:slug/invitations` | `member:manage` | `MembershipsController.invite` |
