@@ -147,10 +147,23 @@ WP-10 and WP-12 share a folder and run in order. WP-10 imports `BadgesService` s
 approval (manual and automatic) issues a badge in the same transaction; the badges module
 reads registrations itself, so the code dependency stays one-way.
 
+### Wave 2 handover
+
+- Delivered: categories and forms, public submission with answer validation, consent and
+duplicate policy, the approval workflow, hashed QR badges, participant and organisation
+profiles with moderation, showcase listings and the participant read model.
+- Checks run: `check:conventions`, `test:conventions`, API and web suites, `typecheck` across
+all workspaces, `build`, `check:policies`, and `test:isolation` against the runtime role
+(the new tables are covered).
+- Risks: participant self-service editing waits on the participant-account decision
+(`docs/11` D4) and is staff-performed for now; category capacity is stored, not enforced;
+`duplicatePolicy: warn` really does store the duplicate, by design; consent records are
+`RESTRICT` against their document, so an organisation delete must remove the records first.
+
 ### Wave 3 briefs
 
-Wave 3 is written but **cannot run yet**: every package depends on a wave 2 package that does
-not exist in the tree.
+Wave 3's wave 2 prerequisites now exist (badges, profiles, module registry, idempotency),
+so the packages are unblocked. The table records what each one consumes.
 
 | Package | Brief | Blocked by |
 | --- | --- | --- |
@@ -173,9 +186,10 @@ Waves 0 and 1 are implemented and their migrations are applied:
 | WP-07 Brand assets | applied (`branding-assets.*` inside `modules/workspaces`) |
 | WP-08 Idempotency + rate limits | applied (`common/idempotency`, `common/rate-limit`) |
 
-Wave 2 is in progress; its briefs and pre-flight are recorded above. The schema now includes
-the registration, consent, badge and profile tables, and wave 3 stays blocked on the wave 2
-routes that it consumes. Each wave 3 brief repeats the prerequisite table at its top.
+Wave 2 is complete. Its migration is applied, the policies cover every new table, the route
+catalogue matches the controllers, and the isolation suite creates a row in each new table
+and proves both the empty-context and cross-tenant cases. The checks that ran are recorded
+in the wave 2 handover above; wave 3 is next.
 
 ## Conflict checklist before starting a package
 
