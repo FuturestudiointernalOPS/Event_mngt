@@ -16,9 +16,34 @@
 
 ## Current posture
 
-After the Nest 12 / TypeScript 6 / Prisma 7 migration, `npm audit` reports **0
-vulnerabilities** on the installed tree. The table below is kept as the decision record for
-the advisories that drove each upgrade, not as a live inventory.
+**Review date: 2026-11-10.** `npm audit` and `npm audit --omit=dev` both report **0
+vulnerabilities** on the installed tree (687 packages: 354 production, 325 development,
+92 optional). The table below is kept as the decision record for the advisories that drove
+each upgrade, not as a live inventory.
+
+### Current production dependency set
+
+| Dependency | Version | Notes |
+| --- | --- | --- |
+| `@nestjs/*` | `12.4.2` / matching family | ESM packages consumed by the CommonJS API through Node's `require(esm)` |
+| `prisma` + `@prisma/client` | `7.10.1` exact | Deliberately exact: the CLI and generated client must never drift |
+| `zod` | `4.6.7` | Validates every request body on both sides |
+| `bullmq` | `5.81.5` | Durable mail and export jobs; `ioredis` `5.11.1` arrives transitively and is not a direct dependency |
+| `pg` + `@prisma/adapter-pg` | `8.23.1` / `7.10.1` | Driver adapter for Prisma 7 |
+
+The `npm outdated` list contains newer major versions of BullMQ (6), Prisma (8 RC),
+React (19), Vite (8), TypeScript (7) and several dev tools. None carries a known advisory
+on the installed version, and each is a separate migration with its own prerequisites, so
+they are deferred rather than bundled into a security change.
+
+### Rate limiting is still database-backed
+
+`@nestjs/throttler` is **not** installed and is not used. The limiter is a single atomic
+PostgreSQL counter per key and window, which survives a restart, works across API
+instances without sticky sessions, and avoids making Redis a hard dependency for public
+traffic. BullMQ's arrival does not change this decision: the queue is for background work,
+not a request-path store. If traffic ever makes the counter table a bottleneck, the
+repository increment is the only method that changes.
 
 | Advisory group | Reaches production? | Where it lives | Action |
 | --- | --- | --- | --- |
@@ -67,9 +92,9 @@ npm why @nestjs/common         # only if a second copy survives
 
 ### Prisma version pin
 
-`prisma` and `@prisma/client` are both pinned to `6.19.3` (exact, no caret) so the CLI and
-the generated client cannot drift. The `deepmerge-ts` finding is accepted: it is reachable
-only through the Prisma CLI at build time, never at runtime.
+`prisma` and `@prisma/client` are both pinned to `7.10.1` (exact, no caret) so the CLI and
+the generated client cannot drift. The earlier `deepmerge-ts` finding was reachable only
+through the Prisma CLI at build time, never at runtime.
 
 The `prisma` key in `package.json` has been retired in favour of `apps/api/prisma.config.ts`
 (Prisma 6.16+; required by 7). Note the associated trap: once that file exists the CLI
@@ -77,8 +102,9 @@ stops loading `.env` on its own, so the config imports `dotenv/config`. `dotenv`
 regular dependency, not a dev dependency, because a production image that runs
 `prisma migrate deploy` with dev dependencies omitted still needs it.
 
-Prisma 7 remains deferred for the `deepmerge-ts` finding, and the upgrade is larger than a
-version bump:
+The Prisma 7 upgrade that followed is recorded under "Nest 12 + TypeScript 6 + Prisma 7
+(applied)" below. The pre-upgrade assessment is kept for context: the change was larger
+than a version bump:
 
 | Change | Impact on this repository |
 | --- | --- |
@@ -135,16 +161,25 @@ appears, not before.
 
 ### Rate limiting and idempotency (WP-08)
 
-No new dependency was added. `@nestjs/throttler` would add a package, and a Redis-backed
-limiter is premature before the worker queue lands. The implementation is database-backed
-instead, so it survives a restart and works across API instances:
+No rate-limiting dependency was added. The implementation is database-backed, so it
+survives a restart and works across API instances:
 
-- `rate_limit_counters` is incremented with one atomic upsert per request; the window and
-  budget are environment configuration.
+- `rate_limit_counters` is incremented with one atomic upsert per request. Budgets are
+  declared per route in `src/common/rate-limit/rate-limit.budgets.ts`; the environment
+  defaults are a fallback for new annotations, not the production policy. Windows older
+  than `RATE_LIMIT_RETENTION_HOURS` (48 by default) are deleted every six hours.
+- Account-sensitive actions are keyed by authenticated account id where a session exists,
+  and by hashed email or client address where it does not. A shared office address cannot
+  exhaust a single person's account budget.
 - `idempotency_records` stores a pending row before the handler runs and fills in the
   response afterwards, so a concurrent replay is refused rather than duplicated.
+- `TRUST_PROXY` sets the trusted reverse-proxy hop count. Without it, every request behind
+  a load balancer appears to come from the proxy and per-IP budgets collapse into one
+  global budget.
 
-Revisit the limiter when Redis/BullMQ is introduced; only the repository method changes.
+Production budgets are deliberately asymmetric: public registration and check-in sync are
+sized for bursts, while login-by-account, password reset, MFA, invitations and export
+creation are tight. See `docs/07-api-conventions.md` for the table.
 
 ## Deferred, with reasons
 
@@ -255,11 +290,11 @@ Nest packages is a bug in its own right, independent of any CVE score.
 
 | Package | Where | Why |
 | --- | --- | --- |
-| `@nestjs/throttler` | api | Per-IP rate limiting; stricter limits on login, registration, password reset |
-| `bullmq`, `ioredis` | api | Queued e-mail with retry, daily retention sweep. BullMQ 6 needs `ioredis` installed explicitly and connects with host/port options (not a URL) |
-| `@aws-sdk/client-s3` | api | S3-compatible object storage adapter |
+| `bullmq` | api | Durable e-mail and export jobs with bounded retries. It depends on `ioredis` transitively, so no separate install is needed; the connection is passed as host/port options parsed from one URL |
 | `qrcode`, `jsqr` (+ `@types/qrcode`) | web | Render badge QR codes locally; decode them from the camera. No third-party QR service |
 | `axe-core`, `@axe-core/playwright` | web (dev) | Accessibility checks in browser tests |
 
 Notes: TOTP and AES-GCM secret storage are implemented with Node's `crypto` (no dependency)
-and covered by the RFC 6238 test vectors. Never run `npm audit fix` (see `AGENTS.md`).
+and covered by the RFC 6238 test vectors. The S3 and Resend adapters described in the plans
+are not installed in this tree; only the console adapters exist. Never run `npm audit fix`
+(see `AGENTS.md`).
