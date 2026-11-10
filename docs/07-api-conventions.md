@@ -86,6 +86,9 @@ Module activation and uploads add: `invalid_module`, `module_core_required`,
 
 Reporting adds: `export_not_ready`, `export_expired`, `export_failed`.
 
+Onboarding and platform oversight add: `email_not_verified`, `account_suspended`,
+`organization_setup_failed`, `owner_not_found`, `owner_not_available`.
+
 ## Versioning
 
 - The major version lives in the path (`/api/v1`). Breaking changes create `/api/v2`; v1

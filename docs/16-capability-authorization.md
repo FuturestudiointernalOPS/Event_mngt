@@ -37,7 +37,7 @@ Every capability records:
 | `key` | Stable dotted identifier, e.g. `registrations.approve` |
 | `module` | Owning product module, used for grouping |
 | `name`, `description` | Human-readable meaning |
-| `scope` | `organization`, `membership`, `both` or `platform` |
+| `scope` | `organization`, `membership`, `both`, `account` or `platform` |
 | `requiresOrganizationEntitlement` | Whether the organisation must hold it |
 | `sensitive`, `destructive` | Flags for the management UI |
 | `dependsOn` | Prerequisites that must also be effective |
@@ -64,9 +64,20 @@ The registry currently covers:
 - **Meetings** — view, manage.
 - **Introductions** — view, manage.
 - **Reports** — view, export.
-- **Platform** — manage organisations and their entitlements, view the catalogue.
+- **Account** — create a workspace from a signed-in account that has no organisation yet.
+- **Platform** — list, create, suspend, support and manage the entitlements of organisations,
+  and view the catalogue.
 
 The exact list is the registry, not this page.
+
+### Account-scoped actions
+
+Registration, email verification and workspace onboarding happen before any organisation
+exists. They cannot be expressed as organisation entitlements, so `organization.create`
+has scope `account`. It is available to any authenticated, verified account, is not
+assignable to an organisation or a membership, and is excluded from entitlement
+management. It is the only account-scoped capability today; adding another requires the
+same explicit justification.
 
 ## Roles are capability templates
 
@@ -98,9 +109,11 @@ Important semantics:
 - A capability whose dependency is revoked becomes ineffective without deleting its
   assignment. This is deliberate: history is preserved and restoring the prerequisite
   restores the dependent capability.
-- Platform administration reads organisation identity and entitlements through the
-  narrow `app.platform_admin` session flag. It never widens access to tenant product
-  tables.
+- Platform administration reads organisation identity and entitlements through the narrow
+  `app.platform_admin` session flag. The separate `app.platform_support` flag, used only
+  by the support detail view, additionally allows aggregate counts from the team, event
+  and registration tables. Neither flag exposes individual tenant rows, and every support
+  detail read is audited.
 
 ## Request pipeline
 
@@ -140,9 +153,19 @@ Platform administration (`platform.organizations.manage`):
 | --- | --- | --- |
 | GET | `/platform/capabilities` | the registry, grouped by module |
 | GET | `/platform/organizations` | organisations and entitlement counts |
+| GET | `/platform/organizations/overview` | paginated organisation portfolio with member, event and registration counts |
+| GET | `/platform/organizations/:id` | one organisation's support summary; the read is audited |
+| POST | `/platform/organizations` | create a workspace and assign an existing account as its first administrator |
+| PATCH | `/platform/organizations/:id/status` | suspend or reactivate an organisation |
 | GET | `/platform/organizations/:id/capabilities` | one organisation's entitlements |
 | PUT | `/platform/organizations/:id/capabilities/:key` | grant an entitlement |
 | DELETE | `/platform/organizations/:id/capabilities/:key` | revoke an entitlement |
+
+Self-service onboarding (`organization.create`, account scope):
+
+| Method | Path | Meaning |
+| --- | --- | --- |
+| POST | `/onboarding/organizations` | a signed-in account creates a workspace and becomes its first administrator |
 
 Every assignment and revocation appends to `audit_logs` with the actor, organisation,
 target, capability and timestamp. Granting a capability automatically stores its
@@ -181,8 +204,8 @@ accident.
 - Existing organisations receive every organisation-scoped capability in the migration.
   Members remain constrained by the capabilities derived from their current role, so the
   previous access level is preserved. No extra access is granted by the backfill.
-- The seed applies the same default set. There is no organisation-creation endpoint
-  today; when one is added it must copy this default entitlement set explicitly.
+- The seed applies the same default set. A newly created organisation copies it
+  explicitly, including the six system roles and the first administrator membership.
 - Existing permissions and role assignments are untouched.
 - Platform administrators can then revoke entitlements deliberately; that is the new
   product control.
@@ -226,8 +249,12 @@ why.
 
 - Capability metadata is displayed in English in both locales; it is product
   configuration, not a user-facing translation table yet.
-- The platform-admin database scope exposes organisation identity and entitlements only.
-  A future cross-tenant reporting feature needs its own explicit policy and audit trail.
+- The platform-admin database scope exposes organisation identity, status and
+  entitlements. The separate support scope exposes aggregate counts only; a future
+  cross-tenant reporting feature that needs row-level product data must add its own
+  explicit policy and audit trail.
 - Direct member grants are not versioned rows; the append-only `audit_logs` table is the
   historical record.
 - Event-scoped role assignment remains organisation-wide, as recorded in `docs/04`.
+- Platform-created organisations require the first administrator to already have an
+  account. Self-service onboarding is the path for a person who does not.

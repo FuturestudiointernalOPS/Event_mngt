@@ -52,14 +52,17 @@ Within a transaction only:
 SELECT set_config('app.current_organization_id', $1, true);
 SELECT set_config('app.current_user_id', $2, true);
 SELECT set_config('app.platform_admin', 'true', true);
+SELECT set_config('app.platform_support', 'true', true);
 ```
 
 The third argument `true` means transaction-local. A pooled connection therefore returns
 to an empty context on commit or rollback. `TenantTransactionService` is the only place
 that sets these; no feature code issues `SET` statements. `app.platform_admin` is set
-only by `withPlatformAdmin`, only after the JWT guard has verified the platform
-administrator claim, and only the organisation identity, organisation entitlement and
-capability tables opt into it.
+only by `withPlatformAdmin`, after the JWT guard has verified the platform administrator
+claim, and only the organisation identity, organisation entitlement and capability
+tables opt into it. `app.platform_support` is a narrower, additional flag set only by
+`withPlatformSupport`; it exposes read-only aggregate counts from the team, event and
+registration tables for the support view.
 
 ### The scopes
 
@@ -67,7 +70,9 @@ capability tables opt into it.
 | --- | --- | --- | --- |
 | Tenant | `withTenant` | an authenticated member | read and write one organisation's rows |
 | Bootstrap | `withUserScope` | sign-in, and tenant resolution | read this account's own membership, its organisations and their roles |
-| Platform administration | `withPlatformAdmin` | a verified platform administrator | list organisations and manage their capability entitlements |
+| Onboarding | `withOrganizationProvisioning` | a signed-in account creating its first workspace | create one server-generated organisation, its defaults, roles, entitlements and first membership |
+| Platform administration | `withPlatformAdmin` | a verified platform administrator | list organisations, change organisation status and manage capability entitlements |
+| Platform support | `withPlatformSupport` | a verified platform administrator | read organisation identity plus aggregate member, event and registration counts; every detail read is audited |
 | Public read | `withOrganizationScope` | anonymous visitor | read one organisation's settings and branding, and approved showcase rows, after a public identifier resolved it |
 | Public submission | `withOrganizationScope` | anonymous registrant | insert registration-owned rows for the organisation resolved from a published event slug |
 
@@ -208,8 +213,11 @@ read happen before a tenant is known, so they have their own narrow, SELECT-only
 - **Own memberships**: `app.current_user_id` lets a signed-in user read their own
   membership and role rows (for `/auth/me` and membership resolution).
 - **Platform administration**: `app.platform_admin = 'true'`, set only by
-  `TenantTransactionService.withPlatform()` after the caller's flag was re-read from the
-  database, grants cross-tenant reads and organisation status changes.
+  `TenantTransactionService.withPlatformAdmin()` after the caller's flag was re-read from
+  the database, grants cross-tenant reads of organisation identity and organisation
+  status changes. A second flag, `app.platform_support`, is set only by
+  `withPlatformSupport()` and exposes read-only aggregate counts for the support view.
+  Neither flag widens access to individual participant or member rows.
 
 Writes are never widened: they stay bound to the caller's own `app.current_organization_id`.
 The participant portal and public registration enter an organisation's scope with

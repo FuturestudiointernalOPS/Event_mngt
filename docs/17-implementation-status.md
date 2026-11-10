@@ -19,6 +19,10 @@ is the bug.
 
 ## What was added beyond the original plan
 
+- **Self-service organisation onboarding**: a signed-in account creates a workspace and
+  becomes its first administrator, with default entitlements and system roles.
+- **Platform organisation lifecycle**: create on behalf of an existing account, suspend,
+  reactivate and read an audited support summary across tenants.
 - Self-service **personal-data rights**: participant export and erasure, staff erasure,
   per-workspace retention period with a daily sweep.
 - **Two-factor authentication** (TOTP, recovery codes, lockout) for any account.
