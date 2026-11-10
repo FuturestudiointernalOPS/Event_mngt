@@ -128,11 +128,17 @@ export const createInnovationRequestSchema = z
     organizationProfileId: uuidSchema.optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.participantProfileId && value.organizationProfileId) {
+    const owners = [value.participantProfileId, value.organizationProfileId].filter(
+      (owner) => owner !== undefined,
+    );
+
+    if (owners.length !== 1) {
       ctx.addIssue({
         code: 'custom',
-        path: ['organizationProfileId'],
-        message: 'Attach a listing to one profile, not both',
+        path: [
+          value.organizationProfileId ? 'organizationProfileId' : 'participantProfileId',
+        ],
+        message: 'Attach a listing to exactly one profile',
       });
     }
   });

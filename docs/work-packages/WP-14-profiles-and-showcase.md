@@ -16,6 +16,7 @@ shows listings a staff member approved.
 | `GET /workspaces/:slug/events/:eventId/profiles` | `profile:read` | participant profiles, filterable by moderation status |
 | `GET /workspaces/:slug/events/:eventId/profiles/:profileId` | `profile:read` | one profile |
 | `PATCH /workspaces/:slug/events/:eventId/profiles/:profileId` | `registration:manage` | edit on the participant's behalf |
+| `PUT /workspaces/:slug/events/:eventId/registrations/:registrationId/profile` | `registration:manage` | create or replace the profile for a registration |
 | `POST /workspaces/:slug/events/:eventId/profiles/:profileId/moderate` | `profile:moderate` | approve or reject |
 | `GET /workspaces/:slug/events/:eventId/showcase` | `profile:read` | listings for the event |
 | `POST /workspaces/:slug/events/:eventId/showcase` | `registration:manage` | add a listing |
