@@ -79,6 +79,17 @@ export class MembershipsRepository {
     });
   }
 
+  async listOrganizationCapabilityKeys(
+    tx: TenantPrismaClient,
+    organizationId: string,
+  ): Promise<string[]> {
+    const rows = await tx.organizationCapability.findMany({
+      where: { organizationId },
+      select: { capabilityKey: true },
+    });
+    return rows.map((row) => row.capabilityKey);
+  }
+
   findMembershipForUser(
     tx: TenantPrismaClient,
     organizationId: string,

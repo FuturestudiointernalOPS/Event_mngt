@@ -20,6 +20,7 @@ import {
 } from './capabilities.mapper';
 import {
   assertAdministratorRemains,
+  assertCanGrantCapabilities,
   assertEntitledByOrganization,
   assertMembershipAssignable,
   expandAssignment,
@@ -121,6 +122,7 @@ export class CapabilitiesService {
         tenant.organizationId,
       );
       assertEntitledByOrganization(granted, organizationCapabilities);
+      assertCanGrantCapabilities(tenant.capabilities ?? [], granted);
 
       await this.repository.addMemberCapabilities(
         tx,

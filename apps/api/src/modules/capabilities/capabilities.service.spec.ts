@@ -3,12 +3,18 @@ import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { CapabilitiesService } from './capabilities.service';
 import { PlatformCapabilitiesService } from './platform-capabilities.service';
 
-const TENANT = {
+const TENANT: {
+  organizationId: string;
+  userId: string;
+  membershipId: string;
+  permissions: string[];
+  capabilities: string[];
+} = {
   organizationId: 'org-1',
   userId: 'user-1',
   membershipId: 'member-1',
   permissions: [],
-  capabilities: [],
+  capabilities: Object.values(CAPABILITY_KEYS),
 };
 
 function baseMember(overrides: Record<string, unknown> = {}) {
@@ -30,12 +36,17 @@ function baseMember(overrides: Record<string, unknown> = {}) {
 
 function setup(options: {
   organizationCapabilities?: string[];
+  actorCapabilities?: string[];
   member?: unknown;
   otherAdministrators?: number;
   removeMemberResult?: number;
   removeOrganizationResult?: number;
 } = {}) {
   const transaction = {} as never;
+  const tenant = {
+    ...TENANT,
+    capabilities: options.actorCapabilities ?? Object.values(CAPABILITY_KEYS),
+  };
   const repository = {
     findOrganization: vi.fn().mockResolvedValue({
       id: 'org-1',
@@ -67,15 +78,15 @@ function setup(options: {
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
   const tenantTransaction = {
     withTenant: async (callback: (tx: never, tenant: typeof TENANT) => unknown) =>
-      callback(transaction, TENANT),
+      callback(transaction, tenant),
     withOrganizationScope: async (_id: string, callback: (tx: never) => unknown) =>
       callback(transaction),
     withPlatformAdmin: async (_id: string, callback: (tx: never) => unknown) =>
       callback(transaction),
   };
   const tenantContext = {
-    get: () => TENANT,
-    getOrThrow: () => TENANT,
+    get: () => tenant,
+    getOrThrow: () => tenant,
   };
   const service = new CapabilitiesService(
     tenantTransaction as never,
@@ -192,6 +203,23 @@ describe('member capability management', () => {
     );
   });
 
+  it('refuses to grant a capability the actor does not hold', async () => {
+    const { service, repository } = setup({
+      organizationCapabilities: [
+        CAPABILITY_KEYS.eventsView,
+        CAPABILITY_KEYS.eventsCreate,
+        CAPABILITY_KEYS.eventsPublish,
+      ],
+      actorCapabilities: [CAPABILITY_KEYS.eventsView, CAPABILITY_KEYS.eventsCreate],
+    });
+
+    await expect(
+      service.assignMemberCapability('member-1', CAPABILITY_KEYS.eventsPublish),
+    ).rejects.toMatchObject({ code: 'capability_escalation_denied' });
+
+    expect(repository.addMemberCapabilities).not.toHaveBeenCalled();
+  });
+
   it('will not remove the last administrative grant', async () => {
     const member = baseMember({
       role: {
@@ -228,7 +256,7 @@ describe('member capability management', () => {
 
 describe('central authorization helper', () => {
   it('denies by default when the request has no resolved capability set', () => {
-    const { service } = setup();
+    const { service } = setup({ actorCapabilities: [] });
 
     expect(service.hasCapability(CAPABILITY_KEYS.eventsView)).toBe(false);
     expect(() => service.requireCapability(CAPABILITY_KEYS.eventsView)).toThrowError();

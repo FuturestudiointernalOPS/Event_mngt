@@ -176,6 +176,15 @@ export function permissionsForCapabilities(capabilities: readonly string[]): str
   return [...result].sort();
 }
 
+/** Capabilities a grantor would hand out without holding them first. */
+export function capabilitiesBeyond(
+  held: readonly string[],
+  requested: readonly string[],
+): string[] {
+  const available = new Set(held);
+  return [...new Set(requested)].filter((key) => !available.has(key)).sort();
+}
+
 export function missingCapabilityDependencies(
   capabilityKey: string,
   granted: readonly string[],

@@ -1,4 +1,9 @@
-import { CAPABILITY_KEYS, capabilitiesForPermissions } from '@event-platform/shared';
+import {
+  CAPABILITY_KEYS,
+  capabilitiesBeyond,
+  capabilitiesForPermissions,
+  resolveEffectiveCapabilities,
+} from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 
 /**
@@ -34,6 +39,32 @@ export function invalidInvitation(): AppException {
     'invalid_invitation',
     'This invitation is invalid or has expired.',
   );
+}
+
+/**
+ * A person may only put somebody into a role whose effective capabilities they hold
+ * themselves. Without this, invite-only access becomes a path to a stronger role than
+ * the inviter has.
+ */
+export function assertRoleWithinActorCapabilities(
+  actorCapabilities: readonly string[],
+  organizationCapabilities: readonly string[],
+  rolePermissions: readonly string[],
+): void {
+  const effective = resolveEffectiveCapabilities({
+    organization: organizationCapabilities,
+    role: capabilitiesForPermissions(rolePermissions),
+    direct: [],
+  });
+  const beyond = capabilitiesBeyond(actorCapabilities, effective);
+
+  if (beyond.length > 0) {
+    throw AppException.forbidden(
+      'role_escalation_denied',
+      'You cannot assign a role with capabilities you do not hold yourself.',
+      { capabilities: beyond },
+    );
+  }
 }
 
 /** A workspace must always keep at least one person who can manage the team. */

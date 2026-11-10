@@ -1,5 +1,6 @@
 import {
   CAPABILITY_KEYS,
+  capabilitiesBeyond,
   getCapabilityDefinition,
   isAssignableToMembership,
   isAssignableToOrganization,
@@ -64,6 +65,26 @@ export function assertEntitledByOrganization(
       'capability_not_entitled',
       'Your organisation is not entitled to that capability.',
       { capabilities: outside },
+    );
+  }
+}
+
+/**
+ * A grantor cannot hand out a capability they do not hold themselves. This closes the
+ * delegation escalation path: managing permissions does not imply owning every
+ * capability the organisation is entitled to.
+ */
+export function assertCanGrantCapabilities(
+  actorCapabilities: readonly string[],
+  requested: readonly string[],
+): void {
+  const beyond = capabilitiesBeyond(actorCapabilities, requested);
+
+  if (beyond.length > 0) {
+    throw AppException.forbidden(
+      'capability_escalation_denied',
+      'You cannot grant a capability you do not hold yourself.',
+      { capabilities: beyond },
     );
   }
 }

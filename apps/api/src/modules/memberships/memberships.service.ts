@@ -8,6 +8,7 @@ import type {
 import { AppException } from '../../common/app-exception';
 import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
+import { TenantContextService } from '../../database/tenant-context.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import {
   directCapabilityKeys,
@@ -17,7 +18,11 @@ import {
   toRoleSummary,
 } from './memberships.mapper';
 import { MembershipsRepository } from './memberships.repository';
-import { assertAdministratorRemains, isAdministrativeCapabilities } from './memberships.rules';
+import {
+  assertAdministratorRemains,
+  assertRoleWithinActorCapabilities,
+  isAdministrativeCapabilities,
+} from './memberships.rules';
 
 /**
  * Who belongs to the workspace and what they may do.
@@ -30,6 +35,7 @@ import { assertAdministratorRemains, isAdministrativeCapabilities } from './memb
 export class MembershipsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly tenantContext: TenantContextService,
     private readonly repository: MembershipsRepository,
     private readonly audit: AuditService,
   ) {}
@@ -102,6 +108,19 @@ export class MembershipsService {
         throw AppException.badRequest(
           'invalid_reference',
           'That role does not exist in this workspace.',
+        );
+      }
+
+      if (role) {
+        const organizationCapabilities =
+          await this.repository.listOrganizationCapabilityKeys(
+            tx,
+            tenant.organizationId,
+          );
+        assertRoleWithinActorCapabilities(
+          this.tenantContext.getOrThrow().capabilities ?? [],
+          organizationCapabilities,
+          role.permissions.map((entry) => entry.permission.key),
         );
       }
 

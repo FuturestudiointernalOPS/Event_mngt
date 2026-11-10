@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { MembershipsRepository } from './memberships.repository';
 import { MembershipsService } from './memberships.service';
 
-const TENANT = { organizationId: 'org-1', userId: 'user-1' };
+const TENANT = {
+  organizationId: 'org-1',
+  userId: 'user-1',
+  membershipId: 'member-1',
+  capabilities: Object.values(CAPABILITY_KEYS),
+  permissions: [],
+};
 
 function member(overrides: Record<string, unknown> = {}) {
   return {
@@ -21,9 +28,20 @@ function member(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(options: { member?: unknown; otherAdministrators?: number } = {}) {
+function setup(
+  options: {
+    member?: unknown;
+    otherAdministrators?: number;
+    actorCapabilities?: string[];
+    organizationCapabilities?: string[];
+  } = {},
+) {
+  const tenant = {
+    ...TENANT,
+    capabilities: options.actorCapabilities ?? TENANT.capabilities,
+  };
   const transaction = {
-    withTenant: vi.fn((work: (tx: unknown, tenant: unknown) => unknown) => work({}, TENANT)),
+    withTenant: vi.fn((work: (tx: unknown, tenant: unknown) => unknown) => work({}, tenant)),
   };
   const repository = {
     findMember: vi.fn().mockResolvedValue(options.member ?? member()),
@@ -33,14 +51,23 @@ function setup(options: { member?: unknown; otherAdministrators?: number } = {})
       name: 'Viewer',
       permissions: [{ permission: { key: 'event:read' } }],
     }),
+    listOrganizationCapabilityKeys: vi.fn().mockResolvedValue(
+      options.organizationCapabilities ?? Object.values(CAPABILITY_KEYS),
+    ),
     countOtherAdministrators: vi.fn().mockResolvedValue(options.otherAdministrators ?? 1),
     updateRole: vi.fn().mockResolvedValue(undefined),
     updateStatus: vi.fn().mockResolvedValue(undefined),
   } as unknown as MembershipsRepository;
+  const tenantContext = { getOrThrow: () => tenant };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
 
   return {
-    service: new MembershipsService(transaction as never, repository, audit as never),
+    service: new MembershipsService(
+      transaction as never,
+      tenantContext as never,
+      repository,
+      audit as never,
+    ),
     repository,
     audit,
   };
@@ -94,5 +121,21 @@ describe('MembershipsService member updates', () => {
     vi.mocked(repository.findRole).mockResolvedValue(null);
 
     await expect(service.updateMember('member-1', { roleId: 'role-other' })).rejects.toThrow();
+  });
+
+  it('refuses to assign a role carrying capabilities the actor does not hold', async () => {
+    const { service, repository } = setup({
+      actorCapabilities: [CAPABILITY_KEYS.organizationManagePermissions],
+      organizationCapabilities: [
+        CAPABILITY_KEYS.organizationManagePermissions,
+        CAPABILITY_KEYS.eventsView,
+      ],
+    });
+
+    await expect(
+      service.updateMember('member-1', { roleId: 'role-viewer' }),
+    ).rejects.toMatchObject({ code: 'role_escalation_denied' });
+
+    expect(repository.updateRole).not.toHaveBeenCalled();
   });
 });

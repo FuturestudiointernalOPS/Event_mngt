@@ -10,11 +10,16 @@ import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
 import { generateOpaqueToken, hashOpaqueToken } from '../../common/utils/tokens';
 import type { Env } from '../../config/env.validation';
+import { TenantContextService } from '../../database/tenant-context.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import { EMAIL_PORT } from '../../integrations/email/email.port';
 import type { EmailPort } from '../../integrations/email/email.port';
 import { MembershipsRepository } from './memberships.repository';
-import { assertInvitationUsable, invalidInvitation } from './memberships.rules';
+import {
+  assertInvitationUsable,
+  assertRoleWithinActorCapabilities,
+  invalidInvitation,
+} from './memberships.rules';
 
 const INVITATION_TTL_DAYS = 7;
 
@@ -29,6 +34,7 @@ const INVITATION_TTL_DAYS = 7;
 export class InvitationsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly tenantContext: TenantContextService,
     private readonly repository: MembershipsRepository,
     private readonly audit: AuditService,
     private readonly config: ConfigService<Env, true>,
@@ -48,6 +54,17 @@ export class InvitationsService {
           'That role does not exist in this workspace.',
         );
       }
+
+      const organizationCapabilities =
+        await this.repository.listOrganizationCapabilityKeys(
+          tx,
+          tenant.organizationId,
+        );
+      assertRoleWithinActorCapabilities(
+        this.tenantContext.getOrThrow().capabilities ?? [],
+        organizationCapabilities,
+        role.permissions.map((entry) => entry.permission.key),
+      );
 
       const existingUser = await this.repository.findUserByEmail(input.email);
 

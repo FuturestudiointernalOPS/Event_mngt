@@ -68,6 +68,15 @@ describe('CapabilityGuard', () => {
     expect(() => guard.canActivate(contextFor({}))).toThrowError();
   });
 
+  it('does not let a platform claim substitute for a workspace membership', () => {
+    const guard = guardFor([CAPABILITY_KEYS.eventsView]);
+    const request = {
+      user: { isPlatformAdmin: true },
+    } as unknown as AuthenticatedRequest;
+
+    expect(() => guard.canActivate(contextFor(request))).toThrowError();
+  });
+
   it('requires the platform administrator claim for a platform capability', () => {
     const guard = guardFor([CAPABILITY_KEYS.platformOrganizationsManage]);
     const request = { user: { isPlatformAdmin: false } } as unknown as AuthenticatedRequest;

@@ -191,7 +191,13 @@ accident.
   effective capability on their next request; member grant rows remain.
 - **Assign to a member:** `PUT /workspaces/:slug/members/:memberId/capabilities/:key`
   (holder of `organization.manage_permissions`). The service refuses a capability the
-  organisation does not hold (`capability_not_entitled`).
+  organisation does not hold (`capability_not_entitled`) and a capability the actor does
+  not hold themselves (`capability_escalation_denied`). Delegation never exceeds the
+  delegator's own effective set.
+- **Assign a role:** changing a member role or inviting somebody into a role requires the
+  role's effective capabilities to be a subset of the actor's effective capabilities
+  (`role_escalation_denied` otherwise). An invite-only grant therefore cannot be used to
+  create a stronger administrator account.
 - **Revoke from a member:** `DELETE` on the same path. Removing the last administrative
   grant is refused (`last_administrator`).
 - **Determine effective access:** call the shared
@@ -240,6 +246,9 @@ The machine checks that back this up:
   between `CAPABILITY_KEYS` and the registry, or an unmapped legacy permission.
 - `policies.spec.ts` fails when a tenant-owned table has no RLS policy.
 - `test:isolation` fails when another tenant's capability rows are readable.
+- Escalation specs fail when a member grant or role assignment exceeds the actor's own
+  effective set, and the guard spec fails when a platform claim is used as a workspace
+  membership or a workspace seat is used for a platform action.
 
 A new independent permission mechanism is not acceptable. If the existing capability
 model genuinely cannot express the need, change the model in the same commit and record
