@@ -35,6 +35,10 @@ export function rateLimitKey(
     return `${bucket}:email:${digest}`;
   }
 
+  if (source === 'user') {
+    return `${bucket}:user:${value.length > 0 ? value : 'unknown'}`;
+  }
+
   return `${bucket}:ip:${value.length > 0 ? value : 'unknown'}`;
 }
 

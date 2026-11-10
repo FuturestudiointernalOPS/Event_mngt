@@ -45,11 +45,12 @@ See `apps/api/.env.example`. Production essentials:
 | `BADGE_SIGNING_SECRET` | Set explicitly in production; rotating it invalidates all issued badges |
 | `WEB_APP_URL`, `CORS_ORIGINS` | The public web origin |
 | `TRUST_PROXY` | Number of reverse-proxy hops (1 behind a single load balancer); required for correct per-IP rate limits |
-| `REDIS_URL` | Enables queued e-mail and the daily retention sweep |
+| `REDIS_URL` | Enables durable queued e-mail and export jobs; without it both run in-process |
 | `JOBS_WORKER_ENABLED` | `false` on API-only instances when a separate worker runs |
 | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` | Verify the sender domain first |
 | `STORAGE_PROVIDER=s3`, `S3_*`, `S3_PUBLIC_BASE_URL` | Bucket must serve objects publicly or through a CDN |
-| `RATE_LIMIT_ENABLED` | Keep `true` in production |
+| `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAULT_WINDOW_SECONDS` | Fallback only; production routes carry explicit budgets |
+| `RATE_LIMIT_RETENTION_HOURS` | How long fixed-window counters are kept; default 48 |
 
 Never put any of these in the web build: the browser only knows the API origin.
 

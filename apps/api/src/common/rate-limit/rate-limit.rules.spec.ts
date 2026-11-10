@@ -43,6 +43,12 @@ describe('rateLimitKey', () => {
       rateLimitKey('register', 'ip', '1.2.3.4'),
     );
   });
+
+  it('keys an account budget by the stable user id', () => {
+    expect(rateLimitKey('mfa-enable', 'user', 'user-9')).toBe(
+      'mfa-enable:user:user-9',
+    );
+  });
 });
 
 describe('emailFromBody', () => {

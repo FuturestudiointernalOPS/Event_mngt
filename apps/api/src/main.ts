@@ -22,6 +22,13 @@ async function bootstrap(): Promise<void> {
   );
   app.use(cookieParser());
 
+  // Behind a load balancer, use the forwarded client address for per-IP rate limits.
+  // The hop count is explicit so a client cannot spoof it by sending its own header.
+  const trustProxy = config.get('TRUST_PROXY', { infer: true });
+  if (trustProxy > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
+  }
+
   app.enableCors({
     origin: parseCorsOrigins(config.get('CORS_ORIGINS', { infer: true })),
     credentials: true,

@@ -23,6 +23,7 @@ import { RequireCapability } from '../../common/decorators/require-capability.de
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { CheckInSyncService } from './check-in-sync.service';
@@ -53,7 +54,7 @@ export class CheckInsController {
   @Post('check-ins/sync')
   @RequireCapability(CAPABILITY_KEYS.checkInOperate)
   @Idempotent()
-  @RateLimit({ bucket: 'checkin-sync', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.operations.checkInSync)
   sync(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(syncCheckInsRequestSchema))

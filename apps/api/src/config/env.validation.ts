@@ -33,6 +33,8 @@ export const envSchema = z.object({
 
   COOKIE_DOMAIN: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Reverse-proxy hops trusted for the client address. 0 means direct connection. */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
 
   /** Idempotent replays are scoped to a caller and expire after this many hours. */
   IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
@@ -40,6 +42,8 @@ export const envSchema = z.object({
   /** Default fixed-window budget for routes annotated with @RateLimit(). */
   RATE_LIMIT_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
   RATE_LIMIT_DEFAULT_WINDOW_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
+  /** Old fixed-window rows are deleted after this many hours. */
+  RATE_LIMIT_RETENTION_HOURS: z.coerce.number().int().min(1).max(720).default(48),
 
   /** Redis enables durable e-mail and export jobs. Without it those run in-process. */
   REDIS_URL: z.string().min(1).optional(),

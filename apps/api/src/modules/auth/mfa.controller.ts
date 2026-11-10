@@ -6,6 +6,7 @@ import {
   type MfaStatus,
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
@@ -22,14 +23,14 @@ export class MfaController {
   }
 
   @Post('setup')
-  @RateLimit({ bucket: 'mfa-setup', key: 'ip', limit: 10, windowSeconds: 60 })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.mfaSetup)
   @HttpCode(HttpStatus.OK)
   setup(@CurrentUser() user: AuthenticatedUser): Promise<MfaSetup> {
     return this.mfa.setup(user.id);
   }
 
   @Post('enable')
-  @RateLimit({ bucket: 'mfa-enable', key: 'ip', limit: 10, windowSeconds: 60 })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.mfaEnable)
   @HttpCode(HttpStatus.OK)
   enable(
     @CurrentUser() user: AuthenticatedUser,
@@ -39,7 +40,7 @@ export class MfaController {
   }
 
   @Post('disable')
-  @RateLimit({ bucket: 'mfa-disable', key: 'ip', limit: 10, windowSeconds: 60 })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.mfaDisable)
   @HttpCode(HttpStatus.NO_CONTENT)
   disable(
     @CurrentUser() user: AuthenticatedUser,

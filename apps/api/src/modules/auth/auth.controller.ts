@@ -20,6 +20,7 @@ import {
 import { AppException } from '../../common/app-exception';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
@@ -50,7 +51,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  @RateLimit({ bucket: 'auth-register', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.register)
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   register(
@@ -60,7 +61,7 @@ export class AuthController {
   }
 
   @Public()
-  @RateLimit({ bucket: 'auth-verify', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.verifyEmail)
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   verifyEmail(
@@ -70,10 +71,7 @@ export class AuthController {
   }
 
   @Public()
-  @RateLimit(
-    { bucket: 'auth-login-ip', key: 'ip' },
-    { bucket: 'auth-login-email', key: 'email' },
-  )
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.login)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -87,7 +85,7 @@ export class AuthController {
   }
 
   @Public()
-  @RateLimit({ bucket: 'auth-refresh', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.refresh)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
@@ -122,10 +120,7 @@ export class AuthController {
   }
 
   @Public()
-  @RateLimit(
-    { bucket: 'auth-forgot-ip', key: 'ip' },
-    { bucket: 'auth-forgot-email', key: 'email' },
-  )
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.forgotPassword)
   @Post('forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   async forgotPassword(
@@ -136,7 +131,7 @@ export class AuthController {
   }
 
   @Public()
-  @RateLimit({ bucket: 'auth-reset', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.resetPassword)
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(

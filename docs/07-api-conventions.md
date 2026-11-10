@@ -143,9 +143,29 @@ cannot exist in only one place and a capability cannot change silently.
 
 ## Rate limits
 
-Global per-IP budget plus tighter buckets on auth, registration submission and check-in
-verification. Exceeding returns `429` with `Retry-After`; limits are documented per route
-and configurable by environment.
+Budgets are fixed windows stored in PostgreSQL and declared per route. Where a session
+exists the key is the account id; public flows use the client address or a hashed account
+identifier. Exceeding a budget returns `429` with `Retry-After`.
+
+| Surface | Key | Production budget |
+| --- | --- | --- |
+| Account registration | address | 5 / 10 minutes |
+| Email verification | address | 20 / 10 minutes |
+| Sign-in | address + account | 60 / minute and 10 / 5 minutes |
+| Session refresh | address | 300 / minute |
+| Password-reset request | address + account | 10 / 15 minutes and 3 / 15 minutes |
+| Password-reset completion | address | 10 / 15 minutes |
+| MFA setup / enable / disable | account | 10 / 5 minutes each |
+| Workspace creation | account | 5 / hour |
+| Member invitation | account | 50 / hour |
+| Report export creation | account | 30 / hour |
+| Public event registration | address | 120 / minute |
+| Check-in sync | account + address | 120 / minute and 600 / minute |
+
+`TRUST_PROXY` must match the real reverse-proxy hop count in production, otherwise every
+per-address budget collapses into one budget for the proxy. The numbers live in one policy
+file so tuning is a reviewable change, not a controller edit. Counter rows older than the
+retention period (48 hours by default) are deleted every six hours.
 
 ## Contract change process
 

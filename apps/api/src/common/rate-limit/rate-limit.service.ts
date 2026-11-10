@@ -46,4 +46,10 @@ export class RateLimiterService {
         : retryAfterSeconds(now, startedAt, windowSeconds),
     };
   }
+
+  /** Drops windows older than the configured retention, keeping the table bounded. */
+  purgeOlderThan(hours: number): Promise<number> {
+    const cutoff = new Date(Date.now() - hours * 3_600_000);
+    return this.repository.purgeBefore(cutoff);
+  }
 }

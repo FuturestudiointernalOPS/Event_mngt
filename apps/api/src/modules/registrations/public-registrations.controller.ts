@@ -8,6 +8,7 @@ import {
 import { Public } from '../../common/decorators/public.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RegistrationSubmissionService } from './registration-submission.service';
 
@@ -22,7 +23,7 @@ export class PublicRegistrationsController {
   constructor(private readonly submissions: RegistrationSubmissionService) {}
 
   @Public()
-  @RateLimit({ bucket: 'public-registration', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.public.registration)
   @Idempotent()
   @Post(':eventSlug/registrations')
   submit(

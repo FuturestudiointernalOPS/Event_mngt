@@ -148,9 +148,14 @@ the limitation is stated in the UI.
 
 ## Rate limiting
 
-Login, register, verify, forgot-password and refresh are rate limited per IP and per
-account identifier. Exceeding the limit returns `429` with `Retry-After`. Attempts are
-logged; repeated failures on one account raise an audit event.
+Login, registration, verification, password reset, refresh and MFA changes are rate
+limited. Login uses both an address budget (60/minute, for shared networks) and an
+account budget (10 per five minutes); forgot-password uses 10 per 15 minutes per address
+and 3 per 15 minutes per account. Exceeding a budget returns `429` with `Retry-After`.
+MFA changes are keyed by account so an office address cannot block a colleague.
+
+Production deployments must set `TRUST_PROXY` to the number of load-balancer hops;
+otherwise the client address seen by the limiter is the proxy's.
 
 ## What we deliberately do not do
 

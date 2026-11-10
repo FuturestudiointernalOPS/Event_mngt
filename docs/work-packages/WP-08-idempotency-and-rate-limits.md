@@ -86,7 +86,8 @@ Distributed locks, per-user quotas, and billing.
   Account identifiers are hashed, so the counter table is not an email list.
 - Deviation recorded in `docs/12`: a database-backed implementation was chosen instead of
   adding `@nestjs/throttler`; Redis can replace the repository method later.
-- Risk: expired idempotency rows and old rate-limit windows are not pruned periodically.
-  Lazy expiry handles a reused key; a cleanup job belongs in wave 5. Anonymous idempotency
-  rows have no organisation and are reachable without tenant context by design; they expire
-  with the rest of the cache.
+- Rate-limit windows older than the configured retention (48 hours by default) are pruned
+  every six hours. Idempotency rows still rely on lazy expiry: a reused key is refused or
+  replaced at read time, and wave 5 owns a scheduled purge. Anonymous idempotency rows have
+  no organisation and are reachable without tenant context by design; they expire with the
+  rest of the cache.

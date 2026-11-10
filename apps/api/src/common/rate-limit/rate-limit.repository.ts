@@ -12,6 +12,14 @@ import { PrismaService } from '../../database/prisma.service';
 export class RateLimitRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Removes windows that ended before the cutoff. Idempotent across API instances. */
+  async purgeBefore(cutoff: Date): Promise<number> {
+    const result = await this.prisma.rateLimitCounter.deleteMany({
+      where: { windowStart: { lt: cutoff } },
+    });
+    return result.count;
+  }
+
   async increment(key: string, startedAt: Date): Promise<number> {
     const rows = await this.prisma.$queryRaw<Array<{ count: number }>>`
       INSERT INTO "rate_limit_counters" ("key", "window_start", "count")

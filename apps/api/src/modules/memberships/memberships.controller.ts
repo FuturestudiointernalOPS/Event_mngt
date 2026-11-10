@@ -22,6 +22,8 @@ import {
 } from '@event-platform/shared';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { InvitationsService } from './invitations.service';
@@ -63,6 +65,7 @@ export class MembershipsController {
 
   @TenantScoped('slug')
   @RequireCapability(CAPABILITY_KEYS.organizationInviteMembers)
+  @RateLimit(...RATE_LIMIT_BUDGETS.workspace.invite)
   @Idempotent()
   @Post(':slug/invitations')
   invite(

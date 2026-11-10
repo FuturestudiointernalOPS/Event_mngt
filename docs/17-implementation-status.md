@@ -32,6 +32,10 @@ is the bug.
   **local environment**.
 - **Two-factor authentication** (TOTP, recovery codes, lockout) for any account, with
   encrypted secrets and audit entries.
+- **Delegation escalation guards**: a grantor cannot hand out a capability they do not
+  hold, and a role assignment or invitation cannot exceed the actor's effective set.
+- **Production rate-limit policy**: per-route budgets, account-keyed buckets, and
+  proxy-aware client addressing.
 
 ## Deliberate deviations from the source plans
 
@@ -58,6 +62,11 @@ is the bug.
 - **Redis integration spec** (`REDIS_TEST_URL`): e-mail delivery, retry, give-up.
 - **Job runner unit specs**: Redis URL parsing, durable-queue fallback, export retry and
   stale-claim recovery.
+- **Escalation specs**: delegation cannot exceed the actor's capabilities, role changes
+  and invitations cannot confer a stronger role, platform claims do not stand in for
+  workspace membership, and workspace capabilities do not grant platform access.
+- **Rate-limit specs**: window arithmetic, hashed account keys, account-keyed buckets,
+  and guard fall-through when a key source is absent.
 - **MFA specs**: RFC 6238 TOTP vectors, encrypted secrets, recovery-code single use,
   lockout, enrolment and disable.
 - **Rate limit spec** (`E2E_THROTTLED_URL`): needs an API with limits on.

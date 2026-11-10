@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
 import type { ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
@@ -52,15 +52,45 @@ describe('RateLimiterService', () => {
     expect((await limiter.consume('a:ip:1')).allowed).toBe(true);
     expect((await limiter.consume('b:ip:1')).allowed).toBe(true);
   });
+
+  it('purges windows older than the retention window', async () => {
+    const cutoffs: Date[] = [];
+    const repository = {
+      purgeBefore: async (cutoff: Date) => {
+        cutoffs.push(cutoff);
+        return 3;
+      },
+    } as unknown as RateLimitRepository;
+    const config = {
+      get: () => 60,
+    } as unknown as ConfigService<Env, true>;
+    const limiter = new Service(config, repository);
+    const before = Date.now();
+
+    await expect(limiter.purgeOlderThan(48)).resolves.toBe(3);
+
+    const expected = before - 48 * 3_600_000;
+    expect(cutoffs[0].getTime()).toBeGreaterThanOrEqual(expected - 1_000);
+    expect(cutoffs[0].getTime()).toBeLessThanOrEqual(expected + 1_000);
+  });
 });
 
-function context(body: unknown = {}, ip = '203.0.113.7'): ExecutionContext {
+function context(
+  body: unknown = {},
+  ip = '203.0.113.7',
+  userId?: string,
+): ExecutionContext {
   return {
     getHandler: () => () => undefined,
     getClass: () => class {},
     switchToHttp: () => ({
       getRequest: () =>
-        ({ ip, body, headers: {} }) as unknown as AuthenticatedRequest,
+        ({
+          ip,
+          body,
+          headers: {},
+          ...(userId ? { user: { id: userId } } : {}),
+        }) as unknown as AuthenticatedRequest,
     }),
   } as unknown as ExecutionContext;
 }
@@ -105,6 +135,34 @@ describe('RateLimitGuard', () => {
   it('skips an email bucket when the request has no address', async () => {
     await expect(
       guard([{ bucket: 'login', key: 'email' }], false).canActivate(context({})),
+    ).resolves.toBe(true);
+  });
+
+  it('keys an account budget by the signed-in user', async () => {
+    const consume = vi.fn(async () => ({
+      allowed: true,
+      remaining: 0,
+      retryAfterSeconds: 0,
+    }));
+    const reflector = {
+      getAllAndOverride: () => [{ bucket: 'mfa-enable', key: 'user' }],
+    } as unknown as Reflector;
+    const rateGuard = new RateLimitGuard(
+      reflector,
+      { consume } as unknown as RateLimiterService,
+    );
+
+    await rateGuard.canActivate(context({}, '203.0.113.7', 'user-9'));
+
+    expect(consume).toHaveBeenCalledWith(
+      'mfa-enable:user:user-9',
+      expect.objectContaining({ bucket: 'mfa-enable' }),
+    );
+  });
+
+  it('skips an account bucket when no user is signed in', async () => {
+    await expect(
+      guard([{ bucket: 'mfa-enable', key: 'user' }], false).canActivate(context()),
     ).resolves.toBe(true);
   });
 });

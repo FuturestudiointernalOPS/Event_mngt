@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { OrganizationsService } from './organizations.service';
@@ -22,7 +23,7 @@ export class OrganizationsController {
   constructor(private readonly organizations: OrganizationsService) {}
 
   @RequireCapability(CAPABILITY_KEYS.organizationCreate)
-  @RateLimit({ bucket: 'onboarding-create', key: 'ip' })
+  @RateLimit(...RATE_LIMIT_BUDGETS.workspace.onboarding)
   @Idempotent()
   @Post('organizations')
   @HttpCode(HttpStatus.CREATED)

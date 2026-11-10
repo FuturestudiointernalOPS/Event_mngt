@@ -22,6 +22,8 @@ import {
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ReportExportsService } from './report-exports.service';
@@ -39,6 +41,7 @@ export class ExportsController {
 
   @Post('events/:eventId/exports')
   @RequireCapability(CAPABILITY_KEYS.reportsExport)
+  @RateLimit(...RATE_LIMIT_BUDGETS.workspace.reportExport)
   @HttpCode(HttpStatus.ACCEPTED)
   @Idempotent()
   create(

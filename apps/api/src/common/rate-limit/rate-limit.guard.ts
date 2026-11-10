@@ -37,7 +37,11 @@ export class RateLimitGuard implements CanActivate {
 
     for (const option of options) {
       const value =
-        option.key === 'ip' ? (request.ip ?? 'unknown') : emailFromBody(request.body);
+        option.key === 'ip'
+          ? (request.ip ?? 'unknown')
+          : option.key === 'user'
+            ? request.user?.id
+            : emailFromBody(request.body);
 
       if (!value) {
         continue;
