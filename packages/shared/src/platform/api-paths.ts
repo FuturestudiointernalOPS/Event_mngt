@@ -46,10 +46,19 @@ export const API_PATHS = {
   platform: {
     capabilities: `${API_BASE_PATH}/platform/capabilities`,
     organizations: `${API_BASE_PATH}/platform/organizations`,
+    organizationOverview: `${API_BASE_PATH}/platform/organizations/overview`,
+    organizationDetail: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}`,
+    organizationStatus: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/status`,
     organizationCapabilities: (organizationId: string) =>
       `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities`,
     organizationCapability: (organizationId: string, capabilityKey: string) =>
       `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities/${capabilityKey}`,
+  },
+
+  onboarding: {
+    organizations: `${API_BASE_PATH}/onboarding/organizations`,
   },
 
   events: {

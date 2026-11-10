@@ -57,9 +57,9 @@ describe('capability registry', () => {
     }
   });
 
-  it('never requires an entitlement from a platform-scoped capability', () => {
+  it('never requires an entitlement from a platform or account-scoped capability', () => {
     for (const definition of CAPABILITY_REGISTRY) {
-      if (definition.scope === 'platform') {
+      if (definition.scope === 'platform' || definition.scope === 'account') {
         expect(definition.requiresOrganizationEntitlement).toBe(false);
         expect(isAssignableToOrganization(definition.key)).toBe(false);
         expect(isAssignableToMembership(definition.key)).toBe(false);
@@ -90,8 +90,10 @@ describe('capability registry', () => {
     expect(ORGANIZATION_CAPABILITY_KEYS).not.toContain(
       CAPABILITY_KEYS.platformOrganizationsManage,
     );
+    expect(ORGANIZATION_CAPABILITY_KEYS).not.toContain(CAPABILITY_KEYS.organizationCreate);
     expect(MEMBERSHIP_CAPABILITY_KEYS).toContain(CAPABILITY_KEYS.eventsCreate);
     expect(isCapabilityKey(CAPABILITY_KEYS.eventsCreate)).toBe(true);
+    expect(isCapabilityKey(CAPABILITY_KEYS.organizationCreate)).toBe(true);
     expect(isCapabilityKey('events.make_up')).toBe(false);
   });
 

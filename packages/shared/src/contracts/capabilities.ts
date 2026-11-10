@@ -21,7 +21,13 @@ export const capabilityModuleKeySchema = z.enum([
   'platform',
 ]);
 
-export const capabilityScopeSchema = z.enum(['organization', 'membership', 'both', 'platform']);
+export const capabilityScopeSchema = z.enum([
+  'organization',
+  'membership',
+  'both',
+  'platform',
+  'account',
+]);
 
 export const capabilityStatusSchema = z.enum(['active', 'deprecated']);
 

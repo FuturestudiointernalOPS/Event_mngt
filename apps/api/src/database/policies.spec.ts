@@ -161,4 +161,29 @@ describe('row-level security coverage', () => {
       'organizations',
     ]);
   });
+
+  it('scopes platform support counts to a separate flag', () => {
+    const supportTables = [
+      'organization_members',
+      'events',
+      'registrations',
+    ];
+
+    for (const table of supportTables) {
+      const body = policyBody(table, `${table}_platform_support_read`);
+
+      expect(body).toBeDefined();
+      expect(body).toContain('FOR SELECT');
+      expect(body).toContain("app.platform_support");
+      expect(body).not.toContain('FOR ALL');
+    }
+  });
+
+  it('lets a platform administrator change an organisation status', () => {
+    const body = policyBody('organizations', 'organizations_platform_admin_update');
+
+    expect(body).toBeDefined();
+    expect(body).toContain('FOR UPDATE');
+    expect(body).toContain("app.platform_admin");
+  });
 });

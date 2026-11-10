@@ -390,11 +390,39 @@ CREATE POLICY organizations_platform_admin_read ON organizations
   FOR SELECT
   USING (current_setting('app.platform_admin', true) = 'true');
 
+-- Suspension and reactivation are organisation status changes. The guard has already
+-- verified the platform administrator claim; the policy keeps the write meaningless for
+-- any other transaction.
+DROP POLICY IF EXISTS organizations_platform_admin_update ON organizations;
+CREATE POLICY organizations_platform_admin_update ON organizations
+  FOR UPDATE
+  USING (current_setting('app.platform_admin', true) = 'true')
+  WITH CHECK (current_setting('app.platform_admin', true) = 'true');
+
 DROP POLICY IF EXISTS organization_capabilities_platform_admin ON organization_capabilities;
 CREATE POLICY organization_capabilities_platform_admin ON organization_capabilities
   FOR ALL
   USING (current_setting('app.platform_admin', true) = 'true')
   WITH CHECK (current_setting('app.platform_admin', true) = 'true');
+
+-- Platform support: read-only aggregate counts from tenant product tables. This is a
+-- separate flag from app.platform_admin, set only by the dedicated support scope, so
+-- entitlement management never widens into product data. Only the three tables the
+-- support view counts opt in.
+DROP POLICY IF EXISTS organization_members_platform_support_read ON organization_members;
+CREATE POLICY organization_members_platform_support_read ON organization_members
+  FOR SELECT
+  USING (current_setting('app.platform_support', true) = 'true');
+
+DROP POLICY IF EXISTS events_platform_support_read ON events;
+CREATE POLICY events_platform_support_read ON events
+  FOR SELECT
+  USING (current_setting('app.platform_support', true) = 'true');
+
+DROP POLICY IF EXISTS registrations_platform_support_read ON registrations;
+CREATE POLICY registrations_platform_support_read ON registrations
+  FOR SELECT
+  USING (current_setting('app.platform_support', true) = 'true');
 
 -- A signed-in user may record an audit row attributed to themselves when the action has
 -- no organisation (sign-in, sign-out). Any other write is refused.

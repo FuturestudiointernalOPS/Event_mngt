@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   apiGet,
+  apiSend,
   createAppClient,
   createFixtures,
   createOwnerClient,
@@ -68,6 +69,7 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
   let app: ReturnType<typeof createAppClient>;
   let fixtures: Fixtures;
   let api: RunningApi;
+  const extraOrganizations: string[] = [];
 
   beforeAll(async () => {
     owner = createOwnerClient();
@@ -78,6 +80,11 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
 
   afterAll(async () => {
     await api?.stop();
+    if (extraOrganizations.length > 0) {
+      await owner.organization.deleteMany({
+        where: { id: { in: extraOrganizations } },
+      });
+    }
     if (fixtures) {
       await destroyFixtures(owner, fixtures);
     }
@@ -252,6 +259,148 @@ describe.skipIf(!isolationEnabled)('tenant isolation', () => {
     const items = forged.body.data as Array<{ organizationId: string }>;
     expect(items.length).toBeGreaterThan(0);
     expect(items.every((item) => item.organizationId === fixtures.orgA)).toBe(true);
+  });
+
+  it('6c. reserves the platform portfolio for platform administrators', async () => {
+    const memberToken = await login(api.baseUrl, fixtures.emailA, fixtures.password);
+    const denied = await apiGet(api.baseUrl, memberToken, '/platform/organizations/overview');
+    expect(denied.status).toBe(403);
+
+    const adminToken = await login(
+      api.baseUrl,
+      fixtures.platformEmail,
+      fixtures.platformPassword,
+    );
+    const portfolio = await apiGet(
+      api.baseUrl,
+      adminToken,
+      '/platform/organizations/overview?pageSize=100',
+    );
+
+    expect(portfolio.status).toBe(200);
+    const items = portfolio.body.data as Array<{ id: string }>;
+    const ids = items.map((item) => item.id);
+    expect(ids).toEqual(expect.arrayContaining([fixtures.orgA, fixtures.orgB]));
+  });
+
+  it('6d. exposes only aggregate support counts and audits the read', async () => {
+    const adminToken = await login(
+      api.baseUrl,
+      fixtures.platformEmail,
+      fixtures.platformPassword,
+    );
+
+    const detail = await apiGet(
+      api.baseUrl,
+      adminToken,
+      `/platform/organizations/${fixtures.orgA}`,
+    );
+
+    expect(detail.status).toBe(200);
+    const row = detail.body.data as {
+      id: string;
+      members: { total: number; active: number };
+    };
+    expect(row.id).toBe(fixtures.orgA);
+    expect(row.members.total).toBeGreaterThanOrEqual(1);
+    expect(row.members.active).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(row)).not.toContain('@example.test');
+  });
+
+  it('6e. suspends an organisation and blocks its members immediately', async () => {
+    const adminToken = await login(
+      api.baseUrl,
+      fixtures.platformEmail,
+      fixtures.platformPassword,
+    );
+    const memberToken = await login(api.baseUrl, fixtures.emailA, fixtures.password);
+
+    const suspended = await apiSend(
+      api.baseUrl,
+      adminToken,
+      'PATCH',
+      `/platform/organizations/${fixtures.orgA}/status`,
+      { status: 'SUSPENDED', reason: 'isolation test' },
+    );
+    expect(suspended.status).toBe(200);
+
+    const blocked = await apiGet(api.baseUrl, memberToken, `/workspaces/${fixtures.slugA}/events`);
+    expect(blocked.status).toBe(403);
+
+    const reactivated = await apiSend(
+      api.baseUrl,
+      adminToken,
+      'PATCH',
+      `/platform/organizations/${fixtures.orgA}/status`,
+      { status: 'ACTIVE' },
+    );
+    expect(reactivated.status).toBe(200);
+
+    const restored = await apiGet(api.baseUrl, memberToken, `/workspaces/${fixtures.slugA}/events`);
+    expect(restored.status).toBe(200);
+  });
+
+  it('6f. onboards a new organisation with the caller as administrator', async () => {
+    const memberToken = await login(api.baseUrl, fixtures.emailA, fixtures.password);
+    const onboarding = await apiSend(
+      api.baseUrl,
+      memberToken,
+      'POST',
+      '/onboarding/organizations',
+      { name: `Isolation onboarding ${fixtures.runId}` },
+    );
+
+    expect(onboarding.status).toBe(201);
+    const result = onboarding.body.data as {
+      organization: { id: string; slug: string };
+      member: { roleKey: string; status: string };
+    };
+    extraOrganizations.push(result.organization.id);
+    expect(result.member).toMatchObject({
+      roleKey: 'organisation_admin',
+      status: 'ACTIVE',
+    });
+
+    const workspace = await apiGet(
+      api.baseUrl,
+      memberToken,
+      `/workspaces/${result.organization.slug}/events`,
+    );
+    expect(workspace.status).toBe(200);
+  });
+
+  it('6g. creates an organisation on behalf of an existing account', async () => {
+    const adminToken = await login(
+      api.baseUrl,
+      fixtures.platformEmail,
+      fixtures.platformPassword,
+    );
+    const created = await apiSend(
+      api.baseUrl,
+      adminToken,
+      'POST',
+      '/platform/organizations',
+      {
+        name: `Isolation platform ${fixtures.runId}`,
+        ownerEmail: fixtures.emailB,
+      },
+    );
+
+    expect(created.status).toBe(201);
+    const detail = created.body.data as {
+      id: string;
+      members: { total: number; active: number };
+    };
+    extraOrganizations.push(detail.id);
+    expect(detail.members).toMatchObject({ total: 1, active: 1 });
+
+    const ownerToken = await login(api.baseUrl, fixtures.emailB, fixtures.passwordB);
+    const owned = await apiGet(
+      api.baseUrl,
+      ownerToken,
+      `/workspaces/${(created.body.data as { slug: string }).slug}/events`,
+    );
+    expect(owned.status).toBe(200);
   });
 
   it('7. revokes access on the next request after membership removal', async () => {

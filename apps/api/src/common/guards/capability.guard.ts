@@ -45,8 +45,12 @@ export class CapabilityGuard implements CanActivate {
     const platformRequired = definitions.filter(
       ({ definition }) => definition?.scope === 'platform',
     );
+    const accountRequired = definitions.filter(
+      ({ definition }) => definition?.scope === 'account',
+    );
     const tenantRequired = definitions.filter(
-      ({ definition }) => definition?.scope !== 'platform',
+      ({ definition }) =>
+        definition?.scope !== 'platform' && definition?.scope !== 'account',
     );
 
     if (platformRequired.length > 0 && request.user?.isPlatformAdmin !== true) {
@@ -54,6 +58,12 @@ export class CapabilityGuard implements CanActivate {
         'platform_admin_required',
         'This action is reserved for platform administrators.',
       );
+    }
+
+    // Account-scoped actions happen before a membership exists (workspace onboarding).
+    // Authentication is the whole check; the route cannot depend on a tenant.
+    if (accountRequired.length > 0 && !request.user) {
+      throw AppException.unauthorized('unauthorized', 'Sign in to continue.');
     }
 
     if (tenantRequired.length === 0) {

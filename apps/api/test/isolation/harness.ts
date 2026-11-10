@@ -31,8 +31,12 @@ export interface Fixtures {
   userA: string;
   emailA: string;
   password: string;
+  emailB: string;
+  passwordB: string;
   eventA: string;
   eventB: string;
+  platformEmail: string;
+  platformPassword: string;
 }
 
 export function createOwnerClient(): PrismaClient {
@@ -89,7 +93,7 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
     return { id: row.id, slug, roleId: role.id };
   }
 
-  async function account(suffix: string) {
+  async function account(suffix: string, isPlatformAdmin = false) {
     const email = `isolation-${suffix}-${runId}@example.test`;
     const password = `isolation-${randomBytes(8).toString('hex')}`;
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -101,6 +105,7 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
         displayName: `Isolation ${suffix.toUpperCase()}`,
         status: 'ACTIVE',
         emailVerifiedAt: new Date(),
+        isPlatformAdmin,
       },
     });
 
@@ -111,6 +116,7 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
   const orgB = await organization('b', 'Isolation B');
   const accountA = await account('a');
   const accountB = await account('b');
+  const platformAccount = await account('platform', true);
 
   const membershipA = await owner.organizationMember.create({
     data: {
@@ -345,8 +351,12 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
     userA: accountA.id,
     emailA: accountA.email,
     password: accountA.password,
+    emailB: accountB.email,
+    passwordB: accountB.password,
     eventA,
     eventB,
+    platformEmail: platformAccount.email,
+    platformPassword: platformAccount.password,
   };
 }
 
@@ -443,6 +453,33 @@ export async function apiGet(
   });
 
   return { status: response.status, body: (await response.json()) as { data?: unknown } };
+}
+
+export async function apiSend(
+  baseUrl: string,
+  token: string,
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; body: { data?: unknown; error?: { code?: string } } }> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+
+  const text = await response.text();
+
+  return {
+    status: response.status,
+    body:
+      text.length > 0
+        ? (JSON.parse(text) as { data?: unknown; error?: { code?: string } })
+        : {},
+  };
 }
 
 function freePort(): Promise<number> {

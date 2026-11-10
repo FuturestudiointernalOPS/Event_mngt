@@ -115,7 +115,8 @@ export const OPERATIONS_REPORTING_CAPABILITIES: CapabilityDefinition[] = [
     key: 'platform.organizations.manage',
     module: 'platform',
     name: 'Manage organisations',
-    description: 'List organisations and manage their capability entitlements.',
+    description:
+      'List, create, suspend, support and manage the capability entitlements of organisations.',
     scope: 'platform',
     requiresOrganizationEntitlement: false,
     sensitive: true,

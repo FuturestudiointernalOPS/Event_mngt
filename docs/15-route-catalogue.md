@@ -82,8 +82,13 @@ see `docs/16-capability-authorization.md`.
 | module-registry | GET | `/modules` | — | `ModuleRegistryController.catalogue` |
 | module-registry | GET | `/workspaces/:slug/events/:eventId/modules` | `events.view_modules` | `ModuleRegistryController.list` |
 | module-registry | PATCH | `/workspaces/:slug/events/:eventId/modules` | `events.manage_modules` | `ModuleRegistryController.update` |
+| organizations | POST | `/onboarding/organizations` | `organization.create` | `OrganizationsController.create` |
 | participants | GET | `/workspaces/:slug/events/:eventId/participants` | `participants.view` | `ParticipantsController.list` |
 | participants | GET | `/workspaces/:slug/events/:eventId/participants/:personId` | `participants.view` | `ParticipantsController.detail` |
+| platform | GET | `/platform/organizations/overview` | `platform.organizations.manage` | `PlatformOrganizationsController.overview` |
+| platform | GET | `/platform/organizations/:organizationId` | `platform.organizations.manage` | `PlatformOrganizationsController.detail` |
+| platform | POST | `/platform/organizations` | `platform.organizations.manage` | `PlatformOrganizationsController.create` |
+| platform | PATCH | `/platform/organizations/:organizationId/status` | `platform.organizations.manage` | `PlatformOrganizationsController.updateStatus` |
 | profiles | GET | `/workspaces/:slug/events/:eventId/profiles` | `profiles.view` | `ParticipantProfilesController.list` |
 | profiles | GET | `/workspaces/:slug/events/:eventId/profiles/:profileId` | `profiles.view` | `ParticipantProfilesController.detail` |
 | profiles | PUT | `/workspaces/:slug/events/:eventId/registrations/:registrationId/profile` | `profiles.edit` | `ParticipantProfilesController.upsert` |

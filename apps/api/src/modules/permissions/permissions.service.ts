@@ -63,12 +63,21 @@ export class PermissionsService {
           },
         },
         organization: {
-          select: { capabilities: { select: { capabilityKey: true } } },
+          select: {
+            status: true,
+            capabilities: { select: { capabilityKey: true } },
+          },
         },
       },
     });
 
     if (!membership || membership.status !== MemberStatus.ACTIVE) {
+      throw membershipRequired();
+    }
+
+    // A suspended organisation is treated exactly like an inaccessible one: every
+    // tenant route fails closed on the next request, including still-valid access tokens.
+    if (membership.organization.status !== OrganizationStatus.ACTIVE) {
       throw membershipRequired();
     }
 

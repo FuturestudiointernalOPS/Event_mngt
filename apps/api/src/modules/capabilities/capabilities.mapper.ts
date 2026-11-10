@@ -37,7 +37,10 @@ export function toCapabilityCatalogue(): CapabilityCatalogueResponse {
       key: module.key,
       name: module.name,
       description: module.description,
-      capabilities: module.capabilities.map(toCapabilityDefinitionView),
+      // Account-scoped actions are not entitlements and cannot be assigned here.
+      capabilities: module.capabilities
+        .filter((definition) => definition.scope !== 'account')
+        .map(toCapabilityDefinitionView),
     })),
   };
 }
@@ -71,7 +74,10 @@ export function toAssignmentViews(
 
   return capabilitiesByModule().flatMap((module) =>
     module.capabilities
-      .filter((definition) => definition.scope !== 'platform')
+      .filter(
+        (definition) =>
+          definition.scope !== 'platform' && definition.scope !== 'account',
+      )
       .map((definition) => ({
         ...toCapabilityDefinitionView(definition),
         organizationEntitled: organization.has(definition.key),

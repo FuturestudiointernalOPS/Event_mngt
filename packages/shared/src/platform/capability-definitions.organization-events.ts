@@ -4,6 +4,20 @@ import { defineCapability } from './capability-definition';
 /** Organisation and event capabilities. */
 export const ORGANIZATION_EVENT_CAPABILITIES: CapabilityDefinition[] = [
   defineCapability({
+    key: 'organization.create',
+    module: 'organization',
+    name: 'Create a workspace',
+    description:
+      'Create a new organisation, its workspace and first administrator from a signed-in account.',
+    scope: 'account',
+    requiresOrganizationEntitlement: false,
+    sensitive: false,
+    destructive: false,
+    dependsOn: [],
+    permissions: [],
+    status: 'active',
+  }),
+  defineCapability({
     key: 'organization.view',
     module: 'organization',
     name: 'View organisation',

@@ -82,6 +82,19 @@ describe('CapabilityGuard', () => {
     expect(guard.canActivate(contextFor(request))).toBe(true);
   });
 
+  it('allows an authenticated account through an account capability without a tenant', () => {
+    const guard = guardFor([CAPABILITY_KEYS.organizationCreate]);
+    const request = { user: { id: 'user-1' } } as unknown as AuthenticatedRequest;
+
+    expect(guard.canActivate(contextFor(request))).toBe(true);
+  });
+
+  it('refuses an account capability without a signed-in account', () => {
+    const guard = guardFor([CAPABILITY_KEYS.organizationCreate]);
+
+    expect(() => guard.canActivate(contextFor({}))).toThrowError();
+  });
+
   it('fails closed on an unknown capability key', () => {
     const guard = guardFor(['events.not_real']);
 

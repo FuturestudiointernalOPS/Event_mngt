@@ -15,6 +15,7 @@ export * from './contracts/audit';
 export * from './contracts/reports';
 export * from './contracts/analytics';
 export * from './contracts/capabilities';
+export * from './contracts/organizations';
 export * from './contracts/membership';
 export * from './contracts/modules';
 export * from './contracts/branding-assets';

@@ -48,6 +48,11 @@ export class AppException extends HttpException {
     return new AppException(HttpStatus.UNPROCESSABLE_ENTITY, code, message, details);
   }
 
+  /** A server-side precondition failed; the public message stays generic. */
+  static internal(code: string, message: string): AppException {
+    return new AppException(HttpStatus.INTERNAL_SERVER_ERROR, code, message);
+  }
+
   static tooManyRequests(
     code: string,
     message: string,

@@ -15,6 +15,9 @@ export const CAPABILITY_KEYS = {
   organizationManagePermissions: 'organization.manage_permissions',
   organizationViewAuditLog: 'organization.view_audit_log',
 
+  /** Account-scoped: available before the caller belongs to any organisation. */
+  organizationCreate: 'organization.create',
+
   eventsView: 'events.view',
   eventsCreate: 'events.create',
   eventsPublish: 'events.publish',

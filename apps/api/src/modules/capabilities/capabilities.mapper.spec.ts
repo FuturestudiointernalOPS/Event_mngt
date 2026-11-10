@@ -31,6 +31,8 @@ describe('capability views', () => {
     expect(catalogue.modules.length).toBeGreaterThan(0);
     expect(serialized).not.toContain('event:read');
     expect(serialized).not.toContain('"permissions"');
+    // Account-scoped actions are not entitlements and stay out of the management view.
+    expect(serialized).not.toContain(CAPABILITY_KEYS.organizationCreate);
   });
 
   it('marks an entitlement whose dependency is missing as ineffective', () => {

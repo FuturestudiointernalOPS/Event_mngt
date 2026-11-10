@@ -30,8 +30,10 @@ import { IntroductionsModule } from './modules/introductions/introductions.modul
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { ParticipantsModule } from './modules/participants/participants.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { RegistrationFormsModule } from './modules/registration-forms/registration-forms.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
@@ -70,6 +72,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     HealthModule,
     AnalyticsModule,
     AuthModule,
+    OrganizationsModule,
     WorkspacesModule,
     MembershipsModule,
     ModuleRegistryModule,
@@ -84,6 +87,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     IntroductionsModule,
     MeetingsModule,
     ReportsModule,
+    PlatformModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

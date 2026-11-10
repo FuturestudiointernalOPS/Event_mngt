@@ -30,7 +30,7 @@ export type CapabilityModuleKey =
   | 'reports'
   | 'platform';
 
-export type CapabilityScope = 'organization' | 'membership' | 'both' | 'platform';
+export type CapabilityScope = 'organization' | 'membership' | 'both' | 'platform' | 'account';
 
 export type CapabilityStatus = 'active' | 'deprecated';
 
@@ -79,9 +79,15 @@ export const ALL_CAPABILITY_KEYS: string[] = CAPABILITY_REGISTRY.filter(
   (entry) => entry.status === 'active',
 ).map((entry) => entry.key);
 
-/** Capabilities an organisation can be entitled to. */
+/** Capabilities an organisation can be entitled to. Account-scoped actions are excluded. */
 export const ORGANIZATION_CAPABILITY_KEYS: string[] = CAPABILITY_REGISTRY.filter(
-  (entry) => entry.status === 'active' && entry.scope !== 'platform',
+  (entry) =>
+    entry.status === 'active' && entry.scope !== 'platform' && entry.scope !== 'account',
+).map((entry) => entry.key);
+
+/** Actions available to a signed-in account before it belongs to any organisation. */
+export const ACCOUNT_CAPABILITY_KEYS: string[] = CAPABILITY_REGISTRY.filter(
+  (entry) => entry.status === 'active' && entry.scope === 'account',
 ).map((entry) => entry.key);
 
 /** Capabilities an organisation administrator may grant directly to a member. */
@@ -101,7 +107,12 @@ export function isCapabilityKey(key: string): boolean {
 
 export function isAssignableToOrganization(key: string): boolean {
   const definition = getCapabilityDefinition(key);
-  return definition !== undefined && definition.scope !== 'platform' && definition.status === 'active';
+  return (
+    definition !== undefined &&
+    definition.scope !== 'platform' &&
+    definition.scope !== 'account' &&
+    definition.status === 'active'
+  );
 }
 
 export function isAssignableToMembership(key: string): boolean {
@@ -131,7 +142,11 @@ export function capabilitiesForPermissions(permissions: readonly string[]): stri
   const result = new Set<string>();
 
   for (const definition of CAPABILITY_REGISTRY) {
-    if (definition.status !== 'active' || definition.scope === 'platform') {
+    if (
+      definition.status !== 'active' ||
+      definition.scope === 'platform' ||
+      definition.scope === 'account'
+    ) {
       continue;
     }
     if (definition.permissions.some((permission) => granted.has(permission))) {
