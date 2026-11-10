@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import type { WorkspaceOutletContext } from '@/components/layout/WorkspaceShell';
 import { formatDateRange } from '@/lib/date';
 import { queryKeys } from '@/lib/query-keys';
 import { ApiRequestError } from '@/services/api-client';
@@ -11,6 +13,7 @@ import { eventsApi } from '@/services/events.api';
 export default function EventDetailPage(): JSX.Element {
   const { slug = '', eventId = '' } = useParams<{ slug: string; eventId: string }>();
   const { t, locale } = useI18n();
+  const { can } = useOutletContext<WorkspaceOutletContext>();
   const queryClient = useQueryClient();
 
   const eventQuery = useQuery({
@@ -76,13 +79,15 @@ export default function EventDetailPage(): JSX.Element {
             </Link>
           ) : null}
 
-          <Button
-            size="sm"
-            onClick={() => publishMutation.mutate()}
-            disabled={isPublished || publishMutation.isPending}
-          >
-            {isPublished ? t('events.published') : t('events.publish')}
-          </Button>
+          {can(CAPABILITY_KEYS.eventsPublish) ? (
+            <Button
+              size="sm"
+              onClick={() => publishMutation.mutate()}
+              disabled={isPublished || publishMutation.isPending}
+            >
+              {isPublished ? t('events.published') : t('events.publish')}
+            </Button>
+          ) : null}
         </div>
       </div>
 
