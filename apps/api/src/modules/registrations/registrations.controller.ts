@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   decideRegistrationRequestSchema,
   listRegistrationsQuerySchema,
   type DecideRegistrationRequest,
@@ -16,7 +16,7 @@ import {
   type RegistrationDetail,
   type RegistrationSummary,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -29,7 +29,7 @@ export class RegistrationsController {
   constructor(private readonly registrations: RegistrationsService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listRegistrationsQuerySchema))
@@ -39,7 +39,7 @@ export class RegistrationsController {
   }
 
   @Get(':registrationId')
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,
@@ -48,7 +48,7 @@ export class RegistrationsController {
   }
 
   @Post(':registrationId/approve')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsApprove)
   approve(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,
@@ -59,7 +59,7 @@ export class RegistrationsController {
   }
 
   @Post(':registrationId/reject')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsReject)
   reject(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,

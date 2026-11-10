@@ -12,13 +12,13 @@ import {
   EventDetail,
   EventSummary,
   ListEventsQuery,
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createEventRequestSchema,
   listEventsQuerySchema,
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
@@ -36,7 +36,7 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.eventsView)
   list(
     @Query(new ZodValidationPipe(listEventsQuerySchema)) query: ListEventsQuery,
   ): Promise<PaginatedResult<EventSummary>> {
@@ -44,7 +44,7 @@ export class EventsController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.eventManage)
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
   @Idempotent()
   create(
     @Body(new ZodValidationPipe(createEventRequestSchema)) body: CreateEventRequest,
@@ -54,7 +54,7 @@ export class EventsController {
   }
 
   @Get(':eventId')
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.eventsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventDetail> {
@@ -62,7 +62,7 @@ export class EventsController {
   }
 
   @Post(':eventId/publish')
-  @RequirePermissions(PERMISSIONS.eventPublish)
+  @RequireCapability(CAPABILITY_KEYS.eventsPublish)
   publish(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventDetail> {

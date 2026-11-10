@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ALL_PERMISSIONS } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import type { TenantAccess } from '../../common/types/authenticated-user';
 import { MemberStatus, OrganizationStatus } from '../../database/prisma-client';
@@ -8,15 +7,16 @@ import type { TenantPrismaClient } from '../../database/tenant-transaction.servi
 import { toTenantAccess } from './permissions.mapper';
 
 /**
- * RBAC evaluation and tenant resolution.
+ * Tenant resolution and capability evaluation.
  *
  * `resolveTenantAccess*` is the only place where a workspace identifier from the
- * request becomes an organisation id. Permissions are read from the membership's role
- * on every request, so role changes and removals apply immediately.
+ * request becomes an organisation id. The member's role permissions, direct capability
+ * grants and organisation entitlements are read on every request, so role changes,
+ * direct grants and entitlement revocation apply immediately.
  *
  * Resolution runs in the user-scoped bootstrap transaction: it must work before tenant
- * context exists, and row-level security only exposes this caller's own memberships
- * there. See WP-01 and docs/03.
+ * context exists, and row-level security only exposes this caller's own memberships,
+ * direct grants and organisation entitlements there. See WP-01 and docs/03.
  */
 @Injectable()
 export class PermissionsService {
@@ -45,11 +45,6 @@ export class PermissionsService {
     );
   }
 
-  /** Permission catalogue, used by the team management screen. */
-  listPermissionCatalogue(): string[] {
-    return [...ALL_PERMISSIONS];
-  }
-
   private async loadAccess(
     tx: TenantPrismaClient,
     userId: string,
@@ -60,11 +55,15 @@ export class PermissionsService {
       select: {
         id: true,
         status: true,
+        capabilities: { select: { capabilityKey: true } },
         role: {
           select: {
             key: true,
             permissions: { select: { permission: { select: { key: true } } } },
           },
+        },
+        organization: {
+          select: { capabilities: { select: { capabilityKey: true } } },
         },
       },
     });

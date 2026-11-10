@@ -28,8 +28,8 @@ export class AppException extends HttpException {
     return new AppException(HttpStatus.UNAUTHORIZED, code, message);
   }
 
-  static forbidden(code: string, message: string): AppException {
-    return new AppException(HttpStatus.FORBIDDEN, code, message);
+  static forbidden(code: string, message: string, details?: unknown): AppException {
+    return new AppException(HttpStatus.FORBIDDEN, code, message, details);
   }
 
   static notFound(code: string, message: string): AppException {

@@ -188,6 +188,9 @@ model User {
   createdEvents      Event[]            @relation("EventCreator")
   auditLogs          AuditLog[]         @relation("AuditActor")
 
+  assignedOrganizationCapabilities OrganizationCapability[] @relation("OrganizationCapabilityAssigner")
+  assignedMemberCapabilities       MemberCapability[]       @relation("MemberCapabilityAssigner")
+
   decidedRegistrations   Registration[]       @relation("RegistrationDecision")
   moderatedProfiles      ParticipantProfile[] @relation("ParticipantProfileModerator")
   moderatedOrganizations OrganizationProfile[] @relation("OrganizationProfileModerator")
@@ -260,6 +263,8 @@ model Organization {
   events     Event[]
   auditLogs  AuditLog[]
   idempotencyRecords IdempotencyRecord[]
+  capabilities       OrganizationCapability[]
+  memberCapabilities MemberCapability[]
 
   participantCategories ParticipantCategory[]
   registrationForms     RegistrationForm[]
@@ -297,6 +302,7 @@ model OrganizationMember {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   role         OrganizationRole @relation(fields: [roleId], references: [id])
+  capabilities MemberCapability[]
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -342,6 +348,42 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+/// Capabilities an organisation is entitled to use. Revoking a row immediately makes
+/// the capability ineffective for every member; member grants are left intact.
+model OrganizationCapability {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  capabilityKey    String   @map("capability_key")
+  assignedByUserId String?  @map("assigned_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy   User?        @relation("OrganizationCapabilityAssigner", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, capabilityKey])
+  @@index([capabilityKey])
+  @@map("organization_capabilities")
+}
+
+/// A capability granted directly to one membership. Role-derived capabilities are not
+/// stored here; they are computed from the role's permissions on every request.
+model MemberCapability {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  memberId         String   @map("member_id") @db.Uuid
+  capabilityKey    String   @map("capability_key")
+  assignedByUserId String?  @map("assigned_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  assignedBy   User?              @relation("MemberCapabilityAssigner", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, memberId, capabilityKey])
+  @@index([organizationId, memberId])
+  @@map("member_capabilities")
 }
 
 /// Pending invitation to join a workspace. Only the token hash is stored.

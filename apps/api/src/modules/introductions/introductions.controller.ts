@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createIntroductionRequestSchema,
   listIntroductionRequestsQuerySchema,
   updateIntroductionRequestSchema,
@@ -19,7 +19,7 @@ import {
   type ListIntroductionRequestsQuery,
   type UpdateIntroductionRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -32,7 +32,7 @@ export class IntroductionsController {
   constructor(private readonly introductions: IntroductionsService) {}
 
   @Get('introductions')
-  @RequirePermissions(PERMISSIONS.introductionRead)
+  @RequireCapability(CAPABILITY_KEYS.introductionsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listIntroductionRequestsQuerySchema))
@@ -42,7 +42,7 @@ export class IntroductionsController {
   }
 
   @Post('introductions')
-  @RequirePermissions(PERMISSIONS.introductionManage)
+  @RequireCapability(CAPABILITY_KEYS.introductionsManage)
   create(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createIntroductionRequestSchema))
@@ -52,7 +52,7 @@ export class IntroductionsController {
   }
 
   @Get('introductions/:introductionId')
-  @RequirePermissions(PERMISSIONS.introductionRead)
+  @RequireCapability(CAPABILITY_KEYS.introductionsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('introductionId', new ParseUUIDPipe()) introductionId: string,
@@ -61,7 +61,7 @@ export class IntroductionsController {
   }
 
   @Patch('introductions/:introductionId')
-  @RequirePermissions(PERMISSIONS.introductionManage)
+  @RequireCapability(CAPABILITY_KEYS.introductionsManage)
   update(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('introductionId', new ParseUUIDPipe()) introductionId: string,

@@ -7,12 +7,12 @@ import {
   Put,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   saveRegistrationFormRequestSchema,
   type RegistrationForm,
   type SaveRegistrationFormRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { RegistrationFormService } from './registration-form.service';
@@ -24,7 +24,7 @@ export class RegistrationFormController {
   constructor(private readonly forms: RegistrationFormService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsViewForm)
   show(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<RegistrationForm | null> {
@@ -32,7 +32,7 @@ export class RegistrationFormController {
   }
 
   @Put()
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageForm)
   save(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(saveRegistrationFormRequestSchema))

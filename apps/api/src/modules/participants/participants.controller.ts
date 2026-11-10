@@ -6,13 +6,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   listParticipantsQuerySchema,
   type ListParticipantsQuery,
   type ParticipantDetail,
   type ParticipantSummary,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -25,7 +25,7 @@ export class ParticipantsController {
   constructor(private readonly participants: ParticipantsService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.participantRead)
+  @RequireCapability(CAPABILITY_KEYS.participantsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listParticipantsQuerySchema))
@@ -35,7 +35,7 @@ export class ParticipantsController {
   }
 
   @Get(':personId')
-  @RequirePermissions(PERMISSIONS.participantRead)
+  @RequireCapability(CAPABILITY_KEYS.participantsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('personId', new ParseUUIDPipe()) personId: string,

@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@event-platform/shared';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import type { RouteDefinition } from '../../common/routes/route-definition';
 import { IntroductionsController } from './introductions.controller';
 
@@ -10,25 +10,25 @@ export const routes: RouteDefinition[] = [
   {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/introductions',
-    permission: PERMISSIONS.introductionRead,
+    capability: CAPABILITY_KEYS.introductionsView,
     handler: { controller: IntroductionsController, method: 'list' },
   },
   {
     method: 'POST',
     path: '/workspaces/:slug/events/:eventId/introductions',
-    permission: PERMISSIONS.introductionManage,
+    capability: CAPABILITY_KEYS.introductionsManage,
     handler: { controller: IntroductionsController, method: 'create' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/introductions/:introductionId',
-    permission: PERMISSIONS.introductionRead,
+    capability: CAPABILITY_KEYS.introductionsView,
     handler: { controller: IntroductionsController, method: 'detail' },
   },
   {
     method: 'PATCH',
     path: '/workspaces/:slug/events/:eventId/introductions/:introductionId',
-    permission: PERMISSIONS.introductionManage,
+    capability: CAPABILITY_KEYS.introductionsManage,
     handler: { controller: IntroductionsController, method: 'update' },
   },
 ];

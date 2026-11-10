@@ -18,6 +18,7 @@ export interface MemberRow {
 
 export interface MemberWithPermissions extends MemberRow {
   role: MemberRow['role'] & { permissions: Array<{ permission: { key: string } }> };
+  capabilities: Array<{ capabilityKey: string }>;
 }
 
 export function toMemberSummary(row: MemberRow): MemberSummary {
@@ -46,4 +47,8 @@ export function toRoleSummary(row: RoleRow): RoleSummary {
 
 export function permissionKeys(member: MemberWithPermissions): string[] {
   return member.role.permissions.map((entry) => entry.permission.key);
+}
+
+export function directCapabilityKeys(member: MemberWithPermissions): string[] {
+  return member.capabilities.map((entry) => entry.capabilityKey);
 }

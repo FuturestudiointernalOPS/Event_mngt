@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@event-platform/shared';
+import { CAPABILITY_KEYS, capabilitiesForPermissions } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 
 /**
@@ -46,6 +46,18 @@ export function assertAdministratorRemains(remainingAdministrators: number): voi
   }
 }
 
+export function isAdministrativeCapabilities(
+  rolePermissions: readonly string[],
+  directCapabilities: readonly string[] = [],
+): boolean {
+  const capabilities = [
+    ...capabilitiesForPermissions(rolePermissions),
+    ...directCapabilities,
+  ];
+  return capabilities.includes(CAPABILITY_KEYS.organizationManagePermissions);
+}
+
+/** @deprecated Kept for callers that only have a role. Prefer isAdministrativeCapabilities. */
 export function isAdministrativeRole(permissionKeys: readonly string[]): boolean {
-  return permissionKeys.includes(PERMISSIONS.memberManage);
+  return isAdministrativeCapabilities(permissionKeys);
 }

@@ -66,6 +66,8 @@ export const membershipSummarySchema = z.object({
   organizationSlug: z.string(),
   organizationName: z.string(),
   roleKey: z.string(),
+  /** Effective capabilities: organisation entitlement ∩ role ∪ direct grants. */
+  capabilities: z.array(z.string()),
   permissions: z.array(z.string()),
 });
 

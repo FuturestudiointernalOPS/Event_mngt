@@ -7,8 +7,8 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
 import { IdempotencyModule } from './common/idempotency/idempotency.module';
 import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
+import { CapabilityGuard } from './common/guards/capability.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TenantAccessGuard } from './common/guards/tenant-access.guard';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BadgesModule } from './modules/badges/badges.module';
+import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
 import { CheckInModule } from './modules/check-in/check-in.module';
 import { ConsentModule } from './modules/consent/consent.module';
 import { EventsModule } from './modules/events/events.module';
@@ -41,7 +42,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
  * Composition root. Guards are registered in execution order:
  *   1. JwtAuthGuard        — who are you?
  *   2. TenantAccessGuard   — which workspace, and are you a member?
- *   3. PermissionsGuard    — may you perform this action here?
+ *   3. CapabilityGuard     — may you perform this action here?
  *
  * Domain modules are added here as phases land; the pipeline is already in place.
  */
@@ -65,6 +66,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     }),
     AuditModule,
     PermissionsModule,
+    CapabilitiesModule,
     HealthModule,
     AnalyticsModule,
     AuthModule,
@@ -86,7 +88,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantAccessGuard },
-    { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useClass: CapabilityGuard },
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },

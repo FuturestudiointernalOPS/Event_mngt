@@ -5,13 +5,13 @@ export const routes: RouteDefinition[] = [
   {
     method: 'GET',
     path: '/health',
-    permission: null,
+    capability: null,
     handler: { controller: HealthController, method: 'check' },
   },
   {
     method: 'GET',
     path: '/health/ready',
-    permission: null,
+    capability: null,
     handler: { controller: HealthController, method: 'ready' },
   },
 ];

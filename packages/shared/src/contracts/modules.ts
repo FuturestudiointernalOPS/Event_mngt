@@ -15,7 +15,7 @@ export const moduleCatalogueEntrySchema = z.object({
   summary: z.string(),
   priority: modulePrioritySchema,
   dependsOn: z.array(z.string()),
-  requiredPermissions: z.array(z.string()),
+  requiredCapabilities: z.array(z.string()),
   configurable: z.boolean(),
 });
 

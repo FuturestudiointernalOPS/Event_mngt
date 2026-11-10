@@ -16,12 +16,14 @@ export type TenantPrismaClient = Prisma.TransactionClient;
  * `set_config(name, value, true)` is transaction-local, so a pooled connection
  * returns to an empty context at commit/rollback and cannot leak between requests.
  *
- * Three scopes exist, and no other code sets these variables:
+ * Four scopes exist, and no other code sets these variables:
  *   - withTenant          an authenticated member acting inside one organisation.
  *   - withUserScope       the caller's own identity, used to resolve a membership
  *                         before tenant context exists (bootstrap).
  *   - withOrganizationScope  a public read for one organisation, resolved from a
  *                         public identifier such as a workspace slug or a published event.
+ *   - withPlatformAdmin   a verified platform administrator reading organisation
+ *                         identity and managing organisation entitlements across tenants.
  */
 @Injectable()
 export class TenantTransactionService {
@@ -82,6 +84,22 @@ export class TenantTransactionService {
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.current_organization_id', ${organizationId}, true)`;
+      return callback(tx);
+    });
+  }
+
+  /**
+   * Cross-tenant platform administration (organisation identity and capability
+   * entitlements). The claim is verified by the JWT guard before any handler runs, and
+   * the database flag exposes only the tables whose policy opts in.
+   */
+  async withPlatformAdmin<T>(
+    userId: string,
+    callback: (tx: TenantPrismaClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.platform_admin', 'true', true)`;
       return callback(tx);
     });
   }

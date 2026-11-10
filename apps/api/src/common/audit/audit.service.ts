@@ -64,7 +64,11 @@ export class AuditService {
     try {
       if (organizationId) {
         if (!context) {
-          this.logger.warn(`Audit ${entry.action} skipped: no tenant context to write into.`);
+          // Platform administration has no request tenant context, but the operation is
+          // explicitly scoped to one organisation. Set that scope just for the write.
+          await this.tenantTransaction.withOrganizationScope(organizationId, async (tx) => {
+            await tx.auditLog.create({ data });
+          });
           return;
         }
         await this.tenantTransaction.withTenant(async (tx) => {

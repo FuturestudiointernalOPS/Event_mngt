@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { PERMISSIONS, auditQuerySchema, type AuditQuery } from '@event-platform/shared';
+import { CAPABILITY_KEYS, auditQuerySchema, type AuditQuery } from '@event-platform/shared';
 import { AuditService } from '../../common/audit/audit.service';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 
@@ -14,7 +14,7 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.auditRead)
+  @RequireCapability(CAPABILITY_KEYS.organizationViewAuditLog)
   @Get(':slug/audit')
   list(@Query(new ZodValidationPipe(auditQuerySchema)) query: AuditQuery) {
     return this.audit.list(query);

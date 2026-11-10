@@ -25,6 +25,8 @@ import {
 const DIRECT_TABLES: Array<[table: string, column: string]> = [
   ['organization_members', 'organization_id'],
   ['organization_roles', 'organization_id'],
+  ['organization_capabilities', 'organization_id'],
+  ['member_capabilities', 'organization_id'],
   ['workspace_settings', 'organization_id'],
   ['workspace_branding', 'organization_id'],
   ['events', 'organization_id'],

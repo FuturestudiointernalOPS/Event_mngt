@@ -32,6 +32,24 @@ export const API_PATHS = {
     branding: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/branding`,
     brandingAsset: (slug: string, kind: string) =>
       `${API_BASE_PATH}/workspaces/${slug}/branding/assets/${kind}`,
+    members: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/members`,
+    roles: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/roles`,
+    selfCapabilities: (slug: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/me/capabilities`,
+    capabilities: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/capabilities`,
+    memberCapabilities: (slug: string, memberId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/members/${memberId}/capabilities`,
+    memberCapability: (slug: string, memberId: string, capabilityKey: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/members/${memberId}/capabilities/${capabilityKey}`,
+  },
+
+  platform: {
+    capabilities: `${API_BASE_PATH}/platform/capabilities`,
+    organizations: `${API_BASE_PATH}/platform/organizations`,
+    organizationCapabilities: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities`,
+    organizationCapability: (organizationId: string, capabilityKey: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities/${capabilityKey}`,
   },
 
   events: {

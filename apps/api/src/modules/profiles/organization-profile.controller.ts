@@ -6,14 +6,14 @@ import {
   Put,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   moderateProfileRequestSchema,
   upsertOrganizationProfileRequestSchema,
   type ModerateProfileRequest,
   type OrganizationProfile,
   type UpsertOrganizationProfileRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { OrganizationProfileService } from './organization-profile.service';
@@ -25,13 +25,13 @@ export class OrganizationProfileController {
   constructor(private readonly profiles: OrganizationProfileService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.profileRead)
+  @RequireCapability(CAPABILITY_KEYS.profilesView)
   get(): Promise<OrganizationProfile | null> {
     return this.profiles.get();
   }
 
   @Put()
-  @RequirePermissions(PERMISSIONS.workspaceManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationEdit)
   upsert(
     @Body(new ZodValidationPipe(upsertOrganizationProfileRequestSchema))
     body: UpsertOrganizationProfileRequest,
@@ -40,7 +40,7 @@ export class OrganizationProfileController {
   }
 
   @Post('moderate')
-  @RequirePermissions(PERMISSIONS.profileModerate)
+  @RequireCapability(CAPABILITY_KEYS.profilesModerate)
   moderate(
     @Body(new ZodValidationPipe(moderateProfileRequestSchema))
     body: ModerateProfileRequest,

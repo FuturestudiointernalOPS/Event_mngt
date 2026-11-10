@@ -17,7 +17,7 @@ export function toCatalogue(): ModuleCatalogueEntry[] {
     summary: definition.summary,
     priority: definition.priority,
     dependsOn: [...definition.dependsOn],
-    requiredPermissions: [...definition.requiredPermissions],
+    requiredCapabilities: [...definition.requiredCapabilities],
     configurable: definition.configurable,
   }));
 }

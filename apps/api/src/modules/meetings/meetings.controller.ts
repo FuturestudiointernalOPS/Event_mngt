@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createMeetingRequestSchema,
   listMeetingsQuerySchema,
   updateMeetingRequestSchema,
@@ -18,7 +18,7 @@ import {
   type Meeting,
   type UpdateMeetingRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -31,7 +31,7 @@ export class MeetingsController {
   constructor(private readonly meetings: MeetingsService) {}
 
   @Get('meetings')
-  @RequirePermissions(PERMISSIONS.meetingRead)
+  @RequireCapability(CAPABILITY_KEYS.meetingsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listMeetingsQuerySchema))
@@ -41,7 +41,7 @@ export class MeetingsController {
   }
 
   @Post('meetings')
-  @RequirePermissions(PERMISSIONS.meetingManage)
+  @RequireCapability(CAPABILITY_KEYS.meetingsManage)
   propose(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createMeetingRequestSchema))
@@ -51,7 +51,7 @@ export class MeetingsController {
   }
 
   @Patch('meetings/:meetingId')
-  @RequirePermissions(PERMISSIONS.meetingManage)
+  @RequireCapability(CAPABILITY_KEYS.meetingsManage)
   update(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('meetingId', new ParseUUIDPipe()) meetingId: string,

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { RequestMethod, type Type } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { REQUIRED_PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { REQUIRED_CAPABILITIES_KEY } from '../decorators/require-capability.decorator';
 import { TENANT_SCOPE_KEY } from '../decorators/tenant-scoped.decorator';
 import type { HttpMethod } from './route-definition';
 
@@ -21,7 +21,7 @@ export interface ControllerRoute {
   httpMethod: HttpMethod;
   /** The full path below `/api/v1`, including the controller prefix. */
   path: string;
-  permissions: string[];
+  capabilities: string[];
   public: boolean;
   tenantScoped: boolean;
 }
@@ -63,8 +63,8 @@ export function describeController(controller: Type<unknown>): ControllerRoute[]
         | string[]
         | undefined;
       const paths = Array.isArray(rawPath) ? rawPath : [rawPath ?? ''];
-      const permissions =
-        (Reflect.getMetadata(REQUIRED_PERMISSIONS_KEY, handler) as string[] | undefined) ?? [];
+      const capabilities =
+        (Reflect.getMetadata(REQUIRED_CAPABILITIES_KEY, handler) as string[] | undefined) ?? [];
       const methodScope = Reflect.getMetadata(TENANT_SCOPE_KEY, handler) as
         | string
         | undefined;
@@ -74,7 +74,7 @@ export function describeController(controller: Type<unknown>): ControllerRoute[]
         method: name,
         httpMethod,
         path: joinRoutePath(prefix, path),
-        permissions,
+        capabilities,
         public: classPublic || Reflect.getMetadata(IS_PUBLIC_KEY, handler) === true,
         tenantScoped: Boolean(methodScope ?? classScope),
       }));

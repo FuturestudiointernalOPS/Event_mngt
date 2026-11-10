@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@event-platform/shared';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import type { RouteDefinition } from '../../common/routes/route-definition';
 import { ExportsController } from './exports.controller';
 import { ReportsController } from './reports.controller';
@@ -7,43 +7,43 @@ export const routes: RouteDefinition[] = [
   {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/reports/summary',
-    permission: PERMISSIONS.reportRead,
+    capability: CAPABILITY_KEYS.reportsView,
     handler: { controller: ReportsController, method: 'eventSummary' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/reports/summary',
-    permission: PERMISSIONS.reportRead,
+    capability: CAPABILITY_KEYS.reportsView,
     handler: { controller: ReportsController, method: 'organizationSummary' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/reports/editions',
-    permission: PERMISSIONS.reportRead,
+    capability: CAPABILITY_KEYS.reportsView,
     handler: { controller: ReportsController, method: 'editions' },
   },
   {
     method: 'POST',
     path: '/workspaces/:slug/events/:eventId/exports',
-    permission: PERMISSIONS.reportExport,
+    capability: CAPABILITY_KEYS.reportsExport,
     handler: { controller: ExportsController, method: 'create' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/exports',
-    permission: PERMISSIONS.reportRead,
+    capability: CAPABILITY_KEYS.reportsView,
     handler: { controller: ExportsController, method: 'list' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/exports/:exportId',
-    permission: PERMISSIONS.reportRead,
+    capability: CAPABILITY_KEYS.reportsView,
     handler: { controller: ExportsController, method: 'detail' },
   },
   {
     method: 'GET',
     path: '/workspaces/:slug/exports/:exportId/download',
-    permission: PERMISSIONS.reportExport,
+    capability: CAPABILITY_KEYS.reportsExport,
     handler: { controller: ExportsController, method: 'download' },
   },
 ];

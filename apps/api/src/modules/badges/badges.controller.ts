@@ -7,13 +7,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   listBadgesQuerySchema,
   type Badge,
   type IssuedBadge,
   type ListBadgesQuery,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -29,7 +29,7 @@ export class BadgesController {
   constructor(private readonly badges: BadgesService) {}
 
   @Get('badges')
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsViewBadges)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listBadgesQuerySchema)) query: ListBadgesQuery,
@@ -38,7 +38,7 @@ export class BadgesController {
   }
 
   @Get('registrations/:registrationId/badge')
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsViewBadges)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,
@@ -47,7 +47,7 @@ export class BadgesController {
   }
 
   @Post('registrations/:registrationId/badge/reissue')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageBadges)
   reissue(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,
@@ -56,7 +56,7 @@ export class BadgesController {
   }
 
   @Post('registrations/:registrationId/badge/revoke')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageBadges)
   revoke(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,

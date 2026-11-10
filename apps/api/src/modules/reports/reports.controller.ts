@@ -1,11 +1,11 @@
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   type EditionComparison,
   type EventReport,
   type OrganizationReport,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ReportsService } from './reports.service';
 
@@ -16,7 +16,7 @@ export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
   @Get('events/:eventId/reports/summary')
-  @RequirePermissions(PERMISSIONS.reportRead)
+  @RequireCapability(CAPABILITY_KEYS.reportsView)
   eventSummary(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventReport> {
@@ -24,13 +24,13 @@ export class ReportsController {
   }
 
   @Get('reports/summary')
-  @RequirePermissions(PERMISSIONS.reportRead)
+  @RequireCapability(CAPABILITY_KEYS.reportsView)
   organizationSummary(): Promise<OrganizationReport> {
     return this.reports.organizationSummary();
   }
 
   @Get('events/:eventId/reports/editions')
-  @RequirePermissions(PERMISSIONS.reportRead)
+  @RequireCapability(CAPABILITY_KEYS.reportsView)
   editions(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EditionComparison> {

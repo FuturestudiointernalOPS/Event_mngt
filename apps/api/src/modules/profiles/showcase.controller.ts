@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createInnovationRequestSchema,
   listInnovationsQuerySchema,
   moderateProfileRequestSchema,
@@ -17,7 +17,7 @@ import {
   type ListInnovationsQuery,
   type ModerateProfileRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -30,7 +30,7 @@ export class ShowcaseController {
   constructor(private readonly showcase: ShowcaseService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.profileRead)
+  @RequireCapability(CAPABILITY_KEYS.profilesView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listInnovationsQuerySchema))
@@ -40,7 +40,7 @@ export class ShowcaseController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.profilesEdit)
   create(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createInnovationRequestSchema))
@@ -50,7 +50,7 @@ export class ShowcaseController {
   }
 
   @Post(':innovationId/moderate')
-  @RequirePermissions(PERMISSIONS.profileModerate)
+  @RequireCapability(CAPABILITY_KEYS.profilesModerate)
   moderate(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('innovationId', new ParseUUIDPipe()) innovationId: string,

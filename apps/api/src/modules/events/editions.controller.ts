@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createEditionRequestSchema,
   listEditionsQuerySchema,
   type CreateEditionRequest,
@@ -18,7 +18,7 @@ import {
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
@@ -34,7 +34,7 @@ export class EditionsController {
   constructor(private readonly editions: EditionsService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.editionsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listEditionsQuerySchema)) query: ListEditionsQuery,
@@ -43,7 +43,7 @@ export class EditionsController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.eventManage)
+  @RequireCapability(CAPABILITY_KEYS.editionsCreate)
   @Idempotent()
   create(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
@@ -54,7 +54,7 @@ export class EditionsController {
   }
 
   @Get(':editionId')
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.editionsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('editionId', new ParseUUIDPipe()) editionId: string,

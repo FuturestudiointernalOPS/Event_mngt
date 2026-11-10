@@ -8,9 +8,14 @@ import { AppException } from '../../common/app-exception';
 import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import { permissionKeys, toMemberSummary, toRoleSummary } from './memberships.mapper';
+import {
+  directCapabilityKeys,
+  permissionKeys,
+  toMemberSummary,
+  toRoleSummary,
+} from './memberships.mapper';
 import { MembershipsRepository } from './memberships.repository';
-import { assertAdministratorRemains, isAdministrativeRole } from './memberships.rules';
+import { assertAdministratorRemains, isAdministrativeCapabilities } from './memberships.rules';
 
 /**
  * Who belongs to the workspace and what they may do.
@@ -58,7 +63,10 @@ export class MembershipsService {
         );
       }
 
-      if (isAdministrativeRole(permissionKeys(member)) && !isAdministrativeRole(toRoleSummary(role).permissions)) {
+      if (
+        isAdministrativeCapabilities(permissionKeys(member)) &&
+        !isAdministrativeCapabilities(toRoleSummary(role).permissions)
+      ) {
         const remaining = await this.repository.countOtherAdministrators(
           tx,
           tenant.organizationId,
@@ -89,7 +97,7 @@ export class MembershipsService {
         throw AppException.notFound('not_found', 'Member not found.');
       }
 
-      if (isAdministrativeRole(permissionKeys(member))) {
+      if (isAdministrativeCapabilities(permissionKeys(member), directCapabilityKeys(member))) {
         const remaining = await this.repository.countOtherAdministrators(
           tx,
           tenant.organizationId,

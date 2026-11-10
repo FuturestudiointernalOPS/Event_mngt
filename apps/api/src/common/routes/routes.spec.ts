@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { Type } from '@nestjs/common';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
+import { isCapabilityKey } from '@event-platform/shared';
 import { AuditModule } from '../../modules/audit/audit.module';
 import { routes as auditRoutes } from '../../modules/audit/routes';
 import { AnalyticsModule } from '../../modules/analytics/analytics.module';
@@ -12,6 +13,8 @@ import { AuthModule } from '../../modules/auth/auth.module';
 import { routes as authRoutes } from '../../modules/auth/routes';
 import { BadgesModule } from '../../modules/badges/badges.module';
 import { routes as badgeRoutes } from '../../modules/badges/routes';
+import { CapabilitiesModule } from '../../modules/capabilities/capabilities.module';
+import { routes as capabilityRoutes } from '../../modules/capabilities/routes';
 import { CheckInModule } from '../../modules/check-in/check-in.module';
 import { routes as checkInRoutes } from '../../modules/check-in/routes';
 import { ConsentModule } from '../../modules/consent/consent.module';
@@ -57,6 +60,7 @@ const MODULES: Array<Type<unknown>> = [
   AuditModule,
   AuthModule,
   BadgesModule,
+  CapabilitiesModule,
   CheckInModule,
   ConsentModule,
   EventsModule,
@@ -78,6 +82,7 @@ const CATALOGUES: Record<string, RouteDefinition[]> = {
   audit: auditRoutes,
   auth: authRoutes,
   badges: badgeRoutes,
+  capabilities: capabilityRoutes,
   'check-in': checkInRoutes,
   consent: consentRoutes,
   events: eventRoutes,
@@ -120,18 +125,18 @@ function matchingActual(route: RouteDefinition): ControllerRoute | undefined {
 /** The single source for the Markdown table in docs/15. */
 function renderCatalogueTable(): string {
   const lines = [
-    '| Module | Method | Path | Permission | Handler |',
+    '| Module | Method | Path | Capability | Handler |',
     '| --- | --- | --- | --- | --- |',
   ];
 
   for (const [moduleName, routes] of Object.entries(CATALOGUES)) {
     for (const route of routes) {
-      const permission =
-        route.permission === null ? '—' : `\`${route.permission}\``;
+      const capability =
+        route.capability === null ? '—' : `\`${route.capability}\``;
       const handler = `\`${route.handler.controller.name}.${route.handler.method}\``;
 
       lines.push(
-        `| ${moduleName} | ${route.method} | \`${route.path}\` | ${permission} | ${handler} |`,
+        `| ${moduleName} | ${route.method} | \`${route.path}\` | ${capability} | ${handler} |`,
       );
     }
   }
@@ -194,7 +199,7 @@ describe('route catalogue', () => {
     expect(stale).toEqual([]);
   });
 
-  it('records the permission the decorator actually requires', () => {
+  it('records the capability the decorator actually requires', () => {
     const mismatched = CATALOGUED.flatMap(({ route }) => {
       const actual = matchingActual(route);
 
@@ -202,16 +207,48 @@ describe('route catalogue', () => {
         return [];
       }
 
-      const expected = route.permission === null ? [] : [route.permission];
+      const expected = route.capability === null ? [] : [route.capability];
 
-      return JSON.stringify(expected) === JSON.stringify(actual.permissions)
+      return JSON.stringify(expected) === JSON.stringify(actual.capabilities)
         ? []
         : [
-            `${route.method} ${route.path}: catalogue ${JSON.stringify(expected)}, controller ${JSON.stringify(actual.permissions)}`,
+            `${route.method} ${route.path}: catalogue ${JSON.stringify(expected)}, controller ${JSON.stringify(actual.capabilities)}`,
           ];
     });
 
     expect(mismatched).toEqual([]);
+  });
+
+  it('names capabilities that exist in the registry', () => {
+    const unknown = CATALOGUED.flatMap(({ route }) =>
+      route.capability !== null && !isCapabilityKey(route.capability)
+        ? [`${route.method} ${route.path}: ${route.capability}`]
+        : [],
+    );
+
+    expect(unknown).toEqual([]);
+  });
+
+  it('requires a capability on every protected tenant route', () => {
+    // A member may read their own effective capabilities without holding one, and the
+    // module catalogue is a global, read-only description available to any session.
+    const allowedWithoutCapability = new Set([
+      'CapabilitiesController.self',
+      'ModuleRegistryController.catalogue',
+    ]);
+
+    const unprotected = ACTUAL.filter(
+      (actual) =>
+        actual.tenantScoped &&
+        !actual.public &&
+        actual.capabilities.length === 0 &&
+        !allowedWithoutCapability.has(`${actual.controller.name}.${actual.method}`),
+    ).map(
+      (actual) =>
+        `${actual.controller.name}.${actual.method} ${actual.httpMethod} ${actual.path}`,
+    );
+
+    expect(unprotected).toEqual([]);
   });
 
   it('does not register the same verb and path twice', () => {

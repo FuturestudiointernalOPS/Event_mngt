@@ -9,11 +9,15 @@
 -- Run as:  npm run db:policies       (or: psql "$DATABASE_URL" -f this file)
 -- The file is idempotent: every policy is dropped before it is created.
 --
--- Three scopes exist, and only TenantTransactionService sets them:
+-- Four scopes exist, and only TenantTransactionService sets them:
 --   app.current_organization_id  an authenticated member inside one organisation,
---                                or a public read for one organisation.
+--                                a public read for one organisation, or a capability
+--                                operation scoped to a named organisation.
 --   app.current_user_id          the caller's own identity, used to resolve a
 --                                membership before tenant context exists.
+--   app.platform_admin           a verified platform administrator. Only the
+--                                organisation identity and capability tables opt in.
+--   (public submission reuses the organisation scope; it is the only anonymous write.)
 -- See docs/03-tenant-isolation-and-rls.md and WP-01.
 --
 -- Design notes:
@@ -58,6 +62,22 @@ ALTER TABLE organization_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organization_roles FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS organization_roles_tenant_isolation ON organization_roles;
 CREATE POLICY organization_roles_tenant_isolation ON organization_roles
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+-- Organisation entitlements and direct member grants. Both carry organization_id so a
+-- member of another tenant can never read or write them, even by guessing a uuid.
+ALTER TABLE organization_capabilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organization_capabilities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS organization_capabilities_tenant_isolation ON organization_capabilities;
+CREATE POLICY organization_capabilities_tenant_isolation ON organization_capabilities
+  USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
+
+ALTER TABLE member_capabilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE member_capabilities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS member_capabilities_tenant_isolation ON member_capabilities;
+CREATE POLICY member_capabilities_tenant_isolation ON member_capabilities
   USING (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid)
   WITH CHECK (organization_id = nullif(current_setting('app.current_organization_id', true), '')::uuid);
 
@@ -336,6 +356,45 @@ CREATE POLICY role_permissions_user_bootstrap ON role_permissions
         AND m.user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
     )
   );
+
+-- The caller must be able to read their own organisation entitlements and direct
+-- grants while the membership is being resolved, before tenant context exists.
+DROP POLICY IF EXISTS organization_capabilities_user_bootstrap ON organization_capabilities;
+CREATE POLICY organization_capabilities_user_bootstrap ON organization_capabilities
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM organization_members m
+      WHERE m.organization_id = organization_capabilities.organization_id
+        AND m.user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+    )
+  );
+
+DROP POLICY IF EXISTS member_capabilities_user_bootstrap ON member_capabilities;
+CREATE POLICY member_capabilities_user_bootstrap ON member_capabilities
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM organization_members m
+      WHERE m.id = member_capabilities.member_id
+        AND m.user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+    )
+  );
+
+-- Platform administrators deliberately cross tenants. The flag is set only by
+-- TenantTransactionService.withPlatformAdmin, after the JWT guard has verified the
+-- platform administrator claim, and it exposes organisation identity and capability
+-- entitlements only — never tenant product data.
+DROP POLICY IF EXISTS organizations_platform_admin_read ON organizations;
+CREATE POLICY organizations_platform_admin_read ON organizations
+  FOR SELECT
+  USING (current_setting('app.platform_admin', true) = 'true');
+
+DROP POLICY IF EXISTS organization_capabilities_platform_admin ON organization_capabilities;
+CREATE POLICY organization_capabilities_platform_admin ON organization_capabilities
+  FOR ALL
+  USING (current_setting('app.platform_admin', true) = 'true')
+  WITH CHECK (current_setting('app.platform_admin', true) = 'true');
 
 -- A signed-in user may record an audit row attributed to themselves when the action has
 -- no organisation (sign-in, sign-out). Any other write is refused.

@@ -27,6 +27,7 @@ export class TenantContextInterceptor implements NestInterceptor {
       organizationId: tenant.organizationId,
       userId: user.id,
       membershipId: tenant.membershipId,
+      capabilities: tenant.capabilities,
       permissions: tenant.permissions,
       requestId: request.requestId,
       ipAddress: request.ip,

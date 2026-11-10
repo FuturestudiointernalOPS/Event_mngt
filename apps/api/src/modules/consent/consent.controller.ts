@@ -7,12 +7,12 @@ import {
   Post,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createConsentDocumentRequestSchema,
   type ConsentDocument,
   type CreateConsentDocumentRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ConsentService } from './consent.service';
@@ -27,7 +27,7 @@ export class ConsentController {
   constructor(private readonly consent: ConsentService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsViewConsent)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<ConsentDocument[]> {
@@ -35,7 +35,7 @@ export class ConsentController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageConsent)
   create(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createConsentDocumentRequestSchema))

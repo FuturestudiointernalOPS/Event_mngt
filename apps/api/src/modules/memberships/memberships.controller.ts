@@ -11,7 +11,7 @@ import {
   Post,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   inviteMemberRequestSchema,
   updateMemberRoleRequestSchema,
   type InvitationSummary,
@@ -20,7 +20,7 @@ import {
   type RoleSummary,
   type UpdateMemberRoleRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -41,21 +41,21 @@ export class MembershipsController {
   ) {}
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.memberRead)
+  @RequireCapability(CAPABILITY_KEYS.organizationViewMembers)
   @Get(':slug/members')
   list(): Promise<MemberSummary[]> {
     return this.memberships.listMembers();
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.memberRead)
+  @RequireCapability(CAPABILITY_KEYS.organizationViewMembers)
   @Get(':slug/roles')
   roles(): Promise<RoleSummary[]> {
     return this.memberships.listRoles();
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.memberManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationInviteMembers)
   @Idempotent()
   @Post(':slug/invitations')
   invite(
@@ -65,7 +65,7 @@ export class MembershipsController {
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.memberManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationManagePermissions)
   @Patch(':slug/members/:memberId')
   updateRole(
     @Param('memberId', new ParseUUIDPipe()) memberId: string,
@@ -75,7 +75,7 @@ export class MembershipsController {
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.memberManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationRemoveMembers)
   @Delete(':slug/members/:memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('memberId', new ParseUUIDPipe()) memberId: string): Promise<void> {

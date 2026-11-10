@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
-import { ALL_PERMISSIONS } from '@event-platform/shared';
+import { ALL_PERMISSIONS, ORGANIZATION_CAPABILITY_KEYS } from '@event-platform/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '../../src/database/prisma-client';
 
@@ -78,6 +78,14 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
       },
     });
 
+    await owner.organizationCapability.createMany({
+      data: ORGANIZATION_CAPABILITY_KEYS.map((capabilityKey) => ({
+        organizationId: row.id,
+        capabilityKey,
+      })),
+      skipDuplicates: true,
+    });
+
     return { id: row.id, slug, roleId: role.id };
   }
 
@@ -104,7 +112,7 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
   const accountA = await account('a');
   const accountB = await account('b');
 
-  await owner.organizationMember.create({
+  const membershipA = await owner.organizationMember.create({
     data: {
       organizationId: orgA.id,
       userId: accountA.id,
@@ -121,6 +129,14 @@ export async function createFixtures(owner: PrismaClient): Promise<Fixtures> {
       roleId: orgB.roleId,
       status: 'ACTIVE',
       joinedAt: new Date(),
+    },
+  });
+
+  await owner.memberCapability.create({
+    data: {
+      organizationId: orgA.id,
+      memberId: membershipA.id,
+      capabilityKey: 'organization.view_audit_log',
     },
   });
 

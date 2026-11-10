@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   updateEventModulesRequestSchema,
   type EventModule,
   type ModuleCatalogueEntry,
   type UpdateEventModulesRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ModuleRegistryService } from './module-registry.service';
@@ -27,14 +27,14 @@ export class ModuleRegistryController {
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.eventsViewModules)
   @Get('workspaces/:slug/events/:eventId/modules')
   list(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventModule[]> {
     return this.modules.list(eventId);
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.moduleManage)
+  @RequireCapability(CAPABILITY_KEYS.eventsManageModules)
   @Patch('workspaces/:slug/events/:eventId/modules')
   update(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,

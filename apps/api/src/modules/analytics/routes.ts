@@ -5,7 +5,7 @@ export const routes: RouteDefinition[] = [
   {
     method: 'GET',
     path: '/public/events/:eventSlug/metrics',
-    permission: null,
+    capability: null,
     handler: { controller: PublicMetricsController, method: 'get' },
   },
 ];

@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   listParticipantProfilesQuerySchema,
   moderateProfileRequestSchema,
   updateParticipantProfileRequestSchema,
@@ -19,7 +19,7 @@ import {
   type ParticipantProfile,
   type UpdateParticipantProfileRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
@@ -32,7 +32,7 @@ export class ParticipantProfilesController {
   constructor(private readonly profiles: ParticipantProfilesService) {}
 
   @Get('profiles')
-  @RequirePermissions(PERMISSIONS.profileRead)
+  @RequireCapability(CAPABILITY_KEYS.profilesView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listParticipantProfilesQuerySchema))
@@ -42,7 +42,7 @@ export class ParticipantProfilesController {
   }
 
   @Get('profiles/:profileId')
-  @RequirePermissions(PERMISSIONS.profileRead)
+  @RequireCapability(CAPABILITY_KEYS.profilesView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('profileId', new ParseUUIDPipe()) profileId: string,
@@ -51,7 +51,7 @@ export class ParticipantProfilesController {
   }
 
   @Put('registrations/:registrationId/profile')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.profilesEdit)
   upsert(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('registrationId', new ParseUUIDPipe()) registrationId: string,
@@ -62,7 +62,7 @@ export class ParticipantProfilesController {
   }
 
   @Patch('profiles/:profileId')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.profilesEdit)
   update(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('profileId', new ParseUUIDPipe()) profileId: string,
@@ -73,7 +73,7 @@ export class ParticipantProfilesController {
   }
 
   @Post('profiles/:profileId/moderate')
-  @RequirePermissions(PERMISSIONS.profileModerate)
+  @RequireCapability(CAPABILITY_KEYS.profilesModerate)
   moderate(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('profileId', new ParseUUIDPipe()) profileId: string,

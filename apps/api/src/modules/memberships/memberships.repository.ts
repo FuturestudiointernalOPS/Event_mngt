@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PERMISSIONS } from '@event-platform/shared';
+import { CAPABILITY_KEYS, PERMISSIONS } from '@event-platform/shared';
 import { PrismaService } from '../../database/prisma.service';
 import type { TenantPrismaClient } from '../../database/tenant-transaction.service';
 import type { MemberRow, MemberWithPermissions, RoleRow } from './memberships.mapper';
@@ -22,7 +22,15 @@ const ROLE_SELECT = {
 
 const MEMBER_WITH_PERMISSIONS_SELECT = {
   ...MEMBER_SELECT,
-  role: { select: { id: true, key: true, name: true, permissions: { select: { permission: { select: { key: true } } } } } },
+  capabilities: { select: { capabilityKey: true } },
+  role: {
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      permissions: { select: { permission: { select: { key: true } } } },
+    },
+  },
 } as const;
 
 /**
@@ -92,9 +100,18 @@ export class MembershipsRepository {
         organizationId,
         status: 'ACTIVE',
         id: { not: excludeMemberId },
-        role: {
-          permissions: { some: { permission: { key: PERMISSIONS.memberManage } } },
-        },
+        OR: [
+          {
+            role: {
+              permissions: { some: { permission: { key: PERMISSIONS.memberManage } } },
+            },
+          },
+          {
+            capabilities: {
+              some: { capabilityKey: CAPABILITY_KEYS.organizationManagePermissions },
+            },
+          },
+        ],
       },
     });
   }

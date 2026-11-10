@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createCheckInRequestSchema,
   listCheckInsQuerySchema,
   syncCheckInsRequestSchema,
@@ -19,7 +19,7 @@ import {
   type SyncCheckInsRequest,
   type SyncCheckInsResponse,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -41,7 +41,7 @@ export class CheckInsController {
   ) {}
 
   @Post('check-ins')
-  @RequirePermissions(PERMISSIONS.checkinOperate)
+  @RequireCapability(CAPABILITY_KEYS.checkInOperate)
   record(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createCheckInRequestSchema))
@@ -51,7 +51,7 @@ export class CheckInsController {
   }
 
   @Post('check-ins/sync')
-  @RequirePermissions(PERMISSIONS.checkinOperate)
+  @RequireCapability(CAPABILITY_KEYS.checkInOperate)
   @Idempotent()
   @RateLimit({ bucket: 'checkin-sync', key: 'ip' })
   sync(
@@ -63,7 +63,7 @@ export class CheckInsController {
   }
 
   @Get('check-ins')
-  @RequirePermissions(PERMISSIONS.checkinRead)
+  @RequireCapability(CAPABILITY_KEYS.checkInView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listCheckInsQuerySchema))
@@ -73,7 +73,7 @@ export class CheckInsController {
   }
 
   @Get('check-ins/summary')
-  @RequirePermissions(PERMISSIONS.checkinRead)
+  @RequireCapability(CAPABILITY_KEYS.checkInView)
   summary(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<CheckInSummary> {

@@ -14,10 +14,10 @@ export interface RouteDefinition {
   method: HttpMethod;
   path: string;
   /**
-   * The permission the route requires. `null` means public or signed-in-only.
-   * One permission per route today; widen this to an array before a route needs two.
+   * The capability the route requires. `null` means public or signed-in-only.
+   * One capability per route today; widen this to an array before a route needs two.
    */
-  permission: string | null;
+  capability: string | null;
   handler: {
     controller: Type<unknown>;
     /** The controller method name, not the route path. */

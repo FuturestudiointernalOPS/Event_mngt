@@ -12,14 +12,14 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createReportExportRequestSchema,
   listReportExportsQuerySchema,
   type CreateReportExportRequest,
   type ListReportExportsQuery,
   type ReportExport,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -38,7 +38,7 @@ export class ExportsController {
   constructor(private readonly exports: ReportExportsService) {}
 
   @Post('events/:eventId/exports')
-  @RequirePermissions(PERMISSIONS.reportExport)
+  @RequireCapability(CAPABILITY_KEYS.reportsExport)
   @HttpCode(HttpStatus.ACCEPTED)
   @Idempotent()
   create(
@@ -50,7 +50,7 @@ export class ExportsController {
   }
 
   @Get('events/:eventId/exports')
-  @RequirePermissions(PERMISSIONS.reportRead)
+  @RequireCapability(CAPABILITY_KEYS.reportsView)
   list(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Query(new ZodValidationPipe(listReportExportsQuerySchema))
@@ -60,7 +60,7 @@ export class ExportsController {
   }
 
   @Get('exports/:exportId')
-  @RequirePermissions(PERMISSIONS.reportRead)
+  @RequireCapability(CAPABILITY_KEYS.reportsView)
   detail(
     @Param('exportId', new ParseUUIDPipe()) exportId: string,
   ): Promise<ReportExport> {
@@ -68,7 +68,7 @@ export class ExportsController {
   }
 
   @Get('exports/:exportId/download')
-  @RequirePermissions(PERMISSIONS.reportExport)
+  @RequireCapability(CAPABILITY_KEYS.reportsExport)
   async download(
     @Param('exportId', new ParseUUIDPipe()) exportId: string,
     @Res() response: Response,

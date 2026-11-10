@@ -8,14 +8,14 @@ import {
   Post,
 } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  CAPABILITY_KEYS,
   createCategoryRequestSchema,
   updateCategoryRequestSchema,
   type Category,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
 } from '@event-platform/shared';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CategoriesService } from './categories.service';
@@ -27,13 +27,13 @@ export class CategoriesController {
   constructor(private readonly categories: CategoriesService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.registrationRead)
+  @RequireCapability(CAPABILITY_KEYS.registrationsViewCategories)
   list(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<Category[]> {
     return this.categories.list(eventId);
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageCategories)
   create(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Body(new ZodValidationPipe(createCategoryRequestSchema))
@@ -43,7 +43,7 @@ export class CategoriesController {
   }
 
   @Patch(':categoryId')
-  @RequirePermissions(PERMISSIONS.registrationManage)
+  @RequireCapability(CAPABILITY_KEYS.registrationsManageCategories)
   update(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
     @Param('categoryId', new ParseUUIDPipe()) categoryId: string,

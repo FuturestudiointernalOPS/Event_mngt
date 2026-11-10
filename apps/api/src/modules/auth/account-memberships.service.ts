@@ -25,7 +25,15 @@ export class AccountMembershipsService {
         },
         orderBy: { createdAt: 'asc' },
         select: {
-          organization: { select: { id: true, slug: true, name: true } },
+          capabilities: { select: { capabilityKey: true } },
+          organization: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              capabilities: { select: { capabilityKey: true } },
+            },
+          },
           role: {
             select: {
               key: true,
