@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type {
   Badge,
   IssuedBadge,
@@ -11,38 +11,33 @@ import {
   type TenantPrismaClient,
 } from '../../database/tenant-transaction.service';
 import { RegistrationStatus } from '../../database/prisma-client';
-import { EMAIL_PORT, type EmailPort } from '../../integrations/email/email.port';
-import { badgeQrPayload, createBadgeToken } from './badge.tokens';
+import { createBadgeToken } from './badge.tokens';
 import { toBadge } from './badges.mapper';
+import {
+  BadgeNotifier,
+  type IssuedBadgeNotice,
+} from './badges.notifier';
 import {
   BadgesRepository,
   type BadgeRegistration,
   type BadgeWithReference,
 } from './badges.repository';
 
-/** What the caller needs to send the confirmation once its transaction commits. */
-export interface IssuedBadgeNotice {
-  badge: Badge;
-  token: string | null;
-  recipient: { email: string; name: string };
-  event: { name: string; slug: string };
-}
+export type { IssuedBadgeNotice } from './badges.notifier';
 
 /**
  * Badge issuance, reissue and revocation (WP-13).
  *
  * Issuance runs inside the caller's transaction so an approved registration cannot end
- * up without a badge. Email is sent afterwards, because a provider failure must never
- * roll back a badge that already exists.
+ * up without a badge. Email is delegated to `BadgeNotifier` after the transaction,
+ * because a provider failure must never roll back a badge that already exists.
  */
 @Injectable()
 export class BadgesService {
-  private readonly logger = new Logger(BadgesService.name);
-
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly repository: BadgesRepository,
-    @Inject(EMAIL_PORT) private readonly email: EmailPort,
+    private readonly notifier: BadgeNotifier,
   ) {}
 
   list(eventId: string, query: ListBadgesQuery): Promise<PaginatedResult<Badge>> {
@@ -210,32 +205,7 @@ export class BadgesService {
 
   /** Sends the confirmation. A provider failure is logged, never thrown. */
   async notifyIssued(notice: IssuedBadgeNotice): Promise<void> {
-    if (!notice.token) {
-      return;
-    }
-
-    const lines = [
-      `Hello ${notice.recipient.name},`,
-      '',
-      `Your registration ${notice.badge.reference} for ${notice.event.name} is approved.`,
-      `Badge code: ${badgeQrPayload(notice.token)}`,
-      '',
-      'Show this code at the entrance. Reissuing your badge invalidates this one.',
-    ];
-
-    try {
-      await this.email.send({
-        to: notice.recipient.email,
-        subject: `${notice.event.name} — your badge`,
-        text: lines.join('\n'),
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Badge email failed for registration ${notice.badge.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
+    await this.notifier.notify(notice);
   }
 
   private noticeFor(

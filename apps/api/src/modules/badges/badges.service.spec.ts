@@ -6,6 +6,7 @@ import type {
 } from '../../database/tenant-transaction.service';
 import { RegistrationStatus } from '../../database/prisma-client';
 import { hashBadgeToken } from './badge.tokens';
+import { BadgeNotifier } from './badges.notifier';
 import type {
   BadgeRegistration,
   BadgeWithReference,
@@ -114,7 +115,7 @@ function harness(options: HarnessOptions = {}) {
   };
 
   return {
-    service: new BadgesService(tenantTransaction, repository, email),
+    service: new BadgesService(tenantTransaction, repository, new BadgeNotifier(email)),
     created,
     updates,
     emails,
@@ -171,11 +172,11 @@ describe('badge issuance', () => {
     const failing: BadgesService = new BadgesService(
       {} as TenantTransactionService,
       {} as BadgesRepository,
-      {
+      new BadgeNotifier({
         send: async () => {
           throw new Error('provider down');
         },
-      },
+      }),
     );
 
     await expect(failing.notifyIssued(notice)).resolves.toBeUndefined();
