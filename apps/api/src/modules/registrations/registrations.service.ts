@@ -1,146 +1,190 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import type {
   DecideRegistrationRequest,
   ListRegistrationsQuery,
-  Locale,
   RegistrationDetail,
   RegistrationSummary,
 } from '@event-platform/shared';
-import { writeAudit } from '../../common/audit/audit';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
-import type { Env } from '../../config/env.validation';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import { EMAIL_PORT } from '../../integrations/email/email.port';
-import type { EmailPort } from '../../integrations/email/email.port';
-import { rotateAccessToken } from './registration-access';
-import { composeRegistrationEmail } from './registration-emails';
-import { resolveDecision } from './registration.rules';
-import { toRegistrationDetail, toRegistrationSummary } from './registrations.mapper';
+import { RegistrationStatus } from '../../database/prisma-client';
+import { BadgesService, type IssuedBadgeNotice } from '../badges/badges.service';
+import { toDetail, toSummary } from './registrations.mapper';
+import { buildListWhere, REGISTRATION_ORDER } from './registrations.query';
 import { RegistrationsRepository } from './registrations.repository';
+import { assertDecidable, type Decision } from './registrations.rules';
 
-/** Staff review of registrations: list, detail, decisions and portal-link resend. */
+interface DecisionOutcome {
+  detail: RegistrationDetail;
+  notice: IssuedBadgeNotice | null;
+}
+
+/**
+ * Staff registration surface and the approval workflow (WP-10, WP-12).
+ *
+ * A decision and the badge it produces commit together; the email is sent after the
+ * transaction, so a provider outage cannot undo an approval.
+ */
 @Injectable()
 export class RegistrationsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly repository: RegistrationsRepository,
-    private readonly config: ConfigService<Env, true>,
-    @Inject(EMAIL_PORT) private readonly email: EmailPort,
+    private readonly badges: BadgesService,
+    private readonly audit: AuditService,
   ) {}
 
-  list(eventId: string, query: ListRegistrationsQuery): Promise<PaginatedResult<RegistrationSummary>> {
+  list(
+    eventId: string,
+    query: ListRegistrationsQuery,
+  ): Promise<PaginatedResult<RegistrationSummary>> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const [rows, total] = await this.repository.list(tx, tenant.organizationId, eventId, query);
-      return { items: rows.map(toRegistrationSummary), page: query.page, pageSize: query.pageSize, total };
+      const [rows, total] = await this.repository.list(
+        tx,
+        buildListWhere(query, tenant.organizationId, eventId),
+        REGISTRATION_ORDER,
+        (query.page - 1) * query.pageSize,
+        query.pageSize,
+      );
+
+      return {
+        items: rows.map(toSummary),
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+      };
     });
   }
 
-  detail(eventId: string, id: string): Promise<RegistrationDetail> {
+  detail(eventId: string, registrationId: string): Promise<RegistrationDetail> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const row = await this.repository.findDetail(tx, tenant.organizationId, eventId, id);
+      const row = await this.repository.findDetail(
+        tx,
+        tenant.organizationId,
+        eventId,
+        registrationId,
+      );
+
       if (!row) {
         throw AppException.notFound('not_found', 'Registration not found.');
       }
-      return toRegistrationDetail(row, row.consents);
+
+      return toDetail(row);
     });
   }
 
-  async decide(
+  approve(
     eventId: string,
-    id: string,
+    registrationId: string,
     input: DecideRegistrationRequest,
   ): Promise<RegistrationDetail> {
-    const outcome = await this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const row = await this.repository.findDetail(tx, tenant.organizationId, eventId, id);
-      if (!row) {
-        throw AppException.notFound('not_found', 'Registration not found.');
-      }
-
-      const next = resolveDecision(input.decision, row.status);
-
-      await tx.registration.update({
-        where: { id },
-        data: {
-          status: next,
-          decidedAt: new Date(),
-          decidedByUserId: tenant.userId,
-          decisionNote: input.note ?? null,
-        },
-      });
-
-      // A confirmed participant gets a fresh portal link carrying their QR badge.
-      const token =
-        next === 'CONFIRMED' ? await rotateAccessToken(tx, tenant.organizationId, id) : null;
-
-      await writeAudit(tx, {
-        organizationId: tenant.organizationId,
-        actorUserId: tenant.userId,
-        action: `registration.${input.decision.toLowerCase()}`,
-        targetType: 'registration',
-        targetId: id,
-        metadata: { from: row.status, to: next },
-      });
-
-      const context = await this.emailContext(tx, tenant.organizationId, eventId);
-      const fresh = await this.repository.findDetail(tx, tenant.organizationId, eventId, id);
-
-      return { token, context, fresh: fresh!, next, to: row.person.email, firstName: row.person.firstName };
-    });
-
-    await this.notify(outcome.next, outcome.to, outcome.firstName, outcome.context, outcome.token);
-
-    return toRegistrationDetail(outcome.fresh, outcome.fresh.consents);
+    return this.decide(eventId, registrationId, RegistrationStatus.APPROVED, input);
   }
 
-  /** Issues a new portal link (invalidating the old one) and e-mails it. */
-  async resendAccess(eventId: string, id: string): Promise<void> {
-    const outcome = await this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const row = await this.repository.findDetail(tx, tenant.organizationId, eventId, id);
-      if (!row) {
-        throw AppException.notFound('not_found', 'Registration not found.');
-      }
-      if (row.status !== 'CONFIRMED' && row.status !== 'PENDING') {
-        throw AppException.unprocessable('invalid_status', 'This registration is not active.');
-      }
-      const token = await rotateAccessToken(tx, tenant.organizationId, id);
-      const context = await this.emailContext(tx, tenant.organizationId, eventId);
-      return { token, context, status: row.status, to: row.person.email, firstName: row.person.firstName };
-    });
-
-    await this.notify(outcome.status, outcome.to, outcome.firstName, outcome.context, outcome.token);
-  }
-
-  private async emailContext(
-    tx: import('../../database/tenant-transaction.service').TenantPrismaClient,
-    organizationId: string,
+  reject(
     eventId: string,
-  ): Promise<{ eventName: string; locale: Locale }> {
-    const event = await tx.event.findFirstOrThrow({
-      where: { id: eventId, organizationId },
-      select: { name: true, organization: { select: { settings: { select: { defaultLocale: true } } } } },
-    });
-    const locale = event.organization.settings?.defaultLocale === 'en' ? 'en' : 'fr';
-    return { eventName: event.name, locale };
+    registrationId: string,
+    input: DecideRegistrationRequest,
+  ): Promise<RegistrationDetail> {
+    return this.decide(eventId, registrationId, RegistrationStatus.REJECTED, input);
   }
 
-  private async notify(
-    status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED',
-    to: string,
-    firstName: string,
-    context: { eventName: string; locale: Locale },
-    token: string | null,
-  ): Promise<void> {
-    const portalUrl = token
-      ? `${this.config.get('WEB_APP_URL', { infer: true })}/participant?token=${token}`
-      : '';
-    const message = composeRegistrationEmail(status.toLowerCase() as 'pending', {
-      locale: context.locale,
-      eventName: context.eventName,
-      firstName,
-      portalUrl,
+  private async decide(
+    eventId: string,
+    registrationId: string,
+    decision: Decision,
+    input: DecideRegistrationRequest,
+  ): Promise<RegistrationDetail> {
+    const outcome = await this.tenantTransaction.withTenant(
+      async (tx, tenant): Promise<DecisionOutcome> => {
+        const existing = await this.repository.findStatus(
+          tx,
+          tenant.organizationId,
+          eventId,
+          registrationId,
+        );
+
+        if (!existing) {
+          throw AppException.notFound('not_found', 'Registration not found.');
+        }
+
+        assertDecidable(existing.status, decision);
+
+        const updated = await this.repository.decide(
+          tx,
+          tenant.organizationId,
+          eventId,
+          registrationId,
+          {
+            status: decision,
+            decidedAt: new Date(),
+            decidedByUserId: tenant.userId,
+            decisionReason: input.reason ?? null,
+          },
+        );
+
+        const notice =
+          decision === RegistrationStatus.APPROVED
+            ? await this.badges.issueForApproved(
+                tx,
+                tenant.organizationId,
+                eventId,
+                registrationId,
+              )
+            : null;
+
+        return { detail: toDetail(updated), notice };
+      },
+    );
+
+    if (outcome.notice) {
+      await this.badges.notifyIssued(outcome.notice);
+    }
+
+    await this.audit.record({
+      action:
+        decision === RegistrationStatus.APPROVED
+          ? AUDIT_ACTIONS.registrationApproved
+          : AUDIT_ACTIONS.registrationRejected,
+      targetType: 'registration',
+      targetId: registrationId,
     });
-    await this.email.send({ to, subject: message.subject, text: message.text });
+
+    return outcome.detail;
+  }
+
+  /**
+   * Erases a person on request, for every registration they hold in this organisation.
+   *
+   * The registration rows survive so the event's counts stay honest, but nothing in them
+   * still points at the person. The audit entry records that an erasure happened, never
+   * what was erased.
+   */
+  async erase(eventId: string, registrationId: string): Promise<void> {
+    const personId = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const row = await this.repository.findDetail(
+        tx,
+        tenant.organizationId,
+        eventId,
+        registrationId,
+      );
+
+      if (!row) {
+        throw AppException.notFound('not_found', 'Registration not found.');
+      }
+
+      await this.repository.erasePersonData(tx, tenant.organizationId, row.person.id);
+
+      return row.person.id;
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.personErased,
+      targetType: 'person',
+      targetId: personId,
+    });
   }
 }

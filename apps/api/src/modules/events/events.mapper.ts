@@ -1,4 +1,4 @@
-import type { BrandOverrides, EventDetail, EventSummary } from '@event-platform/shared';
+import type { EventDetail, EventSummary } from '@event-platform/shared';
 import type { Event, EventModule } from '../../database/prisma-client';
 
 /** Row shapes the mappers accept. Named so the Prisma payload stays in one place. */
@@ -46,7 +46,9 @@ export function toDetail(event: EventWithModules): EventDetail {
       ? event.registrationClosesAt.toISOString()
       : null,
     enabledModules: event.modules.filter((module) => module.enabled).map((m) => m.moduleKey),
-    bannerUrl: event.bannerUrl,
-    brandOverrides: (event.brandOverrides as BrandOverrides | null) ?? null,
+    // The schema has no banner column and no per-event branding overrides yet. The contract
+    // keeps the fields so the client shape is stable; the server reports them as absent.
+    bannerUrl: null,
+    brandOverrides: null,
   };
 }

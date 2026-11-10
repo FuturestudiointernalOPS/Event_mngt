@@ -1,15 +1,13 @@
 import { Module } from '@nestjs/common';
+import { AccountMembershipsService } from './account-memberships.service';
 import { AuthController } from './auth.controller';
 import { AuthRegistrationService } from './auth-registration.service';
-import { MfaController } from './mfa.controller';
-import { MfaService } from './mfa.service';
-import { SessionManagementService } from './session-management.service';
 import { AuthService } from './auth.service';
 import { AuthCookieService } from './session-cookies';
 
 @Module({
-  controllers: [AuthController, MfaController],
-  providers: [AuthService, AuthRegistrationService, AuthCookieService, MfaService, SessionManagementService],
+  controllers: [AuthController],
+  providers: [AuthService, AuthRegistrationService, AccountMembershipsService, AuthCookieService],
   exports: [AuthService],
 })
 export class AuthModule {}

@@ -30,6 +30,8 @@ erDiagram
     organization_roles ||--o{ role_permissions : grants
     permissions ||--o{ role_permissions : granted_by
     organization_members }o--|| organization_roles : assigned
+    organizations ||--o{ organization_capabilities : entitled
+    organization_members ||--o{ member_capabilities : granted
     organizations ||--|| workspace_settings : has
     organizations ||--|| workspace_branding : has
     organizations ||--o{ events : owns
@@ -48,22 +50,23 @@ erDiagram
     registrations ||--o{ participant_profiles : completes
     organizations ||--o{ organization_profiles : describes
     events ||--o{ innovations : showcases
-    participants_or_orgs ||--o{ meetings : proposes
+    participant_profiles ||--o{ meetings : proposes
     events ||--o{ introduction_requests : queues
-    introduction_requests ||--o| outcomes : records
+    introduction_requests ||--o{ introduction_status_history : logs
     organizations ||--o{ audit_logs : logs
     events ||--o{ notifications : triggers
 ```
 
-`participants_or_orgs` is shorthand for "either participant profile or organisation
-profile" — the concrete relation is defined when the meetings module is implemented
-(Phase 5).
+Meetings pair two participant profiles. Organisation-profile meetings are not modelled;
+the participant slice and organisation pairing can be added without changing the
+existing tables.
 
 ## Phase 1 schema (implemented in Prisma)
 
 Phase 1 covers identity, tenancy, access control, workspace, branding and the event
-container. Registration, profiles, operations and reporting tables arrive with their
-phases; the ERD above is the target so migrations never conflict.
+container. Wave 2 adds the registration and profile tables, wave 3 adds the event-operations
+tables (attendance, meetings and introductions), and wave 4 adds report exports. The ERD
+above is the target so migrations never conflict.
 
 ```mermaid
 erDiagram
@@ -73,6 +76,8 @@ erDiagram
     organizations ||--o{ organization_roles : defines
     organization_roles ||--o{ role_permissions : grants
     permissions ||--o{ role_permissions : granted_by
+    organizations ||--o{ organization_capabilities : entitled
+    organization_members ||--o{ member_capabilities : granted
     organizations ||--|| workspace_settings : configures
     organizations ||--|| workspace_branding : brands
     organizations ||--o{ events : owns
@@ -90,13 +95,52 @@ erDiagram
 | `organizations` | The tenant | `slug` unique; `status` |
 | `organization_members` | User ↔ organisation, with a role | `(organization_id, user_id)` unique |
 | `organization_roles` | Per-tenant roles (system or custom) | `(organization_id, key)` unique |
-| `permissions` | Global permission catalogue (`resource:action`) | `key` unique |
+| `permissions` | Global permission catalogue (`resource:action`); the storage format of a role template, mapped to capabilities | `key` unique |
 | `role_permissions` | Role → permission | composite PK `(role_id, permission_id)` |
+| `organization_capabilities` | Capabilities the organisation is entitled to use | `(organization_id, capability_key)` unique |
+| `member_capabilities` | Capabilities granted directly to one membership | `(organization_id, member_id, capability_key)` unique |
 | `workspace_settings` | Locale, time zone, preferences | `organization_id` unique |
 | `workspace_branding` | Logo, colour tokens, appearance | `organization_id` unique |
 | `events` | Event container, lifecycle, visibility | `(organization_id, slug)` unique; `parent_event_id` self-relation |
 | `event_modules` | Enabled modules per event | `(event_id, module_key)` unique; `settings` JSONB |
+| `invitations` | Pending workspace invitations | `token_hash` unique; expires and is consumed once |
+| `idempotency_records` | Short-lived replay cache for `Idempotency-Key` | `(scope, key)` unique; `expires_at` |
+| `rate_limit_counters` | Fixed-window rate-limit counters | PK `(key, window_start)` |
 | `audit_logs` | Append-only sensitive action log | index on `(organization_id, created_at)` |
+
+## Wave 2 tables (registration and profiles)
+
+Every table below carries `organization_id` directly, including the child tables, so a
+tenant policy is a single predicate rather than a join. The wave 2 migration is
+`20261110120000_wave2_registration`.
+
+| Table | Purpose | Notable constraints |
+| --- | --- | --- |
+| `participant_categories` | Categories within one event | `(event_id, key)` unique; deactivate instead of delete |
+| `registration_forms` | One form per event | `event_id` unique; `version` increments on save |
+| `registration_fields` | Questions in the current form | `(form_id, key)` unique; options only for choice fields |
+| `people` | The human behind registrations, per organisation | `(organization_id, email)` unique (`docs/11` D4) |
+| `registrations` | Participation in one event | `(event_id, reference)` unique; duplicates are a policy, not a constraint |
+| `registration_answers` | One answer per field key | `(registration_id, field_key)` unique; `field_id` nullable so history survives a form edit |
+| `consent_documents` | Versioned consent wording | `(event_id, key, version)` unique; only the latest published version is required |
+| `consent_records` | Append-only acceptance evidence | snapshots key and version; `document_id` is `RESTRICT` |
+| `badges` | One badge per registration | `registration_id` unique; only the token hash is stored |
+| `participant_profiles` | Presentation attached to a registration | `registration_id` unique; moderation and visibility are independent |
+| `organization_profiles` | The workspace's own listing | `organization_id` unique |
+| `innovations` | Showcase listings for an event | attaches to exactly one participant or organisation profile |
+
+## Wave 3 tables (event operations)
+
+Every table below carries `organization_id` and `event_id` directly, so the tenant policy
+stays a single predicate. The wave 3 migration is
+`20261110150000_wave3_operations`.
+
+| Table | Purpose | Notable constraints |
+| --- | --- | --- |
+| `check_ins` | Attendance for one registration | `(event_id, registration_id)` unique; `(event_id, scan_id)` unique when present; `source` enum |
+| `meetings` | A proposed meeting between two profiles | status enum; `requires_staff_confirmation` snapshotted from module settings |
+| `introduction_requests` | Staff introduction queue entry | status enum; assignment and decision columns; history is separate |
+| `introduction_status_history` | Append-only log of every transition | no update or delete route; indexed by `(organization_id, event_id, request_id, created_at)` |
 
 ### Why title-case Prisma models but snake_case tables
 

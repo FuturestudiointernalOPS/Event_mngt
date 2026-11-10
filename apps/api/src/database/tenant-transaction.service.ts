@@ -7,7 +7,7 @@ import { TenantContext, TenantContextService } from './tenant-context.service';
 export type TenantPrismaClient = Prisma.TransactionClient;
 
 /**
- * The only place in the codebase that sets PostgreSQL tenant context.
+ * The only place in the codebase that sets PostgreSQL session configuration.
  *
  *   return this.tenantTransaction.withTenant(async (tx, tenant) => {
  *     return tx.event.findMany({ where: { organizationId: tenant.organizationId } });
@@ -15,6 +15,15 @@ export type TenantPrismaClient = Prisma.TransactionClient;
  *
  * `set_config(name, value, true)` is transaction-local, so a pooled connection
  * returns to an empty context at commit/rollback and cannot leak between requests.
+ *
+ * Four scopes exist, and no other code sets these variables:
+ *   - withTenant          an authenticated member acting inside one organisation.
+ *   - withUserScope       the caller's own identity, used to resolve a membership
+ *                         before tenant context exists (bootstrap).
+ *   - withOrganizationScope  a public read for one organisation, resolved from a
+ *                         public identifier such as a workspace slug or a published event.
+ *   - withPlatformAdmin   a verified platform administrator reading organisation
+ *                         identity and managing organisation entitlements across tenants.
  */
 @Injectable()
 export class TenantTransactionService {
@@ -37,11 +46,23 @@ export class TenantTransactionService {
   }
 
   /**
-   * Runs `callback` scoped to the given user only. Used for the few reads that must
-   * happen before any organisation is known (e.g. "my memberships"); the matching
-   * row-level policies are keyed on `app.current_user_id`.
+   * For background jobs and other non-HTTP entry points: establish the tenant scope
+   * explicitly, then run the callback inside it.
    */
-  async withUser<T>(
+  async withTenantContext<T>(
+    context: TenantContext,
+    callback: (tx: TenantPrismaClient, tenant: TenantContext) => Promise<T>,
+  ): Promise<T> {
+    return this.tenantContext.run(context, () => this.withTenant(callback));
+  }
+
+  /**
+   * Bootstrap scope: it identifies the caller, not a tenant.
+   *
+   * Used only to answer "which organisations does this account belong to", before a
+   * tenant can be known. Read-only by convention: writes belong to withTenant.
+   */
+  async withUserScope<T>(
     userId: string,
     callback: (tx: TenantPrismaClient) => Promise<T>,
   ): Promise<T> {
@@ -52,47 +73,34 @@ export class TenantTransactionService {
   }
 
   /**
-   * Establishes an organisation scope outside a request that already carries one:
-   * membership resolution (the organisation is known from a public slug lookup) and
-   * organisation creation (the id is generated before the row exists).
+   * Organisation scope for a case that has no tenant context: a public read resolved
+   * from a workspace slug or a published event, or accepting an invitation whose
+   * organisation came from the invitation itself. The organisation always comes from
+   * a server-side identifier, never from the client.
    */
-  async withOrganization<T>(
+  async withOrganizationScope<T>(
     organizationId: string,
-    userId: string | null,
     callback: (tx: TenantPrismaClient) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.current_organization_id', ${organizationId}, true)`;
-      await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId ?? ''}, true)`;
       return callback(tx);
     });
   }
 
   /**
-   * Platform administration: cross-tenant reads and organisation status changes.
-   * Callers MUST have verified the platform-administrator flag from the database first
-   * (the token claim alone can be stale). `organizationId` optionally scopes writes such
-   * as the audit entry to one organisation.
+   * Cross-tenant platform administration (organisation identity and capability
+   * entitlements). The claim is verified by the JWT guard before any handler runs, and
+   * the database flag exposes only the tables whose policy opts in.
    */
-  async withPlatform<T>(
-    organizationId: string | null,
+  async withPlatformAdmin<T>(
+    userId: string,
     callback: (tx: TenantPrismaClient) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
       await tx.$executeRaw`SELECT set_config('app.platform_admin', 'true', true)`;
-      await tx.$executeRaw`SELECT set_config('app.current_organization_id', ${organizationId ?? ''}, true)`;
       return callback(tx);
     });
-  }
-
-  /**
-   * For background jobs and other non-HTTP entry points: establish the tenant scope
-   * explicitly, then run the callback inside it.
-   */
-  async withTenantContext<T>(
-    context: TenantContext,
-    callback: (tx: TenantPrismaClient, tenant: TenantContext) => Promise<T>,
-  ): Promise<T> {
-    return this.tenantContext.run(context, () => this.withTenant(callback));
   }
 }

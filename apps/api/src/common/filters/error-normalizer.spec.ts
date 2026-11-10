@@ -15,6 +15,28 @@ describe('normalizeException', () => {
       code: 'slug_taken',
       message: 'That address is taken.',
       details: { field: 'slug' },
+      headers: undefined,
+    });
+  });
+
+  it('carries Retry-After on a rate-limit refusal', () => {
+    const normalized = normalizeException(
+      AppException.tooManyRequests('rate_limited', 'Slow down.', 42),
+    );
+
+    expect(normalized).toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+      code: 'rate_limited',
+      headers: { 'Retry-After': '42' },
+    });
+  });
+
+  it('reports an oversized multipart upload as a payload limit', () => {
+    const normalized = normalizeException({ name: 'MulterError', code: 'LIMIT_FILE_SIZE' });
+
+    expect(normalized).toMatchObject({
+      status: HttpStatus.PAYLOAD_TOO_LARGE,
+      code: 'file_too_large',
     });
   });
 

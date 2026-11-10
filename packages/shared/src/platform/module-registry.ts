@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PERMISSIONS } from './permissions';
+import { CAPABILITY_KEYS } from './capabilities';
 
 /**
  * The module registry is a controlled catalogue, not a marketplace.
@@ -20,7 +20,7 @@ export interface ModuleDefinition {
   summary: string;
   priority: ModulePriority;
   dependsOn: string[];
-  requiredPermissions: string[];
+  requiredCapabilities: string[];
   configurable: boolean;
   settingsSchema: z.ZodType;
   defaults: Record<string, unknown>;
@@ -35,7 +35,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Event identity, dates, venue, lifecycle and visibility.',
     priority: 'core',
     dependsOn: [],
-    requiredPermissions: [PERMISSIONS.eventManage],
+    requiredCapabilities: [CAPABILITY_KEYS.eventsCreate],
     configurable: false,
     settingsSchema: noSettings,
     defaults: {},
@@ -46,7 +46,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Public event page, shareable link, listing and search.',
     priority: 'p0',
     dependsOn: ['core'],
-    requiredPermissions: [PERMISSIONS.eventPublish],
+    requiredCapabilities: [CAPABILITY_KEYS.eventsPublish],
     configurable: true,
     settingsSchema: z.object({
       showOnDiscovery: z.boolean().default(true),
@@ -60,7 +60,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Event-specific categories, configurable forms, consent, approval and QR badges.',
     priority: 'p0',
     dependsOn: ['core'],
-    requiredPermissions: [PERMISSIONS.registrationManage],
+    requiredCapabilities: [CAPABILITY_KEYS.registrationsManageForm],
     configurable: true,
     settingsSchema: z.object({
       approvalMode: z.enum(['manual', 'automatic']).default('manual'),
@@ -75,7 +75,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Participant, company and innovation listings with staff approval.',
     priority: 'p0',
     dependsOn: ['registration'],
-    requiredPermissions: [PERMISSIONS.profileModerate],
+    requiredCapabilities: [CAPABILITY_KEYS.profilesModerate],
     configurable: true,
     settingsSchema: z.object({
       publicByDefault: z.boolean().default(false),
@@ -89,7 +89,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Declared interests and availability, proposals, accept/decline and outcomes.',
     priority: 'p0',
     dependsOn: ['showcase'],
-    requiredPermissions: [PERMISSIONS.meetingManage],
+    requiredCapabilities: [CAPABILITY_KEYS.meetingsManage],
     configurable: true,
     settingsSchema: z.object({
       requiresStaffConfirmation: z.boolean().default(true),
@@ -103,7 +103,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Interest requests, staff assignment, decisions, status history and outcomes.',
     priority: 'p0',
     dependsOn: ['showcase'],
-    requiredPermissions: [PERMISSIONS.introductionManage],
+    requiredCapabilities: [CAPABILITY_KEYS.introductionsManage],
     configurable: true,
     settingsSchema: z.object({
       requireReason: z.boolean().default(true),
@@ -117,13 +117,18 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'QR scanning, duplicate detection, attendance and offline synchronisation.',
     priority: 'p0',
     dependsOn: ['registration'],
-    requiredPermissions: [PERMISSIONS.checkinOperate],
+    requiredCapabilities: [CAPABILITY_KEYS.checkInOperate],
     configurable: true,
     settingsSchema: z.object({
       allowOffline: z.boolean().default(true),
       duplicateWindowMinutes: z.number().int().min(0).max(120).default(5),
+      maxClockSkewMinutes: z.number().int().min(0).max(60).default(5),
     }),
-    defaults: { allowOffline: true, duplicateWindowMinutes: 5 },
+    defaults: {
+      allowOffline: true,
+      duplicateWindowMinutes: 5,
+      maxClockSkewMinutes: 5,
+    },
   },
   {
     key: 'reporting',
@@ -131,7 +136,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Live counts, event and organisation dashboards, exports and edition comparison.',
     priority: 'p0',
     dependsOn: ['core'],
-    requiredPermissions: [PERMISSIONS.reportRead],
+    requiredCapabilities: [CAPABILITY_KEYS.reportsView],
     configurable: false,
     settingsSchema: noSettings,
     defaults: {},
@@ -142,7 +147,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Schedule, rooms, speakers, reminders and session information.',
     priority: 'p1',
     dependsOn: ['core'],
-    requiredPermissions: [PERMISSIONS.eventManage],
+    requiredCapabilities: [CAPABILITY_KEYS.eventsManageModules],
     configurable: true,
     settingsSchema: z.object({
       showSpeakers: z.boolean().default(true),
@@ -156,7 +161,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Post-event feedback forms and outcome tracking at defined intervals.',
     priority: 'p1',
     dependsOn: ['registration'],
-    requiredPermissions: [PERMISSIONS.registrationManage],
+    requiredCapabilities: [CAPABILITY_KEYS.registrationsManageForm],
     configurable: true,
     settingsSchema: z.object({
       followUpDays: z.number().int().min(1).max(365).default(14),
@@ -169,7 +174,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Sponsor visibility, agreed engagement information and reporting.',
     priority: 'p2',
     dependsOn: ['core'],
-    requiredPermissions: [PERMISSIONS.eventManage],
+    requiredCapabilities: [CAPABILITY_KEYS.eventsManageModules],
     configurable: true,
     settingsSchema: noSettings,
     defaults: {},
@@ -180,7 +185,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     summary: 'Auto-tagging, listing summaries and meeting briefs.',
     priority: 'p2',
     dependsOn: ['showcase'],
-    requiredPermissions: [PERMISSIONS.eventManage],
+    requiredCapabilities: [CAPABILITY_KEYS.eventsManageModules],
     configurable: true,
     settingsSchema: z.object({
       enableSummaries: z.boolean().default(false),

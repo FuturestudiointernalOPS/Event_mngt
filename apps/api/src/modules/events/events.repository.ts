@@ -8,7 +8,6 @@ import {
   OrganizationStatus,
   Prisma,
 } from '../../database/prisma-client';
-import type { PublishReadiness } from './events.lifecycle';
 import type { EventWithEditionCount, EventWithModules } from './events.mapper';
 import {
   NON_PUBLIC_STATUSES,
@@ -16,6 +15,17 @@ import {
   PUBLIC_VISIBILITIES,
   type PublicEventContextRow,
 } from './events.projection';
+
+export interface PublicEventTarget {
+  id: string;
+  organizationId: string;
+  slug: string;
+  name: string;
+  status: EventStatus;
+  visibility: EventVisibility;
+  registrationOpensAt: Date | null;
+  registrationClosesAt: Date | null;
+}
 
 export interface CreateEventData {
   organizationId: string;
@@ -84,54 +94,6 @@ export class EventsRepository {
     });
   }
 
-  update(
-    tx: TenantPrismaClient,
-    eventId: string,
-    data: Prisma.EventUpdateInput,
-  ): Promise<EventWithModules> {
-    return tx.event.update({ where: { id: eventId }, data, include: { modules: true } });
-  }
-
-  setStatus(
-    tx: TenantPrismaClient,
-    eventId: string,
-    status: EventStatus,
-    publishedAt?: null,
-  ): Promise<EventWithModules> {
-    return tx.event.update({
-      where: { id: eventId },
-      data: { status, ...(publishedAt === null ? { publishedAt: null } : {}) },
-      include: { modules: true },
-    });
-  }
-
-  /** The facts publishing validation needs, in one round trip. */
-  async publishReadiness(
-    tx: TenantPrismaClient,
-    organizationId: string,
-    eventId: string,
-  ): Promise<PublishReadiness> {
-    const [module, categories, event] = await Promise.all([
-      tx.eventModule.findUnique({
-        where: { eventId_moduleKey: { eventId, moduleKey: 'registration' } },
-        select: { enabled: true, settings: true },
-      }),
-      tx.participantCategory.count({ where: { organizationId, eventId, isActive: true } }),
-      tx.event.findFirst({
-        where: { id: eventId, organizationId },
-        select: { consentText: true },
-      }),
-    ]);
-    const settings = (module?.settings ?? {}) as { requiresConsent?: boolean };
-
-    return {
-      registrationEnabled: module?.enabled ?? false,
-      requiresConsent: settings.requiresConsent ?? true,
-      hasConsentText: Boolean(event?.consentText),
-      activeCategoryCount: categories,
-    };
-  }
-
   findSlugConflict(
     tx: TenantPrismaClient,
     organizationId: string,
@@ -143,14 +105,14 @@ export class EventsRepository {
     });
   }
 
-  existsById(
+  findParentForCreate(
     tx: TenantPrismaClient,
     organizationId: string,
     eventId: string,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; parentEventId: string | null } | null> {
     return tx.event.findFirst({
       where: { id: eventId, organizationId },
-      select: { id: true },
+      select: { id: true, parentEventId: true },
     });
   }
 
@@ -195,10 +157,10 @@ export class EventsRepository {
   }
 
   /**
-   * Public lookup: no session and no tenant context, so the filter itself carries the
-   * visibility, status and organisation-state rules.
+   * Internal seam for the public registration flow: the event is located from its public
+   * slug and the caller gets the organisation, window and lifecycle in one read.
    */
-  findPublicContext(eventSlug: string): Promise<PublicEventContextRow | null> {
+  findPublicTarget(eventSlug: string): Promise<PublicEventTarget | null> {
     return this.prisma.event.findFirst({
       where: {
         slug: eventSlug,
@@ -206,6 +168,48 @@ export class EventsRepository {
         status: { notIn: NON_PUBLIC_STATUSES },
         organization: { status: OrganizationStatus.ACTIVE },
       },
+      select: {
+        id: true,
+        organizationId: true,
+        slug: true,
+        name: true,
+        status: true,
+        visibility: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+      },
+    });
+  }
+
+  /**
+   * Locate a published event from its public slug.
+   *
+   * The only public query that runs without organisation context: the event policy
+   * allows reading published, non-private events, and the result carries the
+   * organisation so the projection can run scoped.
+   */
+  findPublicEventLocation(
+    eventSlug: string,
+  ): Promise<{ id: string; organizationId: string } | null> {
+    return this.prisma.event.findFirst({
+      where: {
+        slug: eventSlug,
+        visibility: { in: PUBLIC_VISIBILITIES },
+        status: { notIn: NON_PUBLIC_STATUSES },
+        organization: { status: OrganizationStatus.ACTIVE },
+      },
+      select: { id: true, organizationId: true },
+    });
+  }
+
+  /** The public projection for one event, read inside its organisation scope. */
+  findPublicContextById(
+    tx: TenantPrismaClient,
+    eventId: string,
+    organizationId: string,
+  ): Promise<PublicEventContextRow | null> {
+    return tx.event.findFirst({
+      where: { id: eventId, organizationId },
       select: PUBLIC_EVENT_CONTEXT_SELECT,
     });
   }

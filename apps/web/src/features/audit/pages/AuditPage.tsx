@@ -30,7 +30,7 @@ export default function AuditPage(): JSX.Element {
                 <tr key={row.id} className="border-t border-brand-primary/10">
                   <td className="py-2 pr-3 text-xs">{new Date(row.createdAt).toLocaleString(locale)}</td>
                   <td className="pr-3 font-mono text-xs">{row.action}</td>
-                  <td className="text-xs">{row.actorEmail ?? t('audit.system')}</td>
+                  <td className="text-xs">{row.actor?.email ?? t('audit.system')}</td>
                 </tr>
               ))}
             </tbody>

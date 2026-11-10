@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import type { TenantAccess, AuthenticatedUser, ParticipantAccess } from './authenticated-user';
+import type { TenantAccess, AuthenticatedUser } from './authenticated-user';
 
 /**
  * Express request enriched by the global pipeline.
@@ -7,7 +7,6 @@ import type { TenantAccess, AuthenticatedUser, ParticipantAccess } from './authe
  */
 export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser;
-  participant?: ParticipantAccess;
   tenant?: TenantAccess;
   requestId?: string;
 }

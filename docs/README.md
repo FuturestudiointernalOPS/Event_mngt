@@ -23,10 +23,13 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [10-roadmap-and-backlog.md](10-roadmap-and-backlog.md) | Phases, exit criteria, epic backlog |
 | [11-open-decisions.md](11-open-decisions.md) | Unresolved product/business questions with owners |
 | [12-dependency-and-security.md](12-dependency-and-security.md) | Audit posture, applied upgrades, deferred migrations, re-review triggers |
-| [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → model, tenancy, enforcement |
-| [14-implementation-status.md](14-implementation-status.md) | What is built, deviations from the plans, quality evidence, known limits |
-| [15-deployment-and-operations.md](15-deployment-and-operations.md) | Supabase, configuration, processes, backups, security checklist, runbook |
-| [16-beta-runbook.md](16-beta-runbook.md) | Innovation Village beta: configure, simulate, run, roll back |
+| [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → repository, tenancy, enforcement |
+| [14-backend-work-packages.md](14-backend-work-packages.md) | The backend plan split into self-contained packages that can run in parallel |
+| [15-route-catalogue.md](15-route-catalogue.md) | Every server route, grouped by module, with the test that keeps it honest |
+| [16-capability-authorization.md](16-capability-authorization.md) | The capability registry, entitlement ∩ member evaluation, management screens and the mandatory rule for new features |
+| [17-implementation-status.md](17-implementation-status.md) | What is built, deviations from the plans, quality evidence, known limits |
+| [18-deployment-and-operations.md](18-deployment-and-operations.md) | Supabase, configuration, processes, backups, security checklist, runbook |
+| [19-beta-runbook.md](19-beta-runbook.md) | Innovation Village beta: configure, simulate, run, roll back |
 
 ## Decisions already made (do not re-litigate without cause)
 

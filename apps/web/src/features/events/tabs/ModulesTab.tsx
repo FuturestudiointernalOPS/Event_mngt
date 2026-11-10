@@ -10,7 +10,10 @@ import { queryKeys } from '@/lib/query-keys';
 import { eventAdminApi } from '@/services/event-admin.api';
 import type { EventOutletContext } from '../pages/EventLayout';
 
-/** The controlled module catalogue: dependencies explained, activation validated by the API. */
+/**
+ * The controlled module catalogue: dependencies explained, activation validated by the
+ * API. The registry supplies the wording; the event supplies which modules are on.
+ */
 export default function ModulesTab(): JSX.Element {
   const { slug, eventId, can } = useOutletContext<EventOutletContext>();
   const { t } = useI18n();
@@ -18,11 +21,19 @@ export default function ModulesTab(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const canManage = can('module:manage');
 
-  const modules = useQuery({ queryKey: ['modules', slug, eventId], queryFn: () => eventAdminApi.modules(slug, eventId) });
+  const catalogue = useQuery({
+    queryKey: ['module-catalogue'],
+    queryFn: () => eventAdminApi.moduleCatalogue(),
+    staleTime: Infinity,
+  });
+  const modules = useQuery({
+    queryKey: ['modules', slug, eventId],
+    queryFn: () => eventAdminApi.modules(slug, eventId),
+  });
 
   const toggle = useMutation({
     mutationFn: (input: { key: string; enabled: boolean }) =>
-      eventAdminApi.setModule(slug, eventId, input.key, { enabled: input.enabled }),
+      eventAdminApi.setModules(slug, eventId, { modules: [input] }),
     onSuccess: (data) => {
       queryClient.setQueryData(['modules', slug, eventId], data);
       // The event's enabled-module list drives which tabs exist.
@@ -32,42 +43,45 @@ export default function ModulesTab(): JSX.Element {
     onError: (e) => setError(errorMessage(e, t('common.error'))),
   });
 
-  if (modules.isLoading) return <LoadingState label={t('common.loading')} />;
-  if (modules.isError || !modules.data) {
+  if (catalogue.isLoading || modules.isLoading) return <LoadingState label={t('common.loading')} />;
+  if (catalogue.isError || modules.isError || !catalogue.data || !modules.data) {
     return <ErrorState message={t('common.error')} onRetry={() => void modules.refetch()} retryLabel={t('common.retry')} />;
   }
+
+  const enabled = new Set(modules.data.filter((module) => module.enabled).map((module) => module.key));
 
   return (
     <Section title={t('events.modules')}>
       {error ? <p role="alert" className="mb-3 rounded-brand bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
       <ul className="divide-y divide-brand-primary/10">
-        {modules.data.map((module) => (
-          <li key={module.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="min-w-0 max-w-xl">
-              <p className="text-sm font-medium">
-                {module.name} <Pill>{module.priority.toUpperCase()}</Pill>
-              </p>
-              <p className="text-xs text-brand-text/70">{module.summary}</p>
-              {module.dependsOn.length > 0 ? (
-                <p className="mt-1 text-xs text-brand-text/70">{t('event.requires')}: {module.dependsOn.join(', ')}</p>
-              ) : null}
-            </div>
-            {module.key === 'core' ? (
-              <Pill>{t('event.alwaysOn')}</Pill>
-            ) : !module.available ? (
-              <Pill>{t('event.comingSoon')}</Pill>
-            ) : (
-              <Button
-                size="sm"
-                variant={module.enabled ? 'secondary' : 'primary'}
-                disabled={!canManage || toggle.isPending}
-                onClick={() => toggle.mutate({ key: module.key, enabled: !module.enabled })}
-              >
-                {module.enabled ? t('event.disable') : t('event.enable')}
-              </Button>
-            )}
-          </li>
-        ))}
+        {catalogue.data.map((entry) => {
+          const isOn = enabled.has(entry.key) || entry.key === 'core';
+          return (
+            <li key={entry.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="min-w-0 max-w-xl">
+                <p className="text-sm font-medium">
+                  {entry.name} <Pill>{entry.priority.toUpperCase()}</Pill>
+                </p>
+                <p className="text-xs text-brand-text/70">{entry.summary}</p>
+                {entry.dependsOn.length > 0 ? (
+                  <p className="mt-1 text-xs text-brand-text/70">{t('event.requires')}: {entry.dependsOn.join(', ')}</p>
+                ) : null}
+              </div>
+              {entry.key === 'core' ? (
+                <Pill>{t('event.alwaysOn')}</Pill>
+              ) : (
+                <Button
+                  size="sm"
+                  variant={isOn ? 'secondary' : 'primary'}
+                  disabled={!canManage || toggle.isPending}
+                  onClick={() => toggle.mutate({ key: entry.key, enabled: !isOn })}
+                >
+                  {isOn ? t('event.disable') : t('event.enable')}
+                </Button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </Section>
   );

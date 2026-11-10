@@ -11,7 +11,9 @@ import { useStatusLabel } from '@/lib/status';
 import { eventAdminApi } from '@/services/event-admin.api';
 import type { EventOutletContext } from '../pages/EventLayout';
 
-/** Staff review: filter, read the answers and consent, confirm / reject / cancel. */
+const STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'WAITLISTED', 'CANCELLED'];
+
+/** Staff review: filter, read the answers and consent, approve or reject. */
 export default function RegistrationsTab(): JSX.Element {
   const { slug, eventId, can } = useOutletContext<EventOutletContext>();
   const { t } = useI18n();
@@ -22,7 +24,7 @@ export default function RegistrationsTab(): JSX.Element {
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canManage = can('registration:manage');
+  const canApprove = can('registration:manage');
 
   const list = useQuery({
     queryKey: ['registrations', slug, eventId, status, search, page],
@@ -34,23 +36,22 @@ export default function RegistrationsTab(): JSX.Element {
     enabled: openId !== null,
   });
 
+  const reload = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['registrations', slug, eventId] });
+    void queryClient.invalidateQueries({ queryKey: ['registration', slug, eventId] });
+  };
   const decide = useMutation({
-    mutationFn: (input: { id: string; decision: 'CONFIRM' | 'REJECT' | 'CANCEL' }) =>
-      eventAdminApi.decide(slug, eventId, input.id, { decision: input.decision }),
-    onSuccess: () => {
-      setError(null);
-      void queryClient.invalidateQueries({ queryKey: ['registrations', slug, eventId] });
-      void queryClient.invalidateQueries({ queryKey: ['registration', slug, eventId] });
-    },
+    mutationFn: (input: { id: string; decision: 'APPROVED' | 'REJECTED' }) =>
+      input.decision === 'APPROVED'
+        ? eventAdminApi.approve(slug, eventId, input.id, {})
+        : eventAdminApi.reject(slug, eventId, input.id, {}),
+    onSuccess: () => { setError(null); reload(); },
     onError: (e) => setError(errorMessage(e, t('common.error'))),
   });
+
   const erase = useMutation({
     mutationFn: (id: string) => eventAdminApi.erase(slug, eventId, id),
-    onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: ['registrations', slug, eventId] }); },
-    onError: (e) => setError(errorMessage(e, t('common.error'))),
-  });
-  const resend = useMutation({
-    mutationFn: (id: string) => eventAdminApi.resendAccess(slug, eventId, id),
+    onSuccess: () => { setError(null); reload(); },
     onError: (e) => setError(errorMessage(e, t('common.error'))),
   });
 
@@ -64,7 +65,7 @@ export default function RegistrationsTab(): JSX.Element {
           <Input aria-label={t('common.search')} placeholder={t('common.search')} className="w-48" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           <Select aria-label={t('events.status')} className="w-40" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
             <option value="">{t('common.all')}</option>
-            {['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED'].map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+            {STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
           </Select>
         </div>
       }
@@ -74,41 +75,43 @@ export default function RegistrationsTab(): JSX.Element {
       {list.data && list.data.items.length === 0 ? <EmptyState title={t('common.empty')} /> : null}
 
       <ul className="divide-y divide-brand-primary/10">
-        {list.data?.items.map((r) => (
-          <li key={r.id} className="py-3">
+        {list.data?.items.map((row) => (
+          <li key={row.id} className="py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <button type="button" className="text-left" onClick={() => setOpenId(openId === r.id ? null : r.id)}>
-                <p className="text-sm font-medium">{r.firstName} {r.lastName}</p>
-                <p className="text-xs text-brand-text/70">{r.email} · {r.categoryName}</p>
+              <button type="button" className="text-left" onClick={() => setOpenId(openId === row.id ? null : row.id)}>
+                <p className="text-sm font-medium">{row.person.firstName} {row.person.lastName}</p>
+                <p className="text-xs text-brand-text/70">
+                  {row.person.email}{row.category ? ` · ${row.category.name}` : ''}
+                </p>
               </button>
               <div className="flex items-center gap-2">
-                <Pill>{statusLabel(r.status)}</Pill>
-                {r.checkedIn ? <Pill>{t('checkin.checkedIn')}</Pill> : null}
-                {canManage && r.status === 'PENDING' ? (
+                <Pill>{statusLabel(row.status)}</Pill>
+                {canApprove && row.status === 'PENDING' ? (
                   <>
-                    <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: r.id, decision: 'CONFIRM' })}>{t('reg.confirm')}</Button>
-                    <Button size="sm" variant="secondary" disabled={decide.isPending} onClick={() => decide.mutate({ id: r.id, decision: 'REJECT' })}>{t('reg.reject')}</Button>
+                    <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'APPROVED' })}>{t('reg.confirm')}</Button>
+                    <Button size="sm" variant="secondary" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'REJECTED' })}>{t('reg.reject')}</Button>
                   </>
                 ) : null}
-                {canManage && ['PENDING', 'CONFIRMED'].includes(r.status) ? (
-                  <Button size="sm" variant="ghost" onClick={() => resend.mutate(r.id)}>{t('reg.resend')}</Button>
-                ) : null}
-                {canManage && !r.email.endsWith('@erased.invalid') ? (
-                  <Button size="sm" variant="ghost" onClick={() => { if (window.confirm(t('reg.eraseConfirm'))) erase.mutate(r.id); }}>{t('reg.erase')}</Button>
-                ) : null}
-                {canManage && r.status === 'CONFIRMED' ? (
-                  <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: r.id, decision: 'CANCEL' })}>{t('event.cancel')}</Button>
+                {canApprove && !row.person.email.endsWith('@erased.invalid') ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={erase.isPending}
+                    onClick={() => { if (window.confirm(t('reg.eraseConfirm'))) erase.mutate(row.id); }}
+                  >
+                    {t('reg.erase')}
+                  </Button>
                 ) : null}
               </div>
             </div>
-            {openId === r.id && detail.data ? (
+            {openId === row.id && detail.data ? (
               <dl className="mt-3 grid gap-1 rounded-brand bg-brand-surface p-3 text-xs sm:grid-cols-2">
-                {detail.data.phone ? <div><dt className="font-medium">{t('reg.phone')}</dt><dd>{detail.data.phone}</dd></div> : null}
-                {Object.entries(detail.data.answers).map(([key, value]) => (
-                  <div key={key}><dt className="font-medium">{key}</dt><dd>{String(value)}</dd></div>
+                {detail.data.person.phone ? <div><dt className="font-medium">{t('reg.phone')}</dt><dd>{detail.data.person.phone}</dd></div> : null}
+                {detail.data.answers.map((answer) => (
+                  <div key={answer.fieldKey}><dt className="font-medium">{answer.fieldKey}</dt><dd>{String(answer.value)}</dd></div>
                 ))}
-                {detail.data.consents.map((c) => (
-                  <div key={c.createdAt}><dt className="font-medium">{t('reg.consent')} v{c.policyVersion}</dt><dd>{c.granted ? t('common.yes') : t('common.no')}</dd></div>
+                {detail.data.consents.map((consent) => (
+                  <div key={`${consent.key}-${consent.version}`}><dt className="font-medium">{t('reg.consent')} {consent.key} v{consent.version}</dt><dd>{new Date(consent.acceptedAt).toLocaleString()}</dd></div>
                 ))}
               </dl>
             ) : null}

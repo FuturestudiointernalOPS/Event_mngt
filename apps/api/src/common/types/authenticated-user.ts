@@ -29,18 +29,16 @@ export interface TenantAccess {
   organizationId: string;
   membershipId: string;
   roleKey: string;
+  /** Effective capabilities: entitlement ∩ (role ∪ direct), dependencies satisfied. */
+  capabilities: string[];
+  /** Raw organisation entitlement, kept for management screens. */
+  organizationCapabilities: string[];
+  /** Capabilities implied by the member's role. */
+  roleCapabilities: string[];
+  /** Capabilities granted directly to the membership. */
+  directCapabilities: string[];
+  /** Legacy permissions implied by the effective capabilities (compatibility only). */
   permissions: string[];
-}
-
-/**
- * A registered participant acting through the portal credential they were e-mailed.
- * The organisation was proven by the credential's secret, not trusted from the client.
- */
-export interface ParticipantAccess {
-  organizationId: string;
-  registrationId: string;
-  eventId: string;
-  status: string;
 }
 
 export interface PaginatedResult<T> {

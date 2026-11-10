@@ -1,39 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useOutletContext, useParams } from 'react-router-dom';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
+import type { WorkspaceOutletContext } from '@/components/layout/WorkspaceShell';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select } from '@/components/ui/field';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { useStatusLabel } from '@/lib/status';
 import { ApiRequestError } from '@/services/api-client';
 import { teamApi } from '@/services/team.api';
-import { useSessionStore } from '@/stores/session.store';
 
-/** Members, roles and invitations. The API enforces who may manage; the UI only hides. */
+/** Members and roles. The API enforces who may manage; the UI only hides. */
 export default function TeamPage(): JSX.Element {
   const { slug = '' } = useParams<{ slug: string }>();
   const { t } = useI18n();
   const statusLabel = useStatusLabel();
   const queryClient = useQueryClient();
+  const { can } = useOutletContext<WorkspaceOutletContext>();
   const [email, setEmail] = useState('');
-  const [roleKey, setRoleKey] = useState('event_manager');
+  const [roleId, setRoleId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  const canManage = useSessionStore((state) =>
-    state.memberships.find((m) => m.organizationSlug === slug)?.permissions.includes('member:manage'),
-  );
+  const canManage = can(CAPABILITY_KEYS.organizationManagePermissions);
 
   const members = useQuery({ queryKey: ['team', slug, 'members'], queryFn: () => teamApi.members(slug) });
   const roles = useQuery({ queryKey: ['team', slug, 'roles'], queryFn: () => teamApi.roles(slug) });
-  const invitations = useQuery({ queryKey: ['team', slug, 'invitations'], queryFn: () => teamApi.invitations(slug) });
+  const invitations = useQuery({
+    queryKey: ['team', slug, 'invitations'],
+    queryFn: () => teamApi.invitations(slug),
+    enabled: canManage,
+  });
 
   const refresh = (): Promise<void> => queryClient.invalidateQueries({ queryKey: ['team', slug] });
   const fail = (error: unknown): void =>
     setNotice(error instanceof ApiRequestError ? error.message : t('common.error'));
 
   const invite = useMutation({
-    mutationFn: () => teamApi.invite(slug, { email, roleKey }),
+    mutationFn: () => teamApi.invite(slug, { email, roleId: roleId || (roles.data?.[0]?.id ?? '') }),
     onSuccess: () => {
       setEmail('');
       setNotice(t('team.inviteSent'));
@@ -42,8 +46,7 @@ export default function TeamPage(): JSX.Element {
     onError: fail,
   });
   const update = useMutation({
-    mutationFn: (input: { id: string; roleKey?: string; status?: 'ACTIVE' | 'SUSPENDED' }) =>
-      teamApi.updateMember(slug, input.id, { roleKey: input.roleKey, status: input.status }),
+    mutationFn: (input: { id: string; roleId: string }) => teamApi.updateMember(slug, input.id, { roleId: input.roleId }),
     onSuccess: () => void refresh(),
     onError: fail,
   });
@@ -64,8 +67,6 @@ export default function TeamPage(): JSX.Element {
   if (members.isError || !members.data || !roles.data) {
     return <ErrorState message={t('common.error')} onRetry={() => void members.refetch()} retryLabel={t('common.retry')} />;
   }
-
-  const pending = (invitations.data ?? []).filter((i) => !i.acceptedAt && !i.revokedAt);
 
   return (
     <div className="space-y-8">
@@ -88,20 +89,13 @@ export default function TeamPage(): JSX.Element {
                     <Select
                       aria-label={t('team.role')}
                       className="w-48"
-                      value={member.roleKey}
-                      onChange={(e) => update.mutate({ id: member.id, roleKey: e.target.value })}
+                      value={member.roleId}
+                      onChange={(e) => update.mutate({ id: member.id, roleId: e.target.value })}
                     >
                       {roles.data.map((role) => (
-                        <option key={role.key} value={role.key}>{role.name}</option>
+                        <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </Select>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => update.mutate({ id: member.id, status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}
-                    >
-                      {member.status === 'ACTIVE' ? t('team.suspend') : t('team.activate')}
-                    </Button>
                     <Button size="sm" variant="danger" onClick={() => remove.mutate(member.id)}>
                       {t('team.remove')}
                     </Button>
@@ -132,22 +126,24 @@ export default function TeamPage(): JSX.Element {
             </div>
             <div className="w-56">
               <Field label={t('team.role')} htmlFor="invite-role">
-                <Select id="invite-role" value={roleKey} onChange={(e) => setRoleKey(e.target.value)}>
+                <Select id="invite-role" value={roleId || roles.data[0]?.id || ''} onChange={(e) => setRoleId(e.target.value)}>
                   {roles.data.map((role) => (
-                    <option key={role.key} value={role.key}>{role.name}</option>
+                    <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
                 </Select>
               </Field>
             </div>
-            <Button type="submit" disabled={invite.isPending}>{t('team.send')}</Button>
+            <Button type="submit" disabled={invite.isPending || roles.data.length === 0}>{t('team.send')}</Button>
           </form>
 
-          {pending.length > 0 ? (
+          {invitations.data && invitations.data.length > 0 ? (
             <ul className="mt-4 divide-y divide-brand-primary/10 text-sm">
-              {pending.map((invitation) => (
+              {invitations.data.map((invitation) => (
                 <li key={invitation.id} className="flex items-center justify-between gap-3 py-2">
                   <span>{invitation.email} · {invitation.roleKey}</span>
-                  <Button size="sm" variant="ghost" onClick={() => revoke.mutate(invitation.id)}>{t('team.revoke')}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => revoke.mutate(invitation.id)}>
+                    {t('team.revoke')}
+                  </Button>
                 </li>
               ))}
             </ul>

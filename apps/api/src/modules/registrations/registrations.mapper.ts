@@ -1,49 +1,75 @@
-import type { RegistrationDetail, RegistrationSummary } from '@event-platform/shared';
-import type { Prisma } from '../../database/prisma-client';
+import type {
+  PersonSummary,
+  RegistrationAnswerValue,
+  RegistrationDetail,
+  RegistrationSummary,
+} from '@event-platform/shared';
+import type {
+  Badge,
+  ConsentRecord,
+  ParticipantCategory,
+  Person,
+  Registration,
+  RegistrationAnswer,
+} from '../../database/prisma-client';
 
-export const REGISTRATION_SELECT = {
-  id: true,
-  status: true,
-  answers: true,
-  decisionNote: true,
-  decidedAt: true,
-  createdAt: true,
-  person: { select: { firstName: true, lastName: true, email: true, phone: true } },
-  category: { select: { key: true, name: true } },
-  _count: { select: { checkIns: true } },
-} as const satisfies Prisma.RegistrationSelect;
+/** Row shapes the mappers accept, named so the Prisma payload stays in one place. */
+export type RegistrationWithPerson = Registration & {
+  person: Person;
+  category: ParticipantCategory | null;
+};
 
-export type RegistrationRow = Prisma.RegistrationGetPayload<{ select: typeof REGISTRATION_SELECT }>;
+export type RegistrationDetailRow = RegistrationWithPerson & {
+  answers: RegistrationAnswer[];
+  consents: ConsentRecord[];
+  badge: Badge | null;
+};
 
-export function toRegistrationSummary(row: RegistrationRow): RegistrationSummary {
+function toPersonSummary(person: Person): PersonSummary {
   return {
-    id: row.id,
-    status: row.status,
-    firstName: row.person.firstName,
-    lastName: row.person.lastName,
-    email: row.person.email,
-    categoryKey: row.category.key,
-    categoryName: row.category.name,
-    checkedIn: row._count.checkIns > 0,
-    createdAt: row.createdAt.toISOString(),
+    id: person.id,
+    email: person.email,
+    firstName: person.firstName,
+    lastName: person.lastName,
+    phone: person.phone,
+    organizationName: person.organizationName,
+    jobTitle: person.jobTitle,
+    country: person.country,
   };
 }
 
-export function toRegistrationDetail(
-  row: RegistrationRow,
-  consents: { purpose: string; policyVersion: string; granted: boolean; createdAt: Date }[],
-): RegistrationDetail {
+export function toSummary(row: RegistrationWithPerson): RegistrationSummary {
   return {
-    ...toRegistrationSummary(row),
-    phone: row.person.phone,
-    answers: (row.answers as Record<string, string | boolean>) ?? {},
-    decisionNote: row.decisionNote,
+    id: row.id,
+    reference: row.reference,
+    status: row.status,
+    source: row.source,
+    submittedAt: row.submittedAt.toISOString(),
     decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
-    consents: consents.map((c) => ({
-      purpose: c.purpose,
-      policyVersion: c.policyVersion,
-      granted: c.granted,
-      createdAt: c.createdAt.toISOString(),
+    person: toPersonSummary(row.person),
+    category: row.category
+      ? { key: row.category.key, name: row.category.name }
+      : null,
+  };
+}
+
+export function toDetail(row: RegistrationDetailRow): RegistrationDetail {
+  return {
+    ...toSummary(row),
+    answers: row.answers.map((answer) => ({
+      fieldKey: answer.fieldKey,
+      value: answer.value as RegistrationAnswerValue,
     })),
+    consents: row.consents.map((consent) => ({
+      key: consent.documentKey,
+      version: consent.documentVersion,
+      acceptedAt: consent.acceptedAt.toISOString(),
+    })),
+    badge: row.badge
+      ? {
+          status: row.badge.status,
+          issuedAt: row.badge.issuedAt.toISOString(),
+        }
+      : null,
   };
 }

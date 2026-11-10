@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { IntroductionView } from '@event-platform/shared';
+import type { IntroductionRequest, Meeting } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/field';
@@ -13,86 +13,179 @@ import { staffOpsApi } from '@/services/staff-ops.api';
 import { teamApi } from '@/services/team.api';
 import type { EventOutletContext } from '../pages/EventLayout';
 
-const NEXT: Record<string, string[]> = {
-  SUBMITTED: ['IN_REVIEW', 'APPROVED', 'DECLINED'],
-  IN_REVIEW: ['APPROVED', 'DECLINED'],
-  APPROVED: ['INTRODUCED', 'CLOSED'],
-  DECLINED: ['CLOSED'],
-  INTRODUCED: ['CLOSED'],
-  CLOSED: [],
-};
-
 /** Staff view of the introduction queue and of the meetings between participants. */
 export default function NetworkingTab(): JSX.Element {
   const { slug, eventId, event, can } = useOutletContext<EventOutletContext>();
   const { t } = useI18n();
   const statusLabel = useStatusLabel();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [historyId, setHistoryId] = useState<string | null>(null);
   const canManageIntro = can('introduction:manage');
   const canManageMeetings = can('meeting:manage');
   const hasIntro = event.enabledModules.includes('introductions');
   const hasMeetings = event.enabledModules.includes('meetings');
 
-  const intros = useQuery({ queryKey: ['intros', slug, eventId, filter], queryFn: () => staffOpsApi.introductions(slug, eventId, filter || undefined), enabled: hasIntro });
-  const meetings = useQuery({ queryKey: ['meetings', slug, eventId], queryFn: () => staffOpsApi.meetings(slug, eventId), enabled: hasMeetings });
-  const members = useQuery({ queryKey: ['team', slug, 'members'], queryFn: () => teamApi.members(slug), enabled: hasIntro && canManageIntro });
+  const intros = useQuery({
+    queryKey: ['intros', slug, eventId],
+    queryFn: () => staffOpsApi.introductions(slug, eventId),
+    enabled: hasIntro,
+  });
+  const meetings = useQuery({
+    queryKey: ['meetings', slug, eventId],
+    queryFn: () => staffOpsApi.meetings(slug, eventId),
+    enabled: hasMeetings,
+  });
+  const members = useQuery({
+    queryKey: ['team', slug, 'members'],
+    queryFn: () => teamApi.members(slug),
+    enabled: hasIntro && canManageIntro,
+  });
+  const detail = useQuery({
+    queryKey: ['introduction', slug, eventId, historyId],
+    queryFn: () => staffOpsApi.introduction(slug, eventId, historyId ?? ''),
+    enabled: historyId !== null,
+  });
 
   const onError = (e: unknown): void => setError(errorMessage(e, t('common.error')));
-  const reload = (): void => void queryClient.invalidateQueries({ queryKey: ['intros', slug, eventId] });
+  const reloadIntros = (): void => void queryClient.invalidateQueries({ queryKey: ['intros', slug, eventId] });
+  const reloadMeetings = (): void => void queryClient.invalidateQueries({ queryKey: ['meetings', slug, eventId] });
 
-  const decide = useMutation({
-    mutationFn: (input: { id: string; status: string; outcome?: string }) => staffOpsApi.decideIntroduction(slug, eventId, input.id, { status: input.status, outcome: input.outcome }),
-    onSuccess: () => { setError(null); reload(); },
-    onError,
-  });
   const assign = useMutation({
-    mutationFn: (input: { id: string; userId: string | null }) => staffOpsApi.assignIntroduction(slug, eventId, input.id, input.userId),
-    onSuccess: reload,
+    mutationFn: (input: { id: string; userId: string }) =>
+      staffOpsApi.updateIntroduction(slug, eventId, input.id, { action: 'assign', assignedToUserId: input.userId }),
+    onSuccess: () => { setError(null); reloadIntros(); },
     onError,
   });
-  const confirm = useMutation({
-    mutationFn: (id: string) => staffOpsApi.confirmMeeting(slug, eventId, id),
-    onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: ['meetings', slug, eventId] }); },
+  const decide = useMutation({
+    mutationFn: (input: { id: string; outcome: 'CONNECTED' | 'FOLLOW_UP' | 'NO_MATCH' | 'DECLINED' }) =>
+      staffOpsApi.updateIntroduction(
+        slug,
+        eventId,
+        input.id,
+        input.outcome === 'CONNECTED' || input.outcome === 'FOLLOW_UP'
+          ? { action: 'introduce', outcome: input.outcome, notes: notes[input.id] }
+          : { action: 'decline', outcome: input.outcome, notes: notes[input.id] },
+      ),
+    onSuccess: () => { setError(null); reloadIntros(); },
     onError,
   });
-  const finish = useMutation({
-    mutationFn: (input: { id: string; status: 'COMPLETED' | 'CANCELLED' }) => staffOpsApi.meetingOutcome(slug, eventId, input.id, input.status, outcome[input.id]),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['meetings', slug, eventId] }),
+  const answerMeeting = useMutation({
+    mutationFn: (input: { id: string; action: 'accept' | 'decline' | 'cancel' }) =>
+      staffOpsApi.updateMeeting(slug, eventId, input.id, { action: input.action }),
+    onSuccess: () => { setError(null); reloadMeetings(); },
+    onError,
+  });
+  const completeMeeting = useMutation({
+    mutationFn: (input: { id: string; outcome: 'MET' | 'NO_SHOW' | 'FOLLOW_UP' }) =>
+      staffOpsApi.updateMeeting(slug, eventId, input.id, {
+        action: 'complete',
+        outcome: input.outcome,
+        notes: notes[input.id],
+      }),
+    onSuccess: () => { setError(null); reloadMeetings(); },
     onError,
   });
 
-  const introRow = (r: IntroductionView) => (
-    <li key={r.id} className="space-y-2 py-3">
+  const introRow = (row: IntroductionRequest) => (
+    <li key={row.id} className="space-y-2 py-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="max-w-xl">
-          <p className="text-sm font-medium">{r.requesterName} → {r.innovationTitle}</p>
-          <p className="text-xs text-brand-text/70">{r.reason}</p>
-          <p className="text-xs text-brand-text/70">{t('intro.offers')}: {r.helpOffered}</p>
+          <p className="text-sm font-medium">{row.requestingProfile.displayName}</p>
+          <p className="text-xs text-brand-text/70">{row.reason}</p>
+          <p className="text-xs text-brand-text/70">{t('intro.offers')}: {row.offeredHelp}</p>
+          {row.outcome ? <p className="text-xs text-brand-text/70">{t('intro.outcome')}: {statusLabel(row.outcome)}</p> : null}
+          <button
+            type="button"
+            className="mt-1 text-xs underline"
+            onClick={() => setHistoryId(historyId === row.id ? null : row.id)}
+          >
+            {t('intro.history')}
+          </button>
+          {historyId === row.id && detail.data ? (
+            <p className="mt-1 text-xs text-brand-text/70">
+              {detail.data.history.map((entry) => statusLabel(entry.toStatus)).join(' → ')}
+            </p>
+          ) : null}
         </div>
-        <Pill>{statusLabel(r.status)}</Pill>
+        <Pill>{statusLabel(row.status)}</Pill>
       </div>
       {canManageIntro ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Select aria-label={t('intro.assignee')} className="w-48" value={r.assignedToUserId ?? ''} onChange={(e) => assign.mutate({ id: r.id, userId: e.target.value || null })}>
+          <Select
+            aria-label={t('intro.assignee')}
+            className="w-48"
+            value={row.assignedToUserId ?? ''}
+            onChange={(e) => e.target.value && assign.mutate({ id: row.id, userId: e.target.value })}
+          >
             <option value="">{t('intro.unassigned')}</option>
-            {members.data?.map((m) => <option key={m.userId} value={m.userId}>{m.displayName ?? m.email}</option>)}
+            {members.data?.map((member) => (
+              <option key={member.userId} value={member.userId}>
+                {member.displayName ?? member.email}
+              </option>
+            ))}
           </Select>
-          {NEXT[r.status].includes('INTRODUCED') ? (
-            <Input aria-label={t('intro.outcome')} placeholder={t('intro.outcome')} className="w-56" value={outcome[r.id] ?? ''} onChange={(e) => setOutcome({ ...outcome, [r.id]: e.target.value })} />
-          ) : null}
-          {NEXT[r.status].map((next) => (
-            <Button key={next} size="sm" variant={next === 'DECLINED' || next === 'CLOSED' ? 'secondary' : 'primary'} disabled={decide.isPending} onClick={() => decide.mutate({ id: r.id, status: next, outcome: outcome[r.id] })}>
-              {statusLabel(next)}
-            </Button>
-          ))}
+          <Input
+            aria-label={t('intro.outcome')}
+            placeholder={t('intro.outcome')}
+            className="w-56"
+            value={notes[row.id] ?? ''}
+            onChange={(e) => setNotes({ ...notes, [row.id]: e.target.value })}
+          />
+          <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, outcome: 'CONNECTED' })}>
+            {statusLabel('INTRODUCED')}
+          </Button>
+          <Button size="sm" variant="secondary" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, outcome: 'NO_MATCH' })}>
+            {statusLabel('DECLINED')}
+          </Button>
         </div>
       ) : null}
-      {r.history.length > 0 ? (
-        <p className="text-xs text-brand-text/70">{r.history.map((h) => statusLabel(h.toStatus)).join(' → ')}</p>
-      ) : null}
+    </li>
+  );
+
+  const meetingRow = (meeting: Meeting) => (
+    <li key={meeting.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+      <div>
+        <p className="text-sm font-medium">
+          {meeting.proposer.displayName} ↔ {meeting.recipient.displayName}
+        </p>
+        <p className="text-xs text-brand-text/70">
+          {meeting.note ?? ''} {meeting.outcome ? `· ${meeting.outcome}` : ''} {meeting.outcomeNotes ?? ''}
+        </p>
+        {meeting.requiresStaffConfirmation ? <Pill>{t('meetings.confirm')}</Pill> : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <Pill>{statusLabel(meeting.status)}</Pill>
+        {canManageMeetings && meeting.status === 'PROPOSED' ? (
+          <>
+            <Button size="sm" onClick={() => answerMeeting.mutate({ id: meeting.id, action: 'accept' })}>
+              {statusLabel('ACCEPTED')}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => answerMeeting.mutate({ id: meeting.id, action: 'decline' })}>
+              {statusLabel('DECLINED')}
+            </Button>
+          </>
+        ) : null}
+        {canManageMeetings && meeting.status === 'ACCEPTED' ? (
+          <>
+            <Select
+              aria-label={t('intro.outcome')}
+              className="w-32"
+              value={notes[meeting.id] ?? ''}
+              onChange={(e) => setNotes({ ...notes, [meeting.id]: e.target.value })}
+            >
+              <option value="">—</option>
+              <option value="MET">{statusLabel('MET')}</option>
+              <option value="NO_SHOW">{statusLabel('NO_SHOW')}</option>
+              <option value="FOLLOW_UP">{statusLabel('FOLLOW_UP')}</option>
+            </Select>
+            <Button size="sm" onClick={() => completeMeeting.mutate({ id: meeting.id, outcome: 'MET' })}>
+              {t('event.complete')}
+            </Button>
+          </>
+        ) : null}
+      </div>
     </li>
   );
 
@@ -103,45 +196,16 @@ export default function NetworkingTab(): JSX.Element {
       {error ? <p role="alert" className="rounded-brand bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 
       {hasIntro ? (
-        <Section
-          title={t('intro.queue')}
-          actions={
-            <Select aria-label={t('events.status')} className="w-44" value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">{t('common.all')}</option>
-              {Object.keys(NEXT).map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
-            </Select>
-          }
-        >
-          {intros.data?.length === 0 ? <EmptyState title={t('common.empty')} /> : null}
-          <ul className="divide-y divide-brand-primary/10">{intros.data?.map(introRow)}</ul>
+        <Section title={t('intro.queue')}>
+          {intros.data?.items.length === 0 ? <EmptyState title={t('common.empty')} /> : null}
+          <ul className="divide-y divide-brand-primary/10">{intros.data?.items.map(introRow)}</ul>
         </Section>
       ) : null}
 
       {hasMeetings ? (
         <Section title={t('meetings.title')}>
-          {meetings.data?.length === 0 ? <EmptyState title={t('common.empty')} /> : null}
-          <ul className="divide-y divide-brand-primary/10">
-            {meetings.data?.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div>
-                  <p className="text-sm font-medium">{m.proposerName} ↔ {m.inviteeName}</p>
-                  <p className="text-xs text-brand-text/70">{m.message ?? ''} {m.outcome ? `· ${m.outcome}` : ''}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Pill>{statusLabel(m.status)}</Pill>
-                  {canManageMeetings && m.status === 'ACCEPTED' ? (
-                    <Button size="sm" variant="secondary" onClick={() => confirm.mutate(m.id)}>{t('meetings.confirm')}</Button>
-                  ) : null}
-                  {canManageMeetings && ['ACCEPTED', 'CONFIRMED'].includes(m.status) ? (
-                    <>
-                      <Input aria-label={t('intro.outcome')} placeholder={t('intro.outcome')} className="w-44" value={outcome[m.id] ?? ''} onChange={(e) => setOutcome({ ...outcome, [m.id]: e.target.value })} />
-                      <Button size="sm" onClick={() => finish.mutate({ id: m.id, status: 'COMPLETED' })}>{t('event.complete')}</Button>
-                    </>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+          {meetings.data?.items.length === 0 ? <EmptyState title={t('common.empty')} /> : null}
+          <ul className="divide-y divide-brand-primary/10">{meetings.data?.items.map(meetingRow)}</ul>
         </Section>
       ) : null}
     </div>

@@ -52,3 +52,25 @@ export function EmptyState({
 export function PageFallback(): JSX.Element {
   return <LoadingState />;
 }
+
+/**
+ * Shown when the signed-in member lacks the capability a screen needs. The API would
+ * refuse the data anyway; this avoids rendering a broken shell first.
+ */
+export function ForbiddenState({
+  title = 'Not available',
+  message = 'Your role does not include this capability. Ask a workspace administrator.',
+}: {
+  title?: string;
+  message?: string;
+}): JSX.Element {
+  return (
+    <div
+      role="alert"
+      className="rounded-brand border border-amber-200 bg-amber-50 p-6 text-amber-900"
+    >
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-sm">{message}</p>
+    </div>
+  );
+}

@@ -1,22 +1,28 @@
 import { Module } from '@nestjs/common';
-import { PublicRegistrationFormService } from './public-registration-form.service';
+import { BadgesModule } from '../badges/badges.module';
+import { ConsentModule } from '../consent/consent.module';
+import { EventsModule } from '../events/events.module';
+import { ModuleRegistryModule } from '../module-registry/module-registry.module';
+import { RegistrationFormsModule } from '../registration-forms/registration-forms.module';
 import { PublicRegistrationsController } from './public-registrations.controller';
-import { PublicRegistrationsService } from './public-registrations.service';
-import { RegistrationSetupController } from './registration-setup.controller';
-import { RegistrationSetupService } from './registration-setup.service';
+import { RegistrationSubmissionService } from './registration-submission.service';
 import { RegistrationsController } from './registrations.controller';
 import { RegistrationsRepository } from './registrations.repository';
 import { RegistrationsService } from './registrations.service';
 
 @Module({
-  controllers: [RegistrationSetupController, RegistrationsController, PublicRegistrationsController],
-  providers: [
-    RegistrationSetupService,
-    RegistrationsService,
-    RegistrationsRepository,
-    PublicRegistrationsService,
-    PublicRegistrationFormService,
+  imports: [
+    EventsModule,
+    RegistrationFormsModule,
+    ConsentModule,
+    ModuleRegistryModule,
+    BadgesModule,
   ],
-  exports: [RegistrationsService],
+  controllers: [RegistrationsController, PublicRegistrationsController],
+  providers: [
+    RegistrationsService,
+    RegistrationSubmissionService,
+    RegistrationsRepository,
+  ],
 })
 export class RegistrationsModule {}

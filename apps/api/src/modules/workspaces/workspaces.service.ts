@@ -10,6 +10,8 @@ import {
 } from '@event-platform/shared';
 import { OrganizationStatus, WorkspaceSettings } from '../../database/prisma-client';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS, type AuditAction } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import { toBranding, toLocale } from '../../common/utils/branding';
 import {
   WCAG_AA_NORMAL_TEXT,
@@ -44,44 +46,56 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
    * Public context used by the SPA to render a tenant shell and apply branding.
-   * Runs without tenant context, so it selects an explicit public projection and
-   * filters by slug — no wildcard selects.
+   *
+   * Two steps, because the organisation is unknown until the slug is resolved: the
+   * first query reads only the public identity that policy allows (active
+   * organisations), then settings and branding are read inside the public
+   * organisation scope, so they stay protected by row-level security.
    */
   async getPublicContext(slug: string): Promise<WorkspaceContext> {
-    const organization = await this.prisma.organization.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        status: true,
-        branding: true,
-        settings: { select: { defaultLocale: true } },
-      },
+    const organization = await this.prisma.organization.findFirst({
+      where: { slug, status: OrganizationStatus.ACTIVE },
+      select: { id: true },
     });
 
-    if (!organization || organization.status !== OrganizationStatus.ACTIVE) {
+    if (!organization) {
       throw AppException.notFound('tenant_not_found', 'Workspace not found.');
     }
 
-    return {
-      organization: {
-        id: organization.id,
-        slug: organization.slug,
-        name: organization.name,
-      },
-      branding: organization.branding
-        ? toBranding(organization.branding)
-        : { ...DEFAULT_BRANDING },
-      locale: {
-        default: toLocale(organization.settings?.defaultLocale),
-        supported: ['fr', 'en'],
-      },
-    };
+    return this.tenantTransaction.withOrganizationScope(organization.id, async (tx) => {
+      const row = await tx.organization.findUnique({
+        where: { id: organization.id },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          branding: true,
+          settings: { select: { defaultLocale: true } },
+        },
+      });
+
+      if (!row) {
+        throw AppException.notFound('tenant_not_found', 'Workspace not found.');
+      }
+
+      return {
+        organization: {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+        },
+        branding: row.branding ? toBranding(row.branding) : { ...DEFAULT_BRANDING },
+        locale: {
+          default: toLocale(row.settings?.defaultLocale),
+          supported: ['fr', 'en'],
+        },
+      };
+    });
   }
 
   async getSettings(): Promise<WorkspaceSettingsView> {
@@ -104,7 +118,7 @@ export class WorkspacesService {
   }
 
   async updateSettings(input: UpdateWorkspaceSettingsRequest): Promise<WorkspaceSettingsView> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const view = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       if (input.name !== undefined) {
         await tx.organization.update({
           where: { id: tenant.organizationId },
@@ -133,6 +147,10 @@ export class WorkspacesService {
 
       return this.readSettingsInsideTransaction(tx, tenant.organizationId);
     });
+
+    await this.recordChange(AUDIT_ACTIONS.settingsUpdated, view.organization.id);
+
+    return view;
   }
 
   async getBranding(): Promise<BrandingView> {
@@ -147,7 +165,7 @@ export class WorkspacesService {
   }
 
   async updateBranding(input: UpdateBrandingRequest): Promise<BrandingView> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const view = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       const existing = await tx.workspaceBranding.findUnique({
         where: { organizationId: tenant.organizationId },
       });
@@ -165,6 +183,14 @@ export class WorkspacesService {
 
       return { branding: merged, contrastWarnings: checkContrast(merged) };
     });
+
+    await this.recordChange(AUDIT_ACTIONS.brandingUpdated);
+
+    return view;
+  }
+
+  private async recordChange(action: AuditAction, targetId?: string): Promise<void> {
+    await this.audit.record({ action, targetType: 'workspace', targetId: targetId ?? null });
   }
 
   private async readSettingsInsideTransaction(

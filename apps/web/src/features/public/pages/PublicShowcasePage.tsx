@@ -32,11 +32,11 @@ export default function PublicShowcasePage(): JSX.Element {
             <h2 id="inn-h" className="text-lg font-semibold">{t('showcase.innovations')}</h2>
             {innovations.length === 0 ? <EmptyState title={t('common.empty')} /> : (
               <ul className="mt-3 grid gap-4 sm:grid-cols-2">
-                {innovations.map((i) => (
-                  <li key={i.id} className="rounded-brand border border-brand-primary/10 bg-white p-4">
-                    <p className="font-medium">{i.title}</p>
-                    <p className="text-xs text-brand-text/70">{i.ownerName}{i.sector ? ` · ${i.sector}` : ''}</p>
-                    <p className="mt-2 text-sm">{i.summary}</p>
+                {innovations.map((innovation) => (
+                  <li key={innovation.title} className="rounded-brand border border-brand-primary/10 bg-white p-4">
+                    <p className="font-medium">{innovation.title}</p>
+                    <p className="text-xs text-brand-text/70">{innovation.category}</p>
+                    <p className="mt-2 text-sm">{innovation.summary}</p>
                   </li>
                 ))}
               </ul>
@@ -46,11 +46,11 @@ export default function PublicShowcasePage(): JSX.Element {
             <h2 id="pro-h" className="text-lg font-semibold">{t('showcase.profiles')}</h2>
             {profiles.length === 0 ? <EmptyState title={t('common.empty')} /> : (
               <ul className="mt-3 grid gap-4 sm:grid-cols-2">
-                {profiles.map((p, index) => (
-                  <li key={`${p.name}-${index}`} className="rounded-brand border border-brand-primary/10 bg-white p-4">
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-sm">{p.headline}</p>
-                    {p.bio ? <p className="mt-1 text-xs text-brand-text/70">{p.bio}</p> : null}
+                {profiles.map((profile) => (
+                  <li key={profile.displayName} className="rounded-brand border border-brand-primary/10 bg-white p-4">
+                    <p className="font-medium">{profile.displayName}</p>
+                    <p className="text-sm">{profile.headline}</p>
+                    {profile.bio ? <p className="mt-1 text-xs text-brand-text/70">{profile.bio}</p> : null}
                   </li>
                 ))}
               </ul>

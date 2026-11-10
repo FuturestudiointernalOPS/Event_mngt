@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
-  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -13,18 +12,16 @@ import {
   EventDetail,
   EventSummary,
   ListEventsQuery,
-  PERMISSIONS,
-  UpdateEventRequest,
+  CAPABILITY_KEYS,
   createEventRequestSchema,
   listEventsQuerySchema,
-  updateEventRequestSchema,
 } from '@event-platform/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { Idempotent } from '../../common/idempotency/idempotency.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
-import { EventChangesService } from './event-changes.service';
 import { EventsService } from './events.service';
 
 /**
@@ -36,13 +33,10 @@ import { EventsService } from './events.service';
 @Controller('workspaces/:slug/events')
 @TenantScoped('slug')
 export class EventsController {
-  constructor(
-    private readonly eventsService: EventsService,
-    private readonly changes: EventChangesService,
-  ) {}
+  constructor(private readonly eventsService: EventsService) {}
 
   @Get()
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.eventsView)
   list(
     @Query(new ZodValidationPipe(listEventsQuerySchema)) query: ListEventsQuery,
   ): Promise<PaginatedResult<EventSummary>> {
@@ -50,7 +44,8 @@ export class EventsController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.eventManage)
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  @Idempotent()
   create(
     @Body(new ZodValidationPipe(createEventRequestSchema)) body: CreateEventRequest,
     @CurrentUser() user: AuthenticatedUser,
@@ -59,7 +54,7 @@ export class EventsController {
   }
 
   @Get(':eventId')
-  @RequirePermissions(PERMISSIONS.eventRead)
+  @RequireCapability(CAPABILITY_KEYS.eventsView)
   detail(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventDetail> {
@@ -67,64 +62,10 @@ export class EventsController {
   }
 
   @Post(':eventId/publish')
-  @RequirePermissions(PERMISSIONS.eventPublish)
+  @RequireCapability(CAPABILITY_KEYS.eventsPublish)
   publish(
     @Param('eventId', new ParseUUIDPipe()) eventId: string,
   ): Promise<EventDetail> {
     return this.eventsService.publish(eventId);
-  }
-
-  @Patch(':eventId')
-  @RequirePermissions(PERMISSIONS.eventManage)
-  update(
-    @Param('eventId', new ParseUUIDPipe()) eventId: string,
-    @Body(new ZodValidationPipe(updateEventRequestSchema)) body: UpdateEventRequest,
-  ): Promise<EventDetail> {
-    return this.changes.update(eventId, body);
-  }
-
-  @Post(':eventId/unpublish')
-  @RequirePermissions(PERMISSIONS.eventPublish)
-  unpublish(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'unpublish');
-  }
-
-  @Post(':eventId/complete')
-  @RequirePermissions(PERMISSIONS.eventManage)
-  complete(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'complete');
-  }
-
-  @Post(':eventId/cancel')
-  @RequirePermissions(PERMISSIONS.eventManage)
-  cancel(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'cancel');
-  }
-
-  @Post(':eventId/archive')
-  @RequirePermissions(PERMISSIONS.eventManage)
-  archive(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'archive');
-  }
-
-  @Post(':eventId/duplicate')
-  @RequirePermissions(PERMISSIONS.eventManage)
-  duplicate(
-    @Param('eventId', new ParseUUIDPipe()) eventId: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<EventDetail> {
-    return this.changes.duplicate(eventId, user.id);
-  }
-
-  @Post(':eventId/open-registration')
-  @RequirePermissions(PERMISSIONS.eventPublish)
-  openRegistration(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'open_registration');
-  }
-
-  @Post(':eventId/close-registration')
-  @RequirePermissions(PERMISSIONS.eventPublish)
-  closeRegistration(@Param('eventId', new ParseUUIDPipe()) eventId: string): Promise<EventDetail> {
-    return this.changes.transition(eventId, 'close_registration');
   }
 }

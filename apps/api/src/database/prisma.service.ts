@@ -20,8 +20,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor(config: ConfigService<Env, true>) {
     // Prisma 7 removed the Rust query engine: every client is built from a driver
     // adapter, and the connection pool is node-postgres' own.
+    //
+    // The runtime prefers APP_DATABASE_URL (the non-owner role) so row-level security
+    // applies. DATABASE_URL remains the migration owner used by the Prisma CLI.
     super({
-      adapter: new PrismaPg({ connectionString: config.get('DATABASE_URL', { infer: true }) }),
+      adapter: new PrismaPg({
+        connectionString:
+          config.get('APP_DATABASE_URL', { infer: true }) ??
+          config.get('DATABASE_URL', { infer: true }),
+      }),
     });
   }
 

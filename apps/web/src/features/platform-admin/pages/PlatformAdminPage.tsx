@@ -1,78 +1,233 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  CAPABILITY_MODULES,
+  type CapabilityAssignmentView,
+  type PlatformOrganizationSummary,
+} from '@event-platform/shared';
+import { useEffect, useState } from 'react';
 import { useI18n } from '@/app/providers/I18nProvider';
-import { ThemeProvider } from '@/components/branding/ThemeProvider';
-import { Button } from '@/components/ui/button';
-import { Pill, Section, Stat } from '@/components/ui/section';
-import { ErrorState, LoadingState } from '@/components/ui/states';
-import { errorMessage } from '@/lib/errors';
-import { useStatusLabel } from '@/lib/status';
-import { platformApi } from '@/services/staff-ops.api';
+import { ErrorState, LoadingState, ForbiddenState } from '@/components/ui/states';
+import { queryKeys } from '@/lib/query-keys';
+import { ApiRequestError } from '@/services/api-client';
+import { capabilitiesApi } from '@/features/capabilities/capabilities.api';
+import { useSessionStore } from '@/stores/session.store';
 
-/** Super Admin console, themed with the platform's own (neutral) brand, never a tenant's. */
+/**
+ * Platform administration. A platform administrator chooses an organisation and
+ * manages its entitlement set. Every call is independently authorised by the API; this
+ * screen simply makes the catalogue usable.
+ */
 export default function PlatformAdminPage(): JSX.Element {
   const { t } = useI18n();
-  const statusLabel = useStatusLabel();
   const queryClient = useQueryClient();
-  const overview = useQuery({ queryKey: ['platform-overview'], queryFn: platformApi.overview, retry: false });
-  const modules = useQuery({ queryKey: ['platform-modules'], queryFn: platformApi.modules, retry: false });
-  const setModule = useMutation({
-    mutationFn: (i: { key: string; available: boolean }) => platformApi.setModule(i.key, i.available),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['platform-modules'] }),
-  });
-  const setStatus = useMutation({
-    mutationFn: (i: { id: string; status: 'ACTIVE' | 'SUSPENDED' }) => platformApi.setStatus(i.id, i.status),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['platform-overview'] }),
+  const user = useSessionStore((state) => state.user);
+  const [organizationId, setOrganizationId] = useState('');
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+
+  const organizationsQuery = useQuery({
+    queryKey: queryKeys.platformOrganizations(),
+    queryFn: () => capabilitiesApi.organizations(),
+    enabled: user?.isPlatformAdmin === true,
+    retry: false,
   });
 
+  useEffect(() => {
+    if (!organizationId && organizationsQuery.data && organizationsQuery.data.length > 0) {
+      setOrganizationId(organizationsQuery.data[0].id);
+    }
+  }, [organizationId, organizationsQuery.data]);
+
+  const entitlementsQuery = useQuery({
+    queryKey: queryKeys.platformOrganizationCapabilities(organizationId),
+    queryFn: () => capabilitiesApi.organizationEntitlements(organizationId),
+    enabled: Boolean(organizationId),
+    retry: false,
+  });
+
+  const changeMutation = useMutation({
+    mutationFn: (capability: CapabilityAssignmentView) =>
+      capability.organizationEntitled
+        ? capabilitiesApi.revokeOrganization(organizationId, capability.key)
+        : capabilitiesApi.grantOrganization(organizationId, capability.key),
+    onMutate: (capability) => setPendingKey(capability.key),
+    onSuccess: (view) => {
+      queryClient.setQueryData(
+        queryKeys.platformOrganizationCapabilities(organizationId),
+        view,
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.platformOrganizations() });
+      setPendingKey(null);
+    },
+    onError: () => setPendingKey(null),
+  });
+
+  if (!user) {
+    return <LoadingState label={t('common.loading')} />;
+  }
+
+  if (user.isPlatformAdmin !== true) {
+    return <ForbiddenState title={t('platform.forbidden')} message={t('platform.forbiddenBody')} />;
+  }
+
+  if (organizationsQuery.isLoading) {
+    return <LoadingState label={t('common.loading')} />;
+  }
+
+  if (organizationsQuery.isError) {
+    return (
+      <ErrorState
+        title={t('common.error')}
+        message={
+          organizationsQuery.error instanceof ApiRequestError
+            ? organizationsQuery.error.message
+            : t('common.error')
+        }
+        onRetry={() => void organizationsQuery.refetch()}
+        retryLabel={t('common.retry')}
+      />
+    );
+  }
+
+  const organizations: PlatformOrganizationSummary[] = organizationsQuery.data ?? [];
+  const entitlements = entitlementsQuery.data;
+
   return (
-    <ThemeProvider value={null}>
-      <div className="mx-auto max-w-5xl space-y-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('platform.title')}</h1>
-          <p className="text-sm text-brand-text/70">{t('platform.subtitle')}</p>
-        </div>
-        {overview.isLoading ? <LoadingState label={t('common.loading')} /> : null}
-        {overview.isError ? <ErrorState title={t('common.error')} message={errorMessage(overview.error, t('common.error'))} /> : null}
-        {overview.data ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Stat label={t('platform.organisations')} value={`${overview.data.organisations.active} / ${overview.data.organisations.total}`} />
-              <Stat label={t('nav.events')} value={overview.data.events} />
-              <Stat label={t('reports.registrations')} value={overview.data.registrations} />
-            </div>
-            <Section title={t('platform.organisations')}>
-              <ul className="divide-y divide-brand-primary/10">
-                {overview.data.organisationList.map((o) => (
-                  <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                    <span><strong>{o.name}</strong> <span className="text-xs text-brand-text/70">/{o.slug} · {o.events} {t('nav.events').toLowerCase()}</span></span>
-                    <span className="flex items-center gap-2">
-                      <Pill>{statusLabel(o.status)}</Pill>
-                      <Button size="sm" variant={o.status === 'ACTIVE' ? 'danger' : 'secondary'} disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: o.id, status: o.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}>
-                        {o.status === 'ACTIVE' ? t('team.suspend') : t('team.activate')}
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-            <Section title={t('platform.modules')}>
-              <p className="mb-3 text-xs text-brand-text/70">{t('platform.modulesHint')}</p>
-              <ul className="divide-y divide-brand-primary/10">
-                {modules.data?.map((m) => (
-                  <li key={m.key} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                    <span>{m.name} <Pill>{m.priority.toUpperCase()}</Pill></span>
-                    {m.locked ? <Pill>{m.priority === 'core' ? t('event.alwaysOn') : t('event.comingSoon')}</Pill> : (
-                      <Button size="sm" variant={m.available ? 'secondary' : 'primary'} disabled={setModule.isPending} onClick={() => setModule.mutate({ key: m.key, available: !m.available })}>
-                        {m.available ? t('event.disable') : t('event.enable')}
-                      </Button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          </>
-        ) : null}
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-brand-text">{t('platform.title')}</h1>
+        <p className="mt-1 text-sm text-brand-text/70">{t('platform.subtitle')}</p>
+      </header>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="organization" className="text-sm font-medium text-brand-text">
+          {t('platform.organization')}
+        </label>
+        <select
+          id="organization"
+          value={organizationId}
+          onChange={(event) => setOrganizationId(event.target.value)}
+          className="rounded-brand border border-brand-primary/20 bg-white px-3 py-2 text-sm"
+        >
+          {organizations.map((organization) => (
+            <option key={organization.id} value={organization.id}>
+              {organization.name} ({organization.status}) — {organization.capabilityCount}
+            </option>
+          ))}
+        </select>
       </div>
-    </ThemeProvider>
+
+      {entitlementsQuery.isLoading ? <LoadingState label={t('common.loading')} /> : null}
+
+      {entitlementsQuery.isError ? (
+        <ErrorState
+          title={t('common.error')}
+          message={
+            entitlementsQuery.error instanceof ApiRequestError
+              ? entitlementsQuery.error.message
+              : t('common.error')
+          }
+          onRetry={() => void entitlementsQuery.refetch()}
+          retryLabel={t('common.retry')}
+        />
+      ) : null}
+
+      {changeMutation.isError ? (
+        <ErrorState
+          title={t('common.error')}
+          message={
+            changeMutation.error instanceof ApiRequestError
+              ? changeMutation.error.message
+              : t('common.error')
+          }
+        />
+      ) : null}
+
+      {entitlements ? (
+        <>
+          <p className="rounded-brand bg-brand-surface p-4 text-sm text-brand-text/80">
+            {t('platform.entitlement', {
+              organization: entitlements.organization.name,
+              granted: entitlements.capabilities.filter((entry) => entry.organizationEntitled)
+                .length,
+              total: entitlements.capabilities.length,
+            })}
+          </p>
+
+          <div className="space-y-5">
+            {CAPABILITY_MODULES.map((module) => {
+              const items = entitlements.capabilities.filter(
+                (entry) => entry.module === module.key,
+              );
+
+              if (items.length === 0) {
+                return null;
+              }
+
+              return (
+                <section
+                  key={module.key}
+                  className="rounded-brand border border-brand-primary/10 bg-white"
+                >
+                  <header className="border-b border-brand-primary/10 px-5 py-3">
+                    <h2 className="text-sm font-semibold text-brand-text">{module.name}</h2>
+                    <p className="mt-0.5 text-xs text-brand-text/60">{module.description}</p>
+                  </header>
+
+                  <ul className="divide-y divide-brand-primary/5">
+                    {items.map((capability) => (
+                      <li
+                        key={capability.key}
+                        className="flex items-start justify-between gap-4 px-5 py-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-brand-text">
+                              {capability.name}
+                            </span>
+                            {capability.sensitive ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                                {t('capabilities.sensitive')}
+                              </span>
+                            ) : null}
+                            {capability.destructive ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
+                                {t('capabilities.destructive')}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs text-brand-text/60">
+                            {capability.description}
+                          </p>
+                          {capability.organizationEntitled &&
+                          capability.missingDependencies.length > 0 ? (
+                            <p className="mt-1 text-[11px] text-amber-800">
+                              {t('capabilities.missingDependencies', {
+                                dependencies: capability.missingDependencies.join(', '),
+                              })}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <label className="flex shrink-0 items-center gap-2 text-xs text-brand-text/70">
+                          <input
+                            type="checkbox"
+                            checked={capability.organizationEntitled}
+                            disabled={pendingKey === capability.key}
+                            onChange={() => changeMutation.mutate(capability)}
+                            aria-label={`Assign ${capability.name}`}
+                            className="h-4 w-4 rounded border-brand-primary/30"
+                          />
+                          {t('platform.enabled')}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

@@ -5,22 +5,24 @@ import {
   EventSummary,
   ListEventsQuery,
 } from '@event-platform/shared';
-import { writeAudit } from '../../common/audit/audit';
 import { AppException } from '../../common/app-exception';
-import { isUniqueViolation, randomSuffix } from '../../common/utils/unique';
+import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import { assertPublishable, assertReadyToPublish, shouldActivatePublishingModule } from './events.lifecycle';
+import { assertCanBeParent } from './editions.rules';
+import { INITIAL_MODULE_KEYS } from './events.constants';
+import { assertPublishable, shouldActivatePublishingModule } from './events.lifecycle';
 import { toDetail, toSummary } from './events.mapper';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
-import { EventsRepository } from './events.repository';
+import { EventsRepository, type PublicEventTarget } from './events.repository';
 
 export type { PublicEventContext } from './events.projection';
+export type { PublicEventTarget } from './events.repository';
 
 /** Modules every new event starts with. Publishing adds its own module later. */
-const INITIAL_MODULE_KEYS = ['core', 'reporting'];
 
 /**
  * Event container: lifecycle, visibility and editions.
@@ -34,6 +36,7 @@ export class EventsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly events: EventsRepository,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
@@ -55,36 +58,9 @@ export class EventsService {
     });
   }
 
-  /**
-   * Public URLs are /e/:eventSlug, so slugs are unique platform-wide. Another
-   * organisation's slug is invisible to us (row-level security), so a generated slug that
-   * collides is retried with a random suffix; an explicit one is reported as taken.
-   */
   async create(input: CreateEventRequest, userId: string): Promise<EventDetail> {
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        return await this.createOnce(input, userId, attempt);
-      } catch (error) {
-        if (!isUniqueViolation(error)) {
-          throw error;
-        }
-        if (input.slug || attempt >= 3) {
-          throw AppException.conflict(
-            'slug_taken',
-            'An event with this web address already exists.',
-          );
-        }
-      }
-    }
-  }
-
-  private async createOnce(
-    input: CreateEventRequest,
-    userId: string,
-    attempt: number,
-  ): Promise<EventDetail> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const generated = input.slug
+      const slug = input.slug
         ? slugify(input.slug)
         : await ensureUniqueSlug(input.name, async (candidate) => {
             const found = await this.events.findSlugConflict(
@@ -94,7 +70,6 @@ export class EventsService {
             );
             return found !== null;
           });
-      const slug = attempt > 0 ? `${generated}-${randomSuffix()}` : generated;
 
       const clash = await this.events.findSlugConflict(tx, tenant.organizationId, slug);
 
@@ -106,7 +81,7 @@ export class EventsService {
       }
 
       if (input.parentEventId) {
-        const parent = await this.events.existsById(
+        const parent = await this.events.findParentForCreate(
           tx,
           tenant.organizationId,
           input.parentEventId,
@@ -117,6 +92,9 @@ export class EventsService {
             'The parent event does not exist in this workspace.',
           );
         }
+
+        // Depth is one, whichever route creates the edition.
+        assertCanBeParent(parent);
       }
 
       const created = await this.events.create(tx, {
@@ -136,13 +114,6 @@ export class EventsService {
         initialModuleKeys: INITIAL_MODULE_KEYS,
       });
 
-      await writeAudit(tx, {
-        organizationId: tenant.organizationId,
-        actorUserId: userId,
-        action: 'event.created',
-        targetType: 'event',
-        targetId: created.id,
-      });
       return toDetail(created);
     });
   }
@@ -160,7 +131,7 @@ export class EventsService {
   }
 
   async publish(eventId: string): Promise<EventDetail> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
       const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
 
       if (!event) {
@@ -168,30 +139,47 @@ export class EventsService {
       }
 
       assertPublishable(event.status);
-      assertReadyToPublish(await this.events.publishReadiness(tx, tenant.organizationId, event.id));
 
       if (shouldActivatePublishingModule(event.visibility)) {
         await this.events.enablePublishingModule(tx, event.id);
       }
 
-      const published = await this.events.publish(tx, event.id);
-      await writeAudit(tx, {
-        organizationId: tenant.organizationId,
-        actorUserId: tenant.userId,
-        action: 'event.published',
-        targetType: 'event',
-        targetId: event.id,
-      });
-      return toDetail(published);
+      return toDetail(await this.events.publish(tx, event.id));
     });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventPublished,
+      targetType: 'event',
+      targetId: eventId,
+    });
+
+    return detail;
   }
 
   /**
-   * Public event context. Runs without a session: the projection is explicit and
-   * visibility is enforced in the query, never by hiding fields in the client.
+   * Public registration target, resolved from the event slug before any tenant context
+   * exists. The caller uses the organisation id from the row, never from the request.
+   */
+  findPublicTarget(eventSlug: string): Promise<PublicEventTarget | null> {
+    return this.events.findPublicTarget(eventSlug);
+  }
+
+  /**
+   * Public event context. Runs without a session: the event is located through the
+   * public read policy, then the projection is read inside the organisation scope so
+   * branding and settings stay protected. Visibility is enforced in both queries.
    */
   async getPublicContext(eventSlug: string): Promise<PublicEventContext> {
-    const row = await this.events.findPublicContext(eventSlug);
+    const located = await this.events.findPublicEventLocation(eventSlug);
+
+    if (!located) {
+      throw AppException.notFound('not_found', 'Event not found.');
+    }
+
+    const row = await this.tenantTransaction.withOrganizationScope(
+      located.organizationId,
+      (tx) => this.events.findPublicContextById(tx, located.id, located.organizationId),
+    );
 
     if (!row) {
       throw AppException.notFound('not_found', 'Event not found.');

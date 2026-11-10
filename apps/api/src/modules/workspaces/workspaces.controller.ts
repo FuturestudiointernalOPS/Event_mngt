@@ -1,14 +1,27 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
 import {
-  PERMISSIONS,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  CAPABILITY_KEYS,
   UpdateBrandingRequest,
   UpdateWorkspaceSettingsRequest,
   WorkspaceContext,
+  brandingAssetKindSchema,
   updateBrandingRequestSchema,
   updateWorkspaceSettingsRequestSchema,
+  type BrandingAssetKind,
+  type BrandingAssetUploadResult,
 } from '@event-platform/shared';
 import { Public } from '../../common/decorators/public.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
@@ -16,10 +29,15 @@ import {
   WorkspaceSettingsView,
   WorkspacesService,
 } from './workspaces.service';
+import { BrandingAssetsService } from './branding-assets.service';
+import { MAX_BRANDING_ASSET_BYTES, type BrandingAssetFile } from './branding-assets.rules';
 
 @Controller('workspaces')
 export class WorkspacesController {
-  constructor(private readonly workspacesService: WorkspacesService) {}
+  constructor(
+    private readonly workspacesService: WorkspacesService,
+    private readonly assets: BrandingAssetsService,
+  ) {}
 
   /**
    * Public: the SPA resolves branding before rendering a tenant shell.
@@ -32,14 +50,14 @@ export class WorkspacesController {
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.workspaceRead)
+  @RequireCapability(CAPABILITY_KEYS.organizationView)
   @Get(':slug/settings')
   settings(): Promise<WorkspaceSettingsView> {
     return this.workspacesService.getSettings();
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.workspaceManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationEdit)
   @Patch(':slug/settings')
   updateSettings(
     @Body(new ZodValidationPipe(updateWorkspaceSettingsRequestSchema))
@@ -49,19 +67,36 @@ export class WorkspacesController {
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.workspaceRead)
+  @RequireCapability(CAPABILITY_KEYS.organizationView)
   @Get(':slug/branding')
   branding(): Promise<BrandingView> {
     return this.workspacesService.getBranding();
   }
 
   @TenantScoped('slug')
-  @RequirePermissions(PERMISSIONS.workspaceManage)
+  @RequireCapability(CAPABILITY_KEYS.organizationManageBranding)
   @Patch(':slug/branding')
   updateBranding(
     @Body(new ZodValidationPipe(updateBrandingRequestSchema))
     body: UpdateBrandingRequest,
   ): Promise<BrandingView> {
     return this.workspacesService.updateBranding(body);
+  }
+
+  /**
+   * Logo / dark logo / favicon. The type allowlist is checked in the service, but the
+   * multipart limit is declared here so an oversized body never reaches the handler.
+   */
+  @TenantScoped('slug')
+  @RequireCapability(CAPABILITY_KEYS.organizationManageBranding)
+  @Post(':slug/branding/assets/:kind')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_BRANDING_ASSET_BYTES } }),
+  )
+  uploadBrandAsset(
+    @Param('kind', new ZodValidationPipe(brandingAssetKindSchema)) kind: BrandingAssetKind,
+    @UploadedFile() file: BrandingAssetFile | undefined,
+  ): Promise<BrandingAssetUploadResult> {
+    return this.assets.upload(kind, file);
   }
 }

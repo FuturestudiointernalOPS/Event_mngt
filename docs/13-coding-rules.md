@@ -19,7 +19,7 @@ Read this before writing code. `AGENTS.md` at the repository root is the short v
 | Layer | Mechanism |
 | --- | --- |
 | Machine-checked | `npm run check:conventions` — file size, controller/data-layer separation, cross-module data access, single client entry point, environment access |
-| Machine-tested | `npm run test:conventions` — the gate itself is exercised against fixture violations |
+| Machine-tested | `npm run test:conventions` — the gate itself is exercised against fixture violations; the API suite's route-coverage and capability-registry tests enforce R12 |
 | Type-checked | `npm run typecheck` across all three workspaces |
 | Reviewed | Everything else in this document |
 | Blocking | Nothing merges with a failing check, a failing test, or a rule broken without a recorded reason |
@@ -126,6 +126,26 @@ global. Pure helpers used by several modules belong in `common/`, not in a featu
   conventions gate is itself tested.
 - "I will add tests later" is not a completion state. If a rule is worth writing, it is
   worth one assertion.
+
+### R12 — Every protected action has a capability
+
+The capability registry in `packages/shared/src/platform/capability-definitions.ts` is the
+single authorization model. No new functionality, endpoint or administrative operation
+may be added without registering its capabilities and enforcing them.
+
+- Every protected tenant route carries `@RequireCapability(...)`; platform routes use a
+  `scope: 'platform'` capability.
+- The route catalogue records the same capability. `routes.spec.ts` fails on a missing
+  capability or a mismatch.
+- Services call `CapabilitiesService.requireCapability` only when a check cannot live at
+  the route; they do not compare permission strings by hand.
+- Frontend controls derive from the effective set the API returns, never from a locally
+  invented list.
+- New capability definitions include dependencies, scope and legacy-permission mapping,
+  and ship with tests.
+
+See `16-capability-authorization.md` for the evaluation rule and the full checklist.
+Do not introduce an independent permission mechanism.
 
 ---
 
@@ -260,7 +280,8 @@ async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
 1. Folders are plural and feature-based: `modules/registrations/`.
 2. One primary export per file, named after the file.
 3. Fixed suffixes: `.module.ts`, `.controller.ts`, `.service.ts`, `.repository.ts`,
-   `.mapper.ts`, `.spec.ts`, `.tsx` for components.
+   `.mapper.ts`, `.spec.ts`, `.tsx` for components. `routes.ts` is the per-module route
+   catalogue; it has no runtime role and is checked by `common/routes/routes.spec.ts`.
 4. No barrel files inside feature modules; they hide cycles and defeat the layer rules.
 5. Pure helpers shared by two or more modules live in `common/utils/`.
 6. Cross-cutting concerns go in `common/`: guards, decorators, interceptors, filters, pipes.
@@ -275,8 +296,11 @@ async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
 3. Validation happens before the service, through the shared schema.
 4. Public endpoints are explicitly marked public and return projections containing no
    internal ids, members, contacts or unpublished records.
-5. State-changing routes are tenant-scoped and permission-checked at the route.
+5. State-changing routes are tenant-scoped and capability-checked at the route.
 6. Pagination follows `07-api-conventions.md` consistently.
+7. Every controller route has an entry in its module's `routes.ts`; the route catalogue
+   test fails when the catalogue and the decorator metadata disagree. See
+   `15-route-catalogue.md`.
 
 ---
 
@@ -373,3 +397,4 @@ Then state, in the final message, which of those checks was actually run — not
 | R9 | Shared, validated contracts |
 | R10 | Modules import services only |
 | R11 | Logic tested, fixes regression-tested, rules machine-tested |
+| R12 | Every protected action has a registered, enforced capability |

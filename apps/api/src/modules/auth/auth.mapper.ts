@@ -1,3 +1,8 @@
+import {
+  capabilitiesForPermissions,
+  permissionsForCapabilities,
+  resolveEffectiveCapabilities,
+} from '@event-platform/shared';
 import type { AuthUser, MembershipSummary, SessionSummary } from '@event-platform/shared';
 import type { UserStatus } from '../../database/prisma-client';
 
@@ -19,7 +24,13 @@ export type UserRecord = {
 };
 
 export interface MembershipRow {
-  organization: { id: string; slug: string; name: string };
+  capabilities: Array<{ capabilityKey: string }>;
+  organization: {
+    id: string;
+    slug: string;
+    name: string;
+    capabilities: Array<{ capabilityKey: string }>;
+  };
   role: {
     key: string;
     permissions: Array<{ permission: { key: string } }>;
@@ -36,12 +47,22 @@ export function toAuthUser(user: UserRecord): AuthUser {
 }
 
 export function toMembershipSummary(row: MembershipRow): MembershipSummary {
+  const roleCapabilities = capabilitiesForPermissions(
+    row.role.permissions.map((entry) => entry.permission.key),
+  );
+  const capabilities = resolveEffectiveCapabilities({
+    organization: row.organization.capabilities.map((entry) => entry.capabilityKey),
+    role: roleCapabilities,
+    direct: row.capabilities.map((entry) => entry.capabilityKey),
+  });
+
   return {
     organizationId: row.organization.id,
     organizationSlug: row.organization.slug,
     organizationName: row.organization.name,
     roleKey: row.role.key,
-    permissions: row.role.permissions.map((entry) => entry.permission.key),
+    capabilities,
+    permissions: permissionsForCapabilities(capabilities),
   };
 }
 

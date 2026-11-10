@@ -1,5 +1,7 @@
 import { PageFallback } from '@/components/ui/states';
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell';
+import { RequireWorkspaceCapability } from '@/features/capabilities/components/RequireWorkspaceCapability';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from './guards/RequireAuth';
@@ -14,6 +16,9 @@ const WorkspaceDashboardPage = lazy(
 );
 const BrandingSettingsPage = lazy(
   () => import('@/features/branding/pages/BrandingSettingsPage'),
+);
+const AccessSettingsPage = lazy(
+  () => import('@/features/capabilities/pages/AccessSettingsPage'),
 );
 const EventsListPage = lazy(() => import('@/features/events/pages/EventsListPage'));
 const EventCreatePage = lazy(() => import('@/features/events/pages/EventCreatePage'));
@@ -79,11 +84,30 @@ export const router = createBrowserRouter([
     element: <RequireAuth>{suspended(<WorkspaceShell />)}</RequireAuth>,
     children: [
       { index: true, element: suspended(<WorkspaceDashboardPage />) },
-      { path: 'events', element: suspended(<EventsListPage />) },
-      { path: 'events/new', element: suspended(<EventCreatePage />) },
+      { index: true, element: suspended(<WorkspaceDashboardPage />) },
+      {
+        path: 'events',
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.eventsView}>
+            <EventsListPage />
+          </RequireWorkspaceCapability>,
+        ),
+      },
+      {
+        path: 'events/new',
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.eventsCreate}>
+            <EventCreatePage />
+          </RequireWorkspaceCapability>,
+        ),
+      },
       {
         path: 'events/:eventId',
-        element: suspended(<EventLayout />),
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.eventsView}>
+            <EventLayout />
+          </RequireWorkspaceCapability>,
+        ),
         children: [
           { index: true, element: suspended(<OverviewTab />) },
           { path: 'modules', element: suspended(<ModulesTab />) },
@@ -98,7 +122,22 @@ export const router = createBrowserRouter([
       { path: 'team', element: suspended(<TeamPage />) },
       { path: 'settings/privacy', element: suspended(<PrivacyPage />) },
       { path: 'audit', element: suspended(<AuditPage />) },
-      { path: 'settings/branding', element: suspended(<BrandingSettingsPage />) },
+      {
+        path: 'settings/branding',
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.organizationManageBranding}>
+            <BrandingSettingsPage />
+          </RequireWorkspaceCapability>,
+        ),
+      },
+      {
+        path: 'settings/access',
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.organizationViewMembers}>
+            <AccessSettingsPage />
+          </RequireWorkspaceCapability>,
+        ),
+      },
     ],
   },
 

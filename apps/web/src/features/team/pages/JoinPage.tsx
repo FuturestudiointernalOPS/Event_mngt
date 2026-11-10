@@ -29,10 +29,10 @@ export default function JoinPage(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const joined = await teamApi.acceptInvitation({ workspaceSlug: workspace, token });
+      const joined = await teamApi.acceptInvitation(token);
       const current = await authApi.me();
       useSessionStore.getState().setUser(current.user, current.memberships);
-      navigate(`/workspace/${joined.slug}`, { replace: true });
+      navigate(`/workspace/${joined.organizationSlug}`, { replace: true });
     } catch (failure) {
       setError(failure instanceof ApiRequestError ? failure.message : t('common.error'));
     } finally {

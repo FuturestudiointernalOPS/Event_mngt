@@ -1,12 +1,15 @@
 /**
  * Permission catalogue.
  *
- * Permissions are `resource:action` strings granted to per-organisation roles. The API is
- * the enforcement authority; the web app uses the same strings to hide controls it cannot
- * operate (convenience only).
+ * Permissions are `resource:action` strings granted to per-organisation roles. They are
+ * now the storage format for role templates: the authoritative authorization unit is a
+ * capability (see `capabilities.ts`), and a role's capabilities are derived from these
+ * legacy permissions. The API no longer authorises a route by permission directly.
  *
- * See docs/04-authentication-and-sessions.md.
+ * See docs/04-authentication-and-sessions.md and docs/16-capability-authorization.md.
  */
+
+import { capabilitiesForPermissions } from './capabilities';
 
 export const PERMISSIONS = {
   workspaceRead: 'workspace:read',
@@ -75,9 +78,12 @@ export interface SystemRoleTemplate {
   name: string;
   description: string;
   permissions: PermissionKey[];
+  /** Capabilities this role grants, derived from its legacy permissions. */
+  capabilities: string[];
 }
 
-export const SYSTEM_ROLE_TEMPLATES: SystemRoleTemplate[] = [
+/** A role is a reusable, named collection of capabilities. */
+const ROLE_TEMPLATE_DEFINITIONS: Array<Omit<SystemRoleTemplate, 'capabilities'>> = [
   {
     key: SYSTEM_ROLES.organisationAdmin,
     name: 'Organisation Admin',
@@ -178,12 +184,9 @@ export const SYSTEM_ROLE_TEMPLATES: SystemRoleTemplate[] = [
   },
 ];
 
-export function hasPermission(
-  granted: readonly string[],
-  required: readonly string[],
-): boolean {
-  if (required.length === 0) {
-    return true;
-  }
-  return required.every((permission) => granted.includes(permission));
-}
+export const SYSTEM_ROLE_TEMPLATES: SystemRoleTemplate[] = ROLE_TEMPLATE_DEFINITIONS.map(
+  (template) => ({
+    ...template,
+    capabilities: capabilitiesForPermissions(template.permissions),
+  }),
+);

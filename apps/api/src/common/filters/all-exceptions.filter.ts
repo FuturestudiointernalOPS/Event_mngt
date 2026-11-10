@@ -33,6 +33,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    if (normalized.headers) {
+      for (const [name, value] of Object.entries(normalized.headers)) {
+        response.setHeader(name, value);
+      }
+    }
+
     response.status(normalized.status).json({
       error: {
         code: normalized.code,

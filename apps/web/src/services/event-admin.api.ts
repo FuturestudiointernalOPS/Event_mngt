@@ -1,15 +1,18 @@
 import type {
-  CategoryInput,
-  CategoryView,
-  ConsentSettings,
+  Category,
+  ConsentDocument,
+  CreateCategoryRequest,
+  CreateConsentDocumentRequest,
   DecideRegistrationRequest,
   EventDetail,
-  EventModuleView,
-  FieldInput,
-  FieldView,
+  EventModule,
+  ModuleCatalogueEntry,
   RegistrationDetail,
+  RegistrationForm,
   RegistrationSummary,
-  SetEventModuleRequest,
+  SaveRegistrationFormRequest,
+  UpdateCategoryRequest,
+  UpdateEventModulesRequest,
   UpdateEventRequest,
 } from '@event-platform/shared';
 import { apiRequest, apiRequestWithMeta } from './api-client';
@@ -34,28 +37,40 @@ export const eventAdminApi = {
   act: (slug: string, id: string, action: EventAction) =>
     apiRequest<EventDetail>(`${ev(slug, id)}/${action}`, { method: 'POST' }),
 
-  modules: (slug: string, id: string) => apiRequest<EventModuleView[]>(`${ev(slug, id)}/modules`),
-  setModule: (slug: string, id: string, key: string, payload: SetEventModuleRequest) =>
-    apiRequest<EventModuleView[]>(`${ev(slug, id)}/modules/${key}`, { method: 'PUT', body: payload }),
+  /** The shared registry: names, summaries and dependencies for every module. */
+  moduleCatalogue: () => apiRequest<ModuleCatalogueEntry[]>('/api/v1/modules'),
+  modules: (slug: string, id: string) => apiRequest<EventModule[]>(`${ev(slug, id)}/modules`),
+  setModules: (slug: string, id: string, payload: UpdateEventModulesRequest) =>
+    apiRequest<EventModule[]>(`${ev(slug, id)}/modules`, { method: 'PATCH', body: payload }),
 
-  categories: (slug: string, id: string) => apiRequest<CategoryView[]>(`${ev(slug, id)}/categories`),
-  addCategory: (slug: string, id: string, payload: CategoryInput) =>
-    apiRequest<CategoryView[]>(`${ev(slug, id)}/categories`, { method: 'POST', body: payload }),
-  updateCategory: (slug: string, id: string, categoryId: string, payload: Record<string, unknown>) =>
-    apiRequest<CategoryView[]>(`${ev(slug, id)}/categories/${categoryId}`, { method: 'PATCH', body: payload }),
+  categories: (slug: string, id: string) => apiRequest<Category[]>(`${ev(slug, id)}/categories`),
+  addCategory: (slug: string, id: string, payload: CreateCategoryRequest) =>
+    apiRequest<Category>(`${ev(slug, id)}/categories`, { method: 'POST', body: payload }),
+  updateCategory: (slug: string, id: string, categoryId: string, payload: UpdateCategoryRequest) =>
+    apiRequest<Category>(`${ev(slug, id)}/categories/${categoryId}`, {
+      method: 'PATCH',
+      body: payload,
+    }),
   deleteCategory: (slug: string, id: string, categoryId: string) =>
     apiRequest<void>(`${ev(slug, id)}/categories/${categoryId}`, { method: 'DELETE' }),
 
-  fields: (slug: string, id: string) => apiRequest<FieldView[]>(`${ev(slug, id)}/form-fields`),
-  addField: (slug: string, id: string, payload: FieldInput) =>
-    apiRequest<FieldView[]>(`${ev(slug, id)}/form-fields`, { method: 'POST', body: payload }),
-  deleteField: (slug: string, id: string, fieldId: string) =>
-    apiRequest<void>(`${ev(slug, id)}/form-fields/${fieldId}`, { method: 'DELETE' }),
+  /** The registration form is one versioned document, not a set of field rows. */
+  registrationForm: (slug: string, id: string) =>
+    apiRequest<RegistrationForm | null>(`${ev(slug, id)}/registration-form`),
+  saveRegistrationForm: (slug: string, id: string, payload: SaveRegistrationFormRequest) =>
+    apiRequest<RegistrationForm>(`${ev(slug, id)}/registration-form`, {
+      method: 'PUT',
+      body: payload,
+    }),
 
-  consent: (slug: string, id: string) =>
-    apiRequest<{ text: string | null; version: string }>(`${ev(slug, id)}/consent`),
-  setConsent: (slug: string, id: string, payload: ConsentSettings) =>
-    apiRequest<{ text: string | null; version: string }>(`${ev(slug, id)}/consent`, { method: 'PUT', body: payload }),
+  /** Consent documents are versioned: a new version supersedes the previous one. */
+  consentDocuments: (slug: string, id: string) =>
+    apiRequest<ConsentDocument[]>(`${ev(slug, id)}/consent-documents`),
+  addConsentDocument: (slug: string, id: string, payload: CreateConsentDocumentRequest) =>
+    apiRequest<ConsentDocument>(`${ev(slug, id)}/consent-documents`, {
+      method: 'POST',
+      body: payload,
+    }),
 
   async registrations(
     slug: string,
@@ -75,13 +90,17 @@ export const eventAdminApi = {
   },
   registration: (slug: string, id: string, registrationId: string) =>
     apiRequest<RegistrationDetail>(`${ev(slug, id)}/registrations/${registrationId}`),
-  decide: (slug: string, id: string, registrationId: string, payload: DecideRegistrationRequest) =>
-    apiRequest<RegistrationDetail>(`${ev(slug, id)}/registrations/${registrationId}/decision`, {
+  approve: (slug: string, id: string, registrationId: string, payload: DecideRegistrationRequest) =>
+    apiRequest<RegistrationDetail>(`${ev(slug, id)}/registrations/${registrationId}/approve`, {
       method: 'POST',
       body: payload,
     }),
+  reject: (slug: string, id: string, registrationId: string, payload: DecideRegistrationRequest) =>
+    apiRequest<RegistrationDetail>(`${ev(slug, id)}/registrations/${registrationId}/reject`, {
+      method: 'POST',
+      body: payload,
+    }),
+  /** Anonymises the person behind the registration; the row survives so counts stay honest. */
   erase: (slug: string, id: string, registrationId: string) =>
     apiRequest<void>(`${ev(slug, id)}/registrations/${registrationId}/erase`, { method: 'POST' }),
-  resendAccess: (slug: string, id: string, registrationId: string) =>
-    apiRequest<void>(`${ev(slug, id)}/registrations/${registrationId}/resend-access`, { method: 'POST' }),
 };

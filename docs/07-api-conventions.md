@@ -78,6 +78,14 @@ Rules:
 `module_dependency_unmet`, `registration_closed`, `duplicate_registration`,
 `rate_limited`, `internal_error`.
 
+Module activation and uploads add: `invalid_module`, `module_core_required`,
+`module_dependency_missing`, `module_required_by_other`, `invalid_module_settings`,
+`invalid_module_change`, `invalid_idempotency_key`, `idempotency_conflict`,
+`idempotency_in_progress`, `file_required`, `file_too_large`, `file_type_not_allowed`,
+`file_type_mismatch`.
+
+Reporting adds: `export_not_ready`, `export_expired`, `export_failed`.
+
 ## Versioning
 
 - The major version lives in the path (`/api/v1`). Breaking changes create `/api/v2`; v1
@@ -118,10 +126,17 @@ second record. Unique constraints back this up at the database level.
 - Unlisted events are reachable by direct URL but excluded from listing and search.
 - Private events return `404` publicly.
 
-## Permissions in documentation
+## Capabilities in documentation
 
-Every Swagger operation states the required permission (`@RequirePermissions`). The
+Every Swagger operation states the required capability (`@RequireCapability`). The
 generated spec is the contract reviewers use to answer "who can call this".
+
+## Route inventory
+
+Each feature module has a `routes.ts` listing its routes as method, path, capability and
+controller method. The full table is in [`15-route-catalogue.md`](15-route-catalogue.md).
+A test compares the catalogues with the decorator metadata on the controllers, so a route
+cannot exist in only one place and a capability cannot change silently.
 
 ## Rate limits
 

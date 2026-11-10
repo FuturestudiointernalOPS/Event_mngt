@@ -50,7 +50,7 @@ src/modules/
   reports/              aggregates, CSV/PDF exports
   analytics/            live operational metrics
   consent/              consent purposes, versions, records
-  audit-logs/           append-only sensitive action log
+  audit/                append-only sensitive action log
 ```
 
 Folder convention:
@@ -59,6 +59,7 @@ Folder convention:
 modules/events/
   events.module.ts          NestJS wiring, imports/exports only
   events.controller.ts      HTTP surface
+  routes.ts                 per-module route catalogue, checked against the controllers
   events.service.ts         business rules
   events.repository.ts      Prisma access, tenant-scoped (only for complex queries)
   dto/events.contracts.ts   re-exports shared Zod schemas + Swagger decorators
@@ -87,7 +88,7 @@ modules would only add a pass-through layer.
 | --- | --- | --- |
 | Authentication | `JwtAuthGuard` | Global, opt out with `@Public()` |
 | Tenant resolution | `TenantAccessGuard` | Global, active only with `@TenantScoped('slug')` |
-| Authorisation | `PermissionsGuard` | Global, driven by `@RequirePermissions()` |
+| Authorisation | `CapabilityGuard` | Global, driven by `@RequireCapability()` |
 | Tenant context | `TenantContextInterceptor` | Wraps handler in AsyncLocalStorage |
 | Validation | `ZodValidationPipe` | Per route with a shared schema |
 | Response envelope | `ResponseEnvelopeInterceptor` | Global |

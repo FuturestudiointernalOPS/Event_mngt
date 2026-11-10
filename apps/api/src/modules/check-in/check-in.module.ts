@@ -1,6 +1,15 @@
 import { Module } from '@nestjs/common';
-import { CheckInController } from './check-in.controller';
-import { CheckInService } from './check-in.service';
+import { BadgesModule } from '../badges/badges.module';
+import { ModuleRegistryModule } from '../module-registry/module-registry.module';
+import { CheckInSyncService } from './check-in-sync.service';
+import { CheckInsController } from './check-ins.controller';
+import { CheckInsRepository } from './check-ins.repository';
+import { CheckInsService } from './check-ins.service';
 
-@Module({ controllers: [CheckInController], providers: [CheckInService] })
+/** Wiring only. Attendance rules live in the service, queries in the repository. */
+@Module({
+  imports: [ModuleRegistryModule, BadgesModule],
+  controllers: [CheckInsController],
+  providers: [CheckInsService, CheckInSyncService, CheckInsRepository],
+})
 export class CheckInModule {}

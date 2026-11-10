@@ -3,7 +3,7 @@
 Indicative: **12–17 weeks** for a focused team of 2–4 developers, backend and frontend in
 parallel. A planning estimate, not a commitment.
 
-> **Status:** phases 1–6 are implemented; see [14-implementation-status.md](14-implementation-status.md).
+> **Status:** phases 1–6 are implemented; see [17-implementation-status.md](17-implementation-status.md).
 
 ## Phases
 
@@ -137,7 +137,14 @@ instrumentation for the learning objectives.
 
 ## Current status
 
-Phase 1 scaffolding: architecture documentation, monorepo, shared contracts, API
-foundation (config, Prisma, tenant context, guards, envelope, health) and the web
-foundation (router, providers, branding host, API client, feature skeletons). Domain
-behaviour follows E2 onward.
+Foundation, tenancy, workspace/branding, events/editions and the module registry are
+implemented, together with the audit trail, memberships and invitations, brand asset uploads,
+and idempotency/rate limits (work packages WP-01..WP-08). Wave 2 adds event categories and
+forms, public registration with consent and duplicate policy, the approval workflow,
+hashed-QR badges, participant and organisation profiles, showcase listings and the
+participant read model (WP-09..WP-14). The tenant-isolation suite runs against a real
+database and covers every tenant table. Event operations add online check-in with one
+attendance row per registration, offline scan sync with per-scan outcomes, meetings and
+the introduction queue with append-only status history (WP-15..WP-17). Reporting adds
+event, organisation and edition aggregates, asynchronous CSV/PDF exports and anonymised
+public metrics (WP-18..WP-20). The wave 5 launch gates remain.

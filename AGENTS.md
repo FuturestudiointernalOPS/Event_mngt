@@ -22,6 +22,10 @@ NestJS API + React web app + shared contracts in a single repository.
 - **R9 — Shapes live in the shared contracts package** and are validated at the route.
 - **R10 — A module may import another module's service only** — not its repository,
   controller or internals.
+- **R12 — Every protected action has a capability.** Register it in
+  `packages/shared/src/platform/capability-definitions.ts`, enforce it with
+  `@RequireCapability(...)`, catalogue the route, and gate the UI. Never add an
+  independent permission mechanism. See `docs/16-capability-authorization.md`.
 - **R11 — New logic gets a spec; every bug fix gets a regression test** that fails on the
   old code. Tests sit beside the code.
 
@@ -37,6 +41,7 @@ apps/api/src/modules/<feature>/
   dto/                      shared schema re-exports
   <feature>.service.spec.ts behaviour tests
 apps/api/src/common/        guards, decorators, pipes, filters, interceptors
+apps/api/src/modules/capabilities/  registry management, entitlement and member grants
 apps/api/src/database/      the only place that constructs or re-exports the client
 apps/api/src/config/        the only place that reads the environment
 packages/shared/src/        contracts, permissions, module registry
@@ -61,11 +66,14 @@ npm run typecheck           # all workspaces
 npm run build               # server and site
 ```
 
+For data-access work, also run `npm run test:isolation` (needs the database and the runtime
+role). It is not part of `npm test` because it requires a real database.
+
 Report which of these actually ran. Do not claim a check passed without running it.
 
 Also confirm by hand for data-touching work: tenant predicate present, no database import
-in a controller or component, no file crossed 300 lines, and a test exists for the logic you
-added.
+in a controller or component, no file crossed 300 lines, a capability exists for every
+protected action, and a test exists for the logic you added.
 
 ## Running it locally
 
@@ -74,7 +82,7 @@ npm run local:setup   # Docker Postgres + Redis, migrations, RLS, runtime role, 
 npm run dev           # API :4000, web :5173 (e-mails are printed in the API log)
 ```
 
-Deployment and operations: `docs/15-deployment-and-operations.md`.
+Deployment and operations: `docs/18-deployment-and-operations.md`.
 
 ## Traps that have already cost time
 

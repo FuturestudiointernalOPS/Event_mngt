@@ -1,188 +1,177 @@
 import { Injectable } from '@nestjs/common';
 import type {
   EditionComparison,
-  EventSummaryReport,
-  OrganisationOverview,
-  PublicEventStats,
+  EventReport,
+  OrganizationReport,
 } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
-import { toCsv } from '../../common/utils/csv';
-import { PrismaService } from '../../database/prisma.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import type { TenantPrismaClient } from '../../database/tenant-transaction.service';
-import { publishableCount } from './anonymity';
+import { ReportsPortfolioRepository } from './reports-portfolio.repository';
+import { ReportsRepository } from './reports.repository';
+import {
+  buildEditionEntries,
+  buildOrganizationEvents,
+  buildOrganizationTotals,
+  buildTimeline,
+  timelineSince,
+} from './reports.rules';
+import {
+  approvalRate,
+  sumStatusCounts,
+  toBadgeCounts,
+  toCategoryReport,
+  toModerationCounts,
+  toSourceCounts,
+  toStatusCounts,
+} from './reports.shapes';
 
-function tally<T extends string>(items: T[]): Record<string, number> {
-  return items.reduce<Record<string, number>>((acc, item) => {
-    acc[item] = (acc[item] ?? 0) + 1;
-    return acc;
-  }, {});
-}
+/** The window the event dashboard chart shows. */
+export const REPORT_TIMELINE_DAYS = 30;
+export const REPORT_RECENT_DAYS = 7;
 
-/** Dashboards, comparisons, exports and the anonymised public figures. */
+/**
+ * Staff aggregates (WP-18).
+ *
+ * Each call runs in one tenant transaction. The service owns the transaction boundary
+ * and the orchestration; the repository owns the grouped queries and the pure rules
+ * shape the result.
+ */
 @Injectable()
 export class ReportsService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly repository: ReportsRepository,
+    private readonly portfolio: ReportsPortfolioRepository,
   ) {}
 
-  eventSummary(eventId: string): Promise<EventSummaryReport> {
+  eventSummary(eventId: string): Promise<EventReport> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      await this.requireEvent(tx, tenant.organizationId, eventId);
-      const orgId = tenant.organizationId;
+      const event = await this.repository.findEvent(
+        tx,
+        tenant.organizationId,
+        eventId,
+      );
 
-      const [registrations, meetings, introductions, checkedIn] = await Promise.all([
-        tx.registration.findMany({
-          where: { organizationId: orgId, eventId },
-          select: { status: true, createdAt: true, category: { select: { name: true } } },
-        }),
-        tx.meeting.findMany({ where: { organizationId: orgId, eventId }, select: { status: true } }),
-        tx.introductionRequest.findMany({ where: { organizationId: orgId, eventId }, select: { status: true } }),
-        tx.checkIn.count({ where: { organizationId: orgId, eventId } }),
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      const now = new Date();
+      const sinceTimeline = timelineSince(REPORT_TIMELINE_DAYS, now);
+      const sinceRecent = timelineSince(REPORT_RECENT_DAYS, now);
+
+      const [
+        statusRows,
+        sourceRows,
+        categoryRows,
+        categories,
+        participants,
+        profiles,
+        innovations,
+        badges,
+        last7Days,
+        last30Days,
+        timelineRows,
+      ] = await Promise.all([
+        this.repository.statusCounts(tx, tenant.organizationId, eventId),
+        this.repository.sourceCounts(tx, tenant.organizationId, eventId),
+        this.repository.categoryCounts(tx, tenant.organizationId, eventId),
+        this.repository.listCategories(tx, tenant.organizationId, eventId),
+        this.repository.participantStats(tx, tenant.organizationId, eventId),
+        this.repository.profileCounts(tx, tenant.organizationId, eventId),
+        this.repository.innovationCounts(tx, tenant.organizationId, eventId),
+        this.repository.badgeCounts(tx, tenant.organizationId, eventId),
+        this.repository.submittedSince(tx, tenant.organizationId, eventId, sinceRecent),
+        this.repository.submittedSince(tx, tenant.organizationId, eventId, sinceTimeline),
+        this.repository.timeline(tx, tenant.organizationId, eventId, sinceTimeline),
       ]);
 
-      const confirmed = registrations.filter((r) => r.status === 'CONFIRMED').length;
-      const byCategory = tally(registrations.map((r) => r.category.name));
-      const byDay = tally(registrations.map((r) => r.createdAt.toISOString().slice(0, 10)));
+      const byStatus = toStatusCounts(statusRows);
 
       return {
-        registrations: {
-          total: registrations.length,
-          byStatus: tally(registrations.map((r) => r.status)),
-          byCategory: Object.entries(byCategory).map(([categoryName, count]) => ({ categoryName, count })),
+        event: {
+          id: event.id,
+          name: event.name,
+          slug: event.slug,
+          status: event.status,
+          startsAt: event.startsAt.toISOString(),
+          endsAt: event.endsAt.toISOString(),
         },
-        attendance: { checkedIn, rate: confirmed === 0 ? 0 : Math.round((checkedIn / confirmed) * 1000) / 10 },
-        meetings: tally(meetings.map((m) => m.status)),
-        introductions: tally(introductions.map((i) => i.status)),
-        registrationsByDay: Object.entries(byDay)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([day, count]) => ({ day, count })),
+        generatedAt: now.toISOString(),
+        registrations: {
+          total: sumStatusCounts(byStatus),
+          byStatus,
+          bySource: toSourceCounts(sourceRows),
+          byCategory: toCategoryReport(categoryRows, categories),
+          last7Days,
+          last30Days,
+          approvalRate: approvalRate(byStatus),
+        },
+        participants,
+        showcase: {
+          profiles: toModerationCounts(profiles),
+          innovations: toModerationCounts(innovations),
+        },
+        badges: toBadgeCounts(badges),
+        timeline: buildTimeline(timelineRows, REPORT_TIMELINE_DAYS, now),
       };
     });
   }
 
-  organisationOverview(): Promise<OrganisationOverview> {
+  organizationSummary(): Promise<OrganizationReport> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const orgId = tenant.organizationId;
-      const [events, registrations, checkedIn] = await Promise.all([
-        tx.event.findMany({
-          where: { organizationId: orgId },
-          orderBy: { startsAt: 'desc' },
-          select: { id: true, name: true, status: true, startsAt: true, _count: { select: { registrations: true } } },
-        }),
-        tx.registration.count({ where: { organizationId: orgId } }),
-        tx.checkIn.count({ where: { organizationId: orgId } }),
+      const [events, counts] = await Promise.all([
+        this.portfolio.eventsForOrganization(tx, tenant.organizationId),
+        this.portfolio.organizationStatusCounts(tx, tenant.organizationId),
       ]);
 
       return {
-        events: { total: events.length, byStatus: tally(events.map((e) => e.status)) },
-        registrations,
-        checkedIn,
-        recentEvents: events.slice(0, 8).map((e) => ({
-          id: e.id,
-          name: e.name,
-          status: e.status,
-          startsAt: e.startsAt.toISOString(),
-          registrations: e._count.registrations,
-        })),
+        generatedAt: new Date().toISOString(),
+        totals: buildOrganizationTotals(events, counts),
+        events: buildOrganizationEvents(events, counts),
       };
     });
   }
 
-  /** Compares an event with the other editions in its family (same parent or its parent). */
+  /**
+   * Edition comparison for a family. Calling it with the parent or with any edition
+   * resolves to the same root, so the screen does not depend on which event the user
+   * happened to open.
+   */
   editionComparison(eventId: string): Promise<EditionComparison> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const event = await this.requireEvent(tx, tenant.organizationId, eventId);
-      const rootId = event.parentEventId ?? event.id;
-      const family = await tx.event.findMany({
-        where: { organizationId: tenant.organizationId, OR: [{ id: rootId }, { parentEventId: rootId }] },
-        orderBy: { startsAt: 'asc' },
-        select: { id: true, name: true, startsAt: true, _count: { select: { registrations: true, ...{} } } },
-      });
-      const attendance = await tx.checkIn.groupBy({
-        by: ['eventId'],
-        where: { organizationId: tenant.organizationId, eventId: { in: family.map((e) => e.id) } },
-        _count: { _all: true },
-      });
-      const attended = new Map(attendance.map((a) => [a.eventId, a._count._all]));
-
-      return {
-        editions: family.map((e) => ({
-          eventId: e.id,
-          name: e.name,
-          startsAt: e.startsAt.toISOString(),
-          registrations: e._count.registrations,
-          checkedIn: attended.get(e.id) ?? 0,
-        })),
-      };
-    });
-  }
-
-  registrationsCsv(eventId: string): Promise<string> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      await this.requireEvent(tx, tenant.organizationId, eventId);
-      const rows = await tx.registration.findMany({
-        where: { organizationId: tenant.organizationId, eventId },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          status: true,
-          createdAt: true,
-          person: { select: { firstName: true, lastName: true, email: true, phone: true } },
-          category: { select: { name: true } },
-          _count: { select: { checkIns: true } },
-        },
-      });
-      return toCsv(
-        ['first_name', 'last_name', 'email', 'phone', 'category', 'status', 'checked_in', 'registered_at'],
-        rows.map((r) => [
-          r.person.firstName,
-          r.person.lastName,
-          r.person.email,
-          r.person.phone,
-          r.category.name,
-          r.status,
-          r._count.checkIns > 0 ? 'yes' : 'no',
-          r.createdAt.toISOString(),
-        ]),
+      const location = await this.portfolio.findEventLocation(
+        tx,
+        tenant.organizationId,
+        eventId,
       );
-    });
-  }
 
-  /** Public figures: aggregate only, and small groups are suppressed. */
-  async publicStats(eventSlug: string): Promise<PublicEventStats> {
-    const event = await this.prisma.event.findFirst({
-      where: { slug: eventSlug, visibility: 'PUBLIC' },
-      select: { id: true, organizationId: true },
-    });
-    if (!event) {
-      throw AppException.notFound('not_found', 'Event not found.');
-    }
+      if (!location) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
 
-    return this.tenantTransaction.withOrganization(event.organizationId, null, async (tx) => {
-      const rows = await tx.registration.findMany({
-        where: { organizationId: event.organizationId, eventId: event.id, status: 'CONFIRMED' },
-        select: { category: { select: { name: true } } },
-      });
-      const byCategory = tally(rows.map((r) => r.category.name));
+      const rootId = location.parentEventId ?? location.id;
+      const root =
+        rootId === location.id
+          ? location
+          : await this.portfolio.findEventLocation(tx, tenant.organizationId, rootId);
+
+      const family = await this.portfolio.editionFamily(
+        tx,
+        tenant.organizationId,
+        rootId,
+      );
+      const counts = await this.portfolio.eventStatusCounts(
+        tx,
+        tenant.organizationId,
+        family.map((event) => event.id),
+      );
+
       return {
-        registrations: publishableCount(rows.length),
-        byCategory: Object.entries(byCategory).map(([categoryName, count]) => ({
-          categoryName,
-          count: publishableCount(count),
-        })),
+        generatedAt: new Date().toISOString(),
+        root: root ? { id: root.id, name: root.name, slug: root.slug } : null,
+        editions: buildEditionEntries(family, counts),
       };
     });
-  }
-
-  private async requireEvent(tx: TenantPrismaClient, organizationId: string, eventId: string) {
-    const event = await tx.event.findFirst({
-      where: { id: eventId, organizationId },
-      select: { id: true, parentEventId: true },
-    });
-    if (!event) {
-      throw AppException.notFound('not_found', 'Event not found.');
-    }
-    return event;
   }
 }

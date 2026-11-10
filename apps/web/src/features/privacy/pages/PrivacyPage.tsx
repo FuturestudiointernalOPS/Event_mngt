@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { PurgeResult } from '@event-platform/shared';
+import type { PurgeResult } from '@/services/staff-ops.api';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';

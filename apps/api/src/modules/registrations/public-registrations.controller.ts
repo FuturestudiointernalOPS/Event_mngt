@@ -1,40 +1,36 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Ip, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import {
-  PublicRegistrationForm,
-  PublicRegistrationResult,
-  SubmitRegistrationRequest,
-  submitRegistrationSchema,
+  submitRegistrationRequestSchema,
+  type RegistrationReceipt,
+  type SubmitRegistrationRequest,
 } from '@event-platform/shared';
-import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
+import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { PublicRegistrationFormService } from './public-registration-form.service';
-import { PublicRegistrationsService } from './public-registrations.service';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
+import { RegistrationSubmissionService } from './registration-submission.service';
 
-/** Registration needs no account. `Idempotency-Key` makes a retried submit safe. */
-@Controller('public/events/:eventSlug')
-@Public()
+/**
+ * The only unauthenticated write in the product.
+ *
+ * The event slug resolves the organisation server-side, the route is rate-limited by
+ * IP, and an `Idempotency-Key` header makes a retry return the first receipt.
+ */
+@Controller('public/events')
 export class PublicRegistrationsController {
-  constructor(
-    private readonly registrations: PublicRegistrationsService,
-    private readonly forms: PublicRegistrationFormService,
-  ) {}
+  constructor(private readonly submissions: RegistrationSubmissionService) {}
 
-  @Get('registration-form')
-  form(@Param('eventSlug') eventSlug: string): Promise<PublicRegistrationForm> {
-    return this.forms.getForm(eventSlug);
-  }
-
-  // A person registers once; a script hammering this route is the abuse to stop.
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @Post('registrations')
-  @HttpCode(HttpStatus.CREATED)
+  @Public()
+  @RateLimit({ bucket: 'public-registration', key: 'ip' })
+  @Idempotent()
+  @Post(':eventSlug/registrations')
   submit(
     @Param('eventSlug') eventSlug: string,
-    @Body(new ZodValidationPipe(submitRegistrationSchema)) body: SubmitRegistrationRequest,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
-    @Ip() ip: string,
-  ): Promise<PublicRegistrationResult> {
-    return this.registrations.submit(eventSlug, body, idempotencyKey?.slice(0, 100) ?? null, ip ?? null);
+    @Body(new ZodValidationPipe(submitRegistrationRequestSchema))
+    body: SubmitRegistrationRequest,
+    @Req() request: Request,
+  ): Promise<RegistrationReceipt> {
+    return this.submissions.submit(eventSlug, body, request.ip ?? null);
   }
 }

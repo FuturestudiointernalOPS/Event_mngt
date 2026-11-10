@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { CheckInManifestEntry, ScanResult } from '@event-platform/shared';
+import type { RegistrationSummary, SyncScanResult } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/field';
 import { cn } from '@/lib/cn';
+import { useStatusLabel } from '@/lib/status';
 import { ApiRequestError } from '@/services/api-client';
 import { staffOpsApi } from '@/services/staff-ops.api';
 import { QrScanner } from '../components/QrScanner';
-import { loadManifest, saveManifest, sha256Hex } from '../offline/manifest-store';
-import { createScan, enqueueScan, listPendingScans, markSynced, type QueuedScan } from '../offline/scan-queue';
+import {
+  createScan,
+  enqueueScan,
+  listPendingScans,
+  markSynced,
+  type QueuedScan,
+} from '../offline/scan-queue';
 
 interface Shown {
   tone: 'ok' | 'dup' | 'bad';
@@ -18,24 +24,44 @@ interface Shown {
 }
 
 /**
- * Mobile-first check-in. The scan is validated against the downloaded manifest first, so
- * it works with no connection; online, the server is the authority and de-duplicates.
- * Every scan is written to IndexedDB before any network call.
+ * Mobile-first check-in.
+ *
+ * The badge token is opaque on purpose: it is hashed on the server and never distributed,
+ * so the device cannot decide by itself whether a scan is valid. Every scan is written to
+ * IndexedDB before any network attempt and the server is the only authority; the queue
+ * therefore survives a reload, a lost connection or a closed browser.
  */
 export default function CheckInPage(): JSX.Element {
   const { slug = '', eventId = '' } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
+  const statusLabel = useStatusLabel();
   const [online, setOnline] = useState(navigator.onLine);
-  const [manifest, setManifest] = useState<CheckInManifestEntry[]>([]);
   const [pending, setPending] = useState<QueuedScan[]>([]);
   const [shown, setShown] = useState<Shown | null>(null);
   const [scanning, setScanning] = useState(true);
-  const [query, setQuery] = useState('');
-  const [matches, setMatches] = useState<{ registrationId: string; name: string; email: string; categoryName: string; checkedIn: boolean }[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const seen = useRef(new Set<string>());
+  const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<RegistrationSummary[]>([]);
 
-  const refreshPending = useCallback(async () => setPending(await listPendingScans(eventId)), [eventId]);
+  const refreshPending = useCallback(
+    async () => setPending(await listPendingScans(eventId)),
+    [eventId],
+  );
+
+  const showResult = useCallback(
+    (result: SyncScanResult): void => {
+      const name = result.participant?.displayName ?? '';
+      const value: Shown =
+        result.status === 'created'
+          ? { tone: 'ok', title: t('checkin.welcome', { name }), detail: result.participant?.category ?? '' }
+          : result.status === 'duplicate'
+            ? { tone: 'dup', title: t('checkin.already', { name }), detail: '' }
+            : { tone: 'bad', title: t('checkin.invalid'), detail: result.code ?? '' };
+      setShown(value);
+      navigator.vibrate?.(value.tone === 'ok' ? 60 : [80, 60, 80]);
+    },
+    [t],
+  );
 
   const syncNow = useCallback(async () => {
     const queue = await listPendingScans(eventId);
@@ -44,29 +70,29 @@ export default function CheckInPage(): JSX.Element {
     }
     setSyncing(true);
     try {
-      await staffOpsApi.sync(slug, eventId, queue.map((s) => ({ code: s.badgeToken, source: 'OFFLINE' as const, clientScanId: s.id, scannedAt: s.scannedAt })));
+      const response = await staffOpsApi.syncCheckIns(slug, eventId, {
+        scans: queue.map((scan) => ({
+          scanId: scan.id,
+          badgeToken: scan.badgeToken,
+          scannedAt: scan.scannedAt,
+        })),
+      });
+      const last = response.results[response.results.length - 1];
+      if (last) {
+        showResult(last);
+      }
       await markSynced(queue);
     } catch {
-      /* stays queued; the next reconnect retries (the server de-duplicates) */
+      /* stays queued; the next reconnect retries and the server de-duplicates */
     } finally {
       setSyncing(false);
       await refreshPending();
     }
-  }, [eventId, slug, refreshPending]);
+  }, [eventId, slug, refreshPending, showResult]);
 
-  // Download the manifest when online; fall back to the stored copy offline.
   useEffect(() => {
-    void (async () => {
-      try {
-        const fresh = await staffOpsApi.manifest(slug, eventId);
-        await saveManifest(eventId, fresh);
-        setManifest(fresh);
-      } catch {
-        setManifest((await loadManifest(eventId))?.entries ?? []);
-      }
-      await refreshPending();
-    })();
-  }, [slug, eventId, refreshPending]);
+    void refreshPending();
+  }, [refreshPending]);
 
   useEffect(() => {
     const up = (): void => { setOnline(true); void syncNow(); };
@@ -79,65 +105,25 @@ export default function CheckInPage(): JSX.Element {
     };
   }, [syncNow]);
 
-  const show = (value: Shown): void => {
-    setShown(value);
-    navigator.vibrate?.(value.tone === 'ok' ? 60 : [80, 60, 80]);
-  };
-
-  const fromResult = (result: ScanResult): Shown => {
-    const name = result.participant?.name ?? '';
-    if (result.result === 'checked_in') return { tone: 'ok', title: t('checkin.welcome', { name }), detail: result.participant?.categoryName ?? '' };
-    if (result.result === 'duplicate') return { tone: 'dup', title: t('checkin.already', { name }), detail: result.checkedInAt ? new Date(result.checkedInAt).toLocaleTimeString() : '' };
-    if (result.result === 'not_confirmed') return { tone: 'bad', title: t('checkin.notConfirmed', { name }), detail: '' };
-    return { tone: 'bad', title: t('checkin.invalid'), detail: '' };
-  };
-
   async function handleCode(code: string): Promise<void> {
-    const hash = await sha256Hex(code);
-    const entry = manifest.find((m) => m.codeHash === hash);
-
-    if (!entry) {
-      // Not in the manifest: online the server may still know it (registered since the
-      // download); offline it cannot be valid.
-      if (navigator.onLine) {
-        try {
-          show(fromResult(await staffOpsApi.scan(slug, eventId, { code, source: 'ONLINE' })));
-          return;
-        } catch { /* fall through */ }
-      }
-      show({ tone: 'bad', title: t('checkin.invalid'), detail: '' });
-      return;
-    }
-
-    if (entry.checkedIn || seen.current.has(entry.registrationId)) {
-      show({ tone: 'dup', title: t('checkin.already', { name: entry.name }), detail: entry.categoryName });
-      return;
-    }
-    seen.current.add(entry.registrationId);
-
-    const scan = createScan(eventId, code);
-    await enqueueScan(scan); // durable first
-    show({ tone: 'ok', title: t('checkin.welcome', { name: entry.name }), detail: entry.categoryName });
+    await enqueueScan(createScan(eventId, code)); // durable first
     await refreshPending();
+    setShown({ tone: 'ok', title: t('checkin.queued'), detail: '' });
     if (navigator.onLine) {
-      void syncNow();
+      await syncNow();
     }
   }
 
   async function search(): Promise<void> {
     try {
-      setMatches(await staffOpsApi.lookup(slug, eventId, query));
+      const result = await staffOpsApi.searchRegistrations(slug, eventId, query);
+      setMatches(result.items);
     } catch (error) {
-      show({ tone: 'bad', title: error instanceof ApiRequestError ? error.message : t('common.error'), detail: '' });
-    }
-  }
-
-  async function manual(registrationId: string): Promise<void> {
-    try {
-      show(fromResult(await staffOpsApi.scan(slug, eventId, { registrationId, source: 'MANUAL' })));
-      await search();
-    } catch (error) {
-      show({ tone: 'bad', title: error instanceof ApiRequestError ? error.message : t('common.error'), detail: '' });
+      setShown({
+        tone: 'bad',
+        title: error instanceof ApiRequestError ? error.message : t('common.error'),
+        detail: '',
+      });
     }
   }
 
@@ -149,7 +135,7 @@ export default function CheckInPage(): JSX.Element {
       </div>
 
       <p role="status" className={cn('rounded-brand p-2 text-center text-sm font-medium', online ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900')}>
-        {online ? t('checkin.online') : t('checkin.offline')} · {t('checkin.manifestSize', { count: manifest.length })}
+        {online ? t('checkin.online') : t('checkin.offline')} · {pending.length}
       </p>
 
       <QrScanner active={scanning} onCode={(code) => void handleCode(code)} />
@@ -185,12 +171,14 @@ export default function CheckInPage(): JSX.Element {
           <Button type="submit" disabled={!online || query.trim().length < 2}>{t('common.search')}</Button>
         </form>
         <ul className="mt-3 divide-y divide-brand-primary/10">
-          {matches.map((m) => (
-            <li key={m.registrationId} className="flex items-center justify-between gap-2 py-2 text-sm">
-              <span>{m.name}<br /><span className="text-xs text-brand-text/70">{m.email}</span></span>
-              <Button size="sm" disabled={m.checkedIn} onClick={() => void manual(m.registrationId)}>
-                {m.checkedIn ? t('checkin.checkedIn') : t('checkin.checkIn')}
-              </Button>
+          {matches.map((match) => (
+            <li key={match.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+              <span>
+                {match.person.firstName} {match.person.lastName}
+                <br />
+                <span className="text-xs text-brand-text/70">{match.person.email}</span>
+              </span>
+              <span className="text-xs">{statusLabel(match.status)}</span>
             </li>
           ))}
         </ul>
