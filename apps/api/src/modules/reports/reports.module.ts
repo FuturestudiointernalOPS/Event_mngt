@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ExportsController } from './exports.controller';
+import { ReportExportQueue } from './report-export-queue.service';
+import { ReportExportRowsRepository } from './report-export-rows.repository';
 import { ReportExportWorker } from './report-export-worker.service';
 import { ReportExportsRepository } from './report-exports.repository';
 import { ReportExportsService } from './report-exports.service';
@@ -17,6 +19,8 @@ import { ReportsService } from './reports.service';
     ReportsPortfolioRepository,
     ReportExportsService,
     ReportExportsRepository,
+    ReportExportRowsRepository,
+    ReportExportQueue,
     ReportExportWorker,
   ],
 })

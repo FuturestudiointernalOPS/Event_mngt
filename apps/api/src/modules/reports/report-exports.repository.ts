@@ -6,7 +6,6 @@ import {
   ExportStatus,
   Prisma,
 } from '../../database/prisma-client';
-import type { ExportRegistrationRow } from './report-files';
 
 const EXPORT_META_SELECT = {
   id: true,
@@ -136,14 +135,22 @@ export class ReportExportsRepository {
   /**
    * Atomically move PENDING to PROCESSING. The conditional update is the claim: two
    * workers racing on the same row produce one winner and one no-op.
+   *
+   * `reclaim` is for a queue redelivery: a worker that died mid-job leaves the row in
+   * PROCESSING, and the retry must be able to take it back.
    */
   async claim(
     tx: TenantPrismaClient,
     organizationId: string,
     exportId: string,
+    reclaim = false,
   ): Promise<ReportExportMetaRow | null> {
     const claimed = await tx.reportExport.updateMany({
-      where: { id: exportId, organizationId, status: 'PENDING' },
+      where: {
+        id: exportId,
+        organizationId,
+        status: reclaim ? { in: ['PENDING', 'PROCESSING'] } : 'PENDING',
+      },
       data: { status: 'PROCESSING', startedAt: new Date(), error: null },
     });
 
@@ -152,6 +159,18 @@ export class ReportExportsRepository {
     }
 
     return this.find(tx, organizationId, exportId);
+  }
+
+  /** Puts a claim back so the next queue attempt can pick it up. */
+  async release(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    exportId: string,
+  ): Promise<void> {
+    await tx.reportExport.updateMany({
+      where: { id: exportId, organizationId, status: 'PROCESSING' },
+      data: { status: 'PENDING', startedAt: null },
+    });
   }
 
   complete(
@@ -194,60 +213,5 @@ export class ReportExportsRepository {
       },
       data: { status: 'FAILED', error, completedAt: new Date() },
     });
-  }
-
-  /**
-   * Registration rows in submission order. `take + 1` is fetched by the caller to
-   * detect truncation without a second count query.
-   */
-  registrationRows(
-    tx: TenantPrismaClient,
-    organizationId: string,
-    eventId: string,
-    take: number,
-  ): Promise<ExportRegistrationRow[]> {
-    return tx.registration
-      .findMany({
-        where: { organizationId, eventId },
-        orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
-        take,
-        select: {
-          reference: true,
-          status: true,
-          source: true,
-          submittedAt: true,
-          decidedAt: true,
-          person: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-              organizationName: true,
-              jobTitle: true,
-              country: true,
-            },
-          },
-          category: { select: { key: true, name: true } },
-        },
-      })
-      .then((rows) =>
-        rows.map((row) => ({
-          reference: row.reference,
-          status: row.status,
-          source: row.source,
-          submittedAt: row.submittedAt,
-          decidedAt: row.decidedAt,
-          firstName: row.person.firstName,
-          lastName: row.person.lastName,
-          email: row.person.email,
-          phone: row.person.phone,
-          organizationName: row.person.organizationName,
-          jobTitle: row.person.jobTitle,
-          country: row.person.country,
-          categoryKey: row.category?.key ?? null,
-          categoryName: row.category?.name ?? null,
-        })),
-      );
   }
 }

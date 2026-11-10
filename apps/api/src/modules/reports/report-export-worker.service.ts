@@ -5,16 +5,25 @@ import {
   EXPORT_FAILURE_MESSAGE,
   MAX_EXPORT_ROWS,
 } from './report-exports.rules';
+import { ReportExportRowsRepository } from './report-export-rows.repository';
 import { ReportExportsRepository } from './report-exports.repository';
 import { capRows, renderExport } from './report-files';
 
+export interface ExportProcessOptions {
+  /** 1-based attempt number supplied by the durable queue. */
+  attempt?: number;
+  /** Total attempts the queue will make; a retry is only recorded when more remain. */
+  maxAttempts?: number;
+}
+
 /**
- * The export worker (WP-19).
+ * The export worker.
  *
- * `enqueue` is the queue seam: today it schedules on the event loop, and swapping in
- * BullMQ means replacing this method only. `process` re-enters the tenant explicitly,
- * claims the row atomically, snapshots the data and records either outcome. The failure
- * is written in its own transaction, so a rolled-back generation cannot hide the error.
+ * `enqueue` is the in-process fallback used when Redis is not configured; the durable
+ * `ReportExportQueue` calls `process` directly. `process` re-enters the tenant
+ * explicitly, claims the row atomically, snapshots the data and records the outcome.
+ * A retryable failure is released back to PENDING before being rethrown, so BullMQ can
+ * try again; the final failure is written in its own transaction.
  */
 @Injectable()
 export class ReportExportWorker {
@@ -23,6 +32,7 @@ export class ReportExportWorker {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly repository: ReportExportsRepository,
+    private readonly rows: ReportExportRowsRepository,
   ) {}
 
   enqueue(exportId: string, context: TenantContext): void {
@@ -32,7 +42,14 @@ export class ReportExportWorker {
   }
 
   /** Public for the worker and for tests; false means the row was not claimed. */
-  async process(exportId: string, context: TenantContext): Promise<boolean> {
+  async process(
+    exportId: string,
+    context: TenantContext,
+    options: ExportProcessOptions = {},
+  ): Promise<boolean> {
+    const attempt = options.attempt ?? 1;
+    const maxAttempts = options.maxAttempts ?? 1;
+
     try {
       const prepared = await this.tenantTransaction.withTenantContext(
         context,
@@ -41,6 +58,7 @@ export class ReportExportWorker {
             tx,
             tenant.organizationId,
             exportId,
+            attempt > 1,
           );
 
           if (!row) {
@@ -49,7 +67,7 @@ export class ReportExportWorker {
 
           const [event, rows] = await Promise.all([
             this.repository.findEvent(tx, tenant.organizationId, row.eventId),
-            this.repository.registrationRows(
+            this.rows.registrationRows(
               tx,
               tenant.organizationId,
               row.eventId,
@@ -84,11 +102,26 @@ export class ReportExportWorker {
 
       return true;
     } catch (error) {
-      this.logger.error(
-        `Export ${exportId} failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (attempt < maxAttempts) {
+        this.logger.warn(`Export ${exportId} failed (attempt ${attempt}); retrying: ${message}`);
+        await this.tenantTransaction
+          .withTenantContext(context, (tx, tenant) =>
+            this.repository.release(tx, tenant.organizationId, exportId),
+          )
+          .catch((failure) => {
+            this.logger.error(
+              `Export ${exportId} could not be released for retry: ${
+                failure instanceof Error ? failure.message : String(failure)
+              }`,
+            );
+          });
+
+        throw error;
+      }
+
+      this.logger.error(`Export ${exportId} failed: ${message}`);
 
       await this.tenantTransaction
         .withTenantContext(context, (tx, tenant) =>

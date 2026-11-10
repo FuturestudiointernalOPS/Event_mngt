@@ -49,16 +49,18 @@ function setup() {
   const repository = {
     claim: vi.fn(),
     findEvent: vi.fn(),
-    registrationRows: vi.fn(),
     complete: vi.fn(),
+    release: vi.fn(),
     fail: vi.fn(),
   };
+  const rows = { registrationRows: vi.fn() };
   const worker = new ReportExportWorker(
     tenantTransaction as never,
     repository as unknown as ReportExportsRepository,
+    rows as never,
   );
 
-  return { worker, repository, tenantTransaction };
+  return { worker, repository, rows, tenantTransaction };
 }
 
 const ROWS = [
@@ -91,14 +93,14 @@ describe('export worker', () => {
   });
 
   it('renders the snapshot and marks the row completed', async () => {
-    const { worker, repository } = setup();
+    const { worker, repository, rows } = setup();
     repository.claim.mockResolvedValue(meta());
     repository.findEvent.mockResolvedValue({
       id: 'event-1',
       name: 'Innovation Village',
       slug: 'innovation-village',
     });
-    repository.registrationRows.mockResolvedValue(ROWS);
+    rows.registrationRows.mockResolvedValue(ROWS);
     repository.complete.mockResolvedValue(meta({ status: 'COMPLETED' }));
 
     await expect(worker.process('export-1', CONTEXT)).resolves.toBe(true);
@@ -119,14 +121,14 @@ describe('export worker', () => {
   });
 
   it('records a failure without leaking the underlying error', async () => {
-    const { worker, repository } = setup();
+    const { worker, repository, rows } = setup();
     repository.claim.mockResolvedValue(meta());
     repository.findEvent.mockResolvedValue({
       id: 'event-1',
       name: 'Innovation Village',
       slug: 'innovation-village',
     });
-    repository.registrationRows.mockRejectedValue(
+    rows.registrationRows.mockRejectedValue(
       new Error('relation "registrations" does not exist'),
     );
     repository.fail.mockResolvedValue(meta({ status: 'FAILED' }));
@@ -138,6 +140,42 @@ describe('export worker', () => {
       'org-1',
       'export-1',
       'The export could not be generated.',
+    );
+  });
+
+  it('releases a retryable failure and rethrows for the queue', async () => {
+    const { worker, repository, rows } = setup();
+    repository.claim.mockResolvedValue(meta());
+    repository.findEvent.mockResolvedValue({
+      id: 'event-1',
+      name: 'Innovation Village',
+      slug: 'innovation-village',
+    });
+    rows.registrationRows.mockRejectedValue(new Error('database is restarting'));
+
+    await expect(
+      worker.process('export-1', CONTEXT, { attempt: 1, maxAttempts: 3 }),
+    ).rejects.toThrow('database is restarting');
+
+    expect(repository.release).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'export-1',
+    );
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it('reclaims a row left PROCESSING by a worker that died', async () => {
+    const { worker, repository } = setup();
+    repository.claim.mockResolvedValue(null);
+
+    await worker.process('export-1', CONTEXT, { attempt: 2, maxAttempts: 3 });
+
+    expect(repository.claim).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'export-1',
+      true,
     );
   });
 });

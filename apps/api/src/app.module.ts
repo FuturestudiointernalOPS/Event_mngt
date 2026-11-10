@@ -17,6 +17,7 @@ import { ttlToSeconds } from './common/utils/tokens';
 import { AppConfigService, CoreConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { JobsModule } from './jobs/jobs.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -53,6 +54,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     CoreConfigModule,
     DatabaseModule,
     IntegrationsModule,
+    JobsModule,
     IdempotencyModule,
     RateLimitModule,
     JwtModule.registerAsync({

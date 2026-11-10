@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   CreateReportExportRequest,
   ListReportExportsQuery,
@@ -10,6 +10,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { TenantContextService } from '../../database/tenant-context.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import { ReportExportQueue } from './report-export-queue.service';
 import { ReportExportWorker } from './report-export-worker.service';
 import {
   EXPORT_CONTENT_TYPES,
@@ -35,10 +36,13 @@ export interface ExportDownload {
  */
 @Injectable()
 export class ReportExportsService {
+  private readonly logger = new Logger(ReportExportsService.name);
+
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly tenantContext: TenantContextService,
     private readonly repository: ReportExportsRepository,
+    private readonly queue: ReportExportQueue,
     private readonly worker: ReportExportWorker,
     private readonly audit: AuditService,
   ) {}
@@ -80,7 +84,18 @@ export class ReportExportsService {
       metadata: { eventId, format: input.format, kind: input.kind },
     });
 
-    this.worker.enqueue(row.id, context);
+    const queued = await this.queue.enqueue(row.id, context).catch((error) => {
+      this.logger.warn(
+        `Export queue unavailable, falling back to in-process generation: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return false;
+    });
+
+    if (!queued) {
+      this.worker.enqueue(row.id, context);
+    }
 
     return toReportExport(row);
   }

@@ -41,6 +41,14 @@ export const envSchema = z.object({
   RATE_LIMIT_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
   RATE_LIMIT_DEFAULT_WINDOW_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
 
+  /** Redis enables durable e-mail and export jobs. Without it those run in-process. */
+  REDIS_URL: z.string().min(1).optional(),
+  /** False on API-only instances when a separate worker consumes the queues. */
+  JOBS_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
   EMAIL_PROVIDER: z.enum(['console', 'resend', 'ses']).default('console'),
   EMAIL_FROM: z.string().default('no-reply@example.com'),
 
