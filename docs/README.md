@@ -26,6 +26,7 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [13-coding-rules.md](13-coding-rules.md) | Binding coding rules: 300-line limit, controller → service → repository, tenancy, enforcement |
 | [14-backend-work-packages.md](14-backend-work-packages.md) | The backend plan split into self-contained packages that can run in parallel |
 | [15-route-catalogue.md](15-route-catalogue.md) | Every server route, grouped by module, with the test that keeps it honest |
+| [16-capability-authorization.md](16-capability-authorization.md) | The capability registry, entitlement ∩ member evaluation, management screens and the mandatory rule for new features |
 
 ## Decisions already made (do not re-litigate without cause)
 

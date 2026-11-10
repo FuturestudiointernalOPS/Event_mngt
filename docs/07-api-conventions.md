@@ -126,17 +126,17 @@ second record. Unique constraints back this up at the database level.
 - Unlisted events are reachable by direct URL but excluded from listing and search.
 - Private events return `404` publicly.
 
-## Permissions in documentation
+## Capabilities in documentation
 
-Every Swagger operation states the required permission (`@RequirePermissions`). The
+Every Swagger operation states the required capability (`@RequireCapability`). The
 generated spec is the contract reviewers use to answer "who can call this".
 
 ## Route inventory
 
-Each feature module has a `routes.ts` listing its routes as method, path, permission and
+Each feature module has a `routes.ts` listing its routes as method, path, capability and
 controller method. The full table is in [`15-route-catalogue.md`](15-route-catalogue.md).
 A test compares the catalogues with the decorator metadata on the controllers, so a route
-cannot exist in only one place and a permission cannot change silently.
+cannot exist in only one place and a capability cannot change silently.
 
 ## Rate limits
 

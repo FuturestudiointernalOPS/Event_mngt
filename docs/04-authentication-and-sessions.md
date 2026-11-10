@@ -84,9 +84,13 @@ Phase 7.
 ## Access control
 
 - **Authentication** answers "who". **Authorisation** answers "may they, here".
-- Permissions are `resource:action` strings from the global catalogue
-  (`packages/shared/src/platform/permissions.ts`), granted to per-tenant roles.
-- Guards run in a fixed order: JWT → tenant resolution → permission check.
+- Authorisation is capability-based. The registry is
+  `packages/shared/src/platform/capability-definitions.ts`; a member can act only when
+  the organisation is entitled to the capability and the member holds it through a role
+  or a direct grant. See `docs/16-capability-authorization.md`.
+- Roles are reusable collections of capabilities. The `permissions` table remains the
+  storage format of a role template and is mapped to capabilities at the boundary.
+- Guards run in a fixed order: JWT → tenant resolution → capability check.
 - Hiding a control in the UI is a convenience, never a control. The API is authoritative.
 
 Default permission groups seeded per tenant:
@@ -99,6 +103,10 @@ Default permission groups seeded per tenant:
 | Check-in Staff | `checkin:operate` |
 | Programme Manager | `programme:manage` (P1) |
 | Reporting Officer | `report:read`, `report:export` |
+
+The strings above are the storage format of each role template. At request time they are
+mapped to capabilities and intersected with the organisation entitlement; the capability
+keys are what the guards and the UI use. See `docs/16-capability-authorization.md`.
 
 Event-scoped assignment ("assigned events") is modelled as a membership-to-event
 assignment when Phase 3 lands; until then the Event Manager role is organisation-wide and

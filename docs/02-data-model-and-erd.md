@@ -30,6 +30,8 @@ erDiagram
     organization_roles ||--o{ role_permissions : grants
     permissions ||--o{ role_permissions : granted_by
     organization_members }o--|| organization_roles : assigned
+    organizations ||--o{ organization_capabilities : entitled
+    organization_members ||--o{ member_capabilities : granted
     organizations ||--|| workspace_settings : has
     organizations ||--|| workspace_branding : has
     organizations ||--o{ events : owns
@@ -74,6 +76,8 @@ erDiagram
     organizations ||--o{ organization_roles : defines
     organization_roles ||--o{ role_permissions : grants
     permissions ||--o{ role_permissions : granted_by
+    organizations ||--o{ organization_capabilities : entitled
+    organization_members ||--o{ member_capabilities : granted
     organizations ||--|| workspace_settings : configures
     organizations ||--|| workspace_branding : brands
     organizations ||--o{ events : owns
@@ -91,8 +95,10 @@ erDiagram
 | `organizations` | The tenant | `slug` unique; `status` |
 | `organization_members` | User ↔ organisation, with a role | `(organization_id, user_id)` unique |
 | `organization_roles` | Per-tenant roles (system or custom) | `(organization_id, key)` unique |
-| `permissions` | Global permission catalogue (`resource:action`) | `key` unique |
+| `permissions` | Global permission catalogue (`resource:action`); the storage format of a role template, mapped to capabilities | `key` unique |
 | `role_permissions` | Role → permission | composite PK `(role_id, permission_id)` |
+| `organization_capabilities` | Capabilities the organisation is entitled to use | `(organization_id, capability_key)` unique |
+| `member_capabilities` | Capabilities granted directly to one membership | `(organization_id, member_id, capability_key)` unique |
 | `workspace_settings` | Locale, time zone, preferences | `organization_id` unique |
 | `workspace_branding` | Logo, colour tokens, appearance | `organization_id` unique |
 | `events` | Event container, lifecycle, visibility | `(organization_id, slug)` unique; `parent_event_id` self-relation |

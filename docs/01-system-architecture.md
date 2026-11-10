@@ -52,7 +52,7 @@ sequenceDiagram
     participant B as Browser
     participant G1 as JwtAuthGuard
     participant G2 as TenantAccessGuard
-    participant G3 as PermissionsGuard
+    participant G3 as CapabilityGuard
     participant I as TenantContextInterceptor
     participant C as Controller
     participant S as Service
@@ -62,9 +62,9 @@ sequenceDiagram
     G1->>G1: verify access JWT, attach request.user
     G1->>G2: proceed
     G2->>DB: resolve workspace slug to org, verify membership
-    G2->>G2: attach request.tenant (org id, permissions)
+    G2->>G2: attach request.tenant (org id, effective capabilities)
     G2->>G3: proceed
-    G3->>G3: compare @RequirePermissions with tenant permissions
+    G3->>G3: compare @RequireCapability with effective capabilities
     G3->>I: proceed
     I->>I: AsyncLocalStorage.run({ organizationId, userId })
     I->>C: dispatch handler

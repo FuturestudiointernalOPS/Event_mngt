@@ -9,10 +9,10 @@ breach.
 2. `TenantAccessGuard` resolves the workspace from the route (`:slug`), the verified host,
    or an explicit `X-Workspace-Slug` header — **never** from a body or query
    `organizationId`.
-3. It loads the membership for `(organizationId, userId)` and the permission set implied
-   by the member's role.
-4. It attaches `request.tenant = { organizationId, memberId, permissions }`.
-5. `PermissionsGuard` compares `@RequirePermissions(...)` metadata against that set.
+3. It loads the membership, the role's capabilities, the member's direct capability
+   grants and the organisation's entitlements, then computes the effective set.
+4. It attaches `request.tenant = { organizationId, memberId, capabilities, … }`.
+5. `CapabilityGuard` compares `@RequireCapability(...)` metadata against that set.
 6. `TenantContextInterceptor` opens an `AsyncLocalStorage` scope for the handler.
 
 A missing or invalid workspace yields `404` for public routes and `403` for authenticated
@@ -51,11 +51,15 @@ Within a transaction only:
 ```sql
 SELECT set_config('app.current_organization_id', $1, true);
 SELECT set_config('app.current_user_id', $2, true);
+SELECT set_config('app.platform_admin', 'true', true);
 ```
 
 The third argument `true` means transaction-local. A pooled connection therefore returns
 to an empty context on commit or rollback. `TenantTransactionService` is the only place
-that sets these; no feature code issues `SET` statements.
+that sets these; no feature code issues `SET` statements. `app.platform_admin` is set
+only by `withPlatformAdmin`, only after the JWT guard has verified the platform
+administrator claim, and only the organisation identity, organisation entitlement and
+capability tables opt into it.
 
 ### The scopes
 
@@ -63,6 +67,7 @@ that sets these; no feature code issues `SET` statements.
 | --- | --- | --- | --- |
 | Tenant | `withTenant` | an authenticated member | read and write one organisation's rows |
 | Bootstrap | `withUserScope` | sign-in, and tenant resolution | read this account's own membership, its organisations and their roles |
+| Platform administration | `withPlatformAdmin` | a verified platform administrator | list organisations and manage their capability entitlements |
 | Public read | `withOrganizationScope` | anonymous visitor | read one organisation's settings and branding, and approved showcase rows, after a public identifier resolved it |
 | Public submission | `withOrganizationScope` | anonymous registrant | insert registration-owned rows for the organisation resolved from a published event slug |
 
@@ -158,6 +163,8 @@ executed through `TenantTransactionService.withTenant` and include an explicit
 | Cross-tenant data in a public projection | Dedicated public DTOs, no wildcard selects |
 | Cross-tenant data in a cached page | Cache key includes organisation slug; public payloads aggregated |
 | Role escalation by assigning a role from another tenant | Role lookup constrained to `organizationId`; FK plus service check |
+| A member crafts another organisation's capability assignment | Effective set is computed from the verified membership; capability rows carry `organization_id` RLS |
+| An organisation entitlement is revoked | The intersection is recomputed on every request; member grants remain stored but ineffective |
 
 ## Tests that must exist (Blocking)
 
@@ -172,6 +179,8 @@ because it needs a database.
 5. Background jobs executed for tenant A never touch tenant B.
 6. A user removed from a workspace immediately loses access on the next request.
 7. A crafted `organizationId` in a body or query changes nothing.
+8. Organisation and member capability rows are invisible across tenants, and revoking
+   an entitlement blocks the affected action on the next request.
 
 ## Manual verification before any release
 

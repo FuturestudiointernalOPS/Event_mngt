@@ -88,7 +88,7 @@ modules would only add a pass-through layer.
 | --- | --- | --- |
 | Authentication | `JwtAuthGuard` | Global, opt out with `@Public()` |
 | Tenant resolution | `TenantAccessGuard` | Global, active only with `@TenantScoped('slug')` |
-| Authorisation | `PermissionsGuard` | Global, driven by `@RequirePermissions()` |
+| Authorisation | `CapabilityGuard` | Global, driven by `@RequireCapability()` |
 | Tenant context | `TenantContextInterceptor` | Wraps handler in AsyncLocalStorage |
 | Validation | `ZodValidationPipe` | Per route with a shared schema |
 | Response envelope | `ResponseEnvelopeInterceptor` | Global |

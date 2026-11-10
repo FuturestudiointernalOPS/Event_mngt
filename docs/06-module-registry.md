@@ -16,7 +16,7 @@ interface ModuleDefinition {
   summary: string;
   priority: 'core' | 'p0' | 'p1' | 'p2';
   dependsOn: string[];            // module keys that must also be enabled
-  requiredPermissions: string[];  // permissions needed to configure it
+  requiredCapabilities: string[]; // capabilities needed to configure it
   settingsSchema: ZodTypeAny;     // validated server-side on save, reused client-side
   defaults: Record<string, unknown>;
   configurable: boolean;          // false for modules auto-enabled with the event
