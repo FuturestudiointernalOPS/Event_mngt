@@ -61,6 +61,7 @@ see `docs/16-capability-authorization.md`.
 | events | PATCH | `/workspaces/:slug/events/:eventId` | `events.create` | `EventsController.update` |
 | events | POST | `/workspaces/:slug/events/:eventId/transitions` | `events.publish` | `EventsController.transition` |
 | events | POST | `/workspaces/:slug/events/:eventId/duplicate` | `events.create` | `EventsController.duplicate` |
+| events | POST | `/workspaces/:slug/events/:eventId/banner` | `events.create` | `EventsController.uploadBanner` |
 | events | GET | `/workspaces/:slug/events/:eventId/editions` | `editions.view` | `EditionsController.list` |
 | events | POST | `/workspaces/:slug/events/:eventId/editions` | `editions.create` | `EditionsController.create` |
 | events | GET | `/workspaces/:slug/events/:eventId/editions/:editionId` | `editions.view` | `EditionsController.detail` |

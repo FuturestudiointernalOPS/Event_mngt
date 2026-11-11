@@ -7,17 +7,17 @@ import {
 } from '@event-platform/shared';
 import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
+import {
+  imageContentHash,
+  inspectImageUpload,
+  type ImageFile,
+} from '../../common/uploads/image-upload.rules';
 import { toBranding } from '../../common/utils/branding';
 import { TenantContextService } from '../../database/tenant-context.service';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import { STORAGE_PORT } from '../../integrations/storage/storage.port';
 import type { StoragePort } from '../../integrations/storage/storage.port';
-import {
-  brandingAssetHash,
-  brandingAssetKey,
-  inspectBrandingAsset,
-  type BrandingAssetFile,
-} from './branding-assets.rules';
+import { brandingAssetKey } from './branding-assets.rules';
 import { checkContrast } from './workspaces.service';
 
 /**
@@ -38,11 +38,11 @@ export class BrandingAssetsService {
 
   async upload(
     kind: BrandingAssetKind,
-    file: BrandingAssetFile | undefined,
+    file: ImageFile | undefined,
   ): Promise<BrandingAssetUploadResult> {
-    const detected = inspectBrandingAsset(file);
+    const detected = inspectImageUpload(file);
     const organizationId = this.tenantContext.getOrThrow().organizationId;
-    const hash = brandingAssetHash(file!.buffer);
+    const hash = imageContentHash(file!.buffer);
     const key = brandingAssetKey(organizationId, kind, hash, detected.extension);
 
     const uploaded = await this.storage.upload({

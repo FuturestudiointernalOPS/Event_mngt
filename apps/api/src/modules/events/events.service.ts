@@ -12,12 +12,12 @@ import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
 import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
-import { Prisma } from '../../database/prisma-client';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import { assertCanBeParent } from './editions.rules';
 import { INITIAL_MODULE_KEYS } from './events.constants';
 import { assertPublishable, nextStatusFor, shouldActivatePublishingModule } from './events.lifecycle';
 import { toDetail, toSummary } from './events.mapper';
+import { toEventUpdate } from './events.update';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
 import { EventsRepository, type PublicEventTarget } from './events.repository';
@@ -168,20 +168,7 @@ export class EventsService {
         throw AppException.notFound('not_found', 'Event not found.');
       }
 
-      const data: Prisma.EventUpdateInput = {
-        ...(input.name !== undefined && { name: input.name }),
-        ...(input.description !== undefined && { description: input.description }),
-        ...(input.format !== undefined && { format: input.format }),
-        ...(input.visibility !== undefined && { visibility: input.visibility }),
-        ...(input.timeZone !== undefined && { timeZone: input.timeZone }),
-        ...(input.startsAt !== undefined && { startsAt: new Date(input.startsAt) }),
-        ...(input.endsAt !== undefined && { endsAt: new Date(input.endsAt) }),
-        ...(input.venueName !== undefined && { venueName: input.venueName }),
-        ...(input.venueAddress !== undefined && { venueAddress: input.venueAddress }),
-        ...(input.slug !== undefined && { slug: slugify(input.slug) }),
-      };
-
-      return toDetail(await this.events.update(tx, event.id, data));
+      return toDetail(await this.events.update(tx, event.id, toEventUpdate(input)));
     });
 
     await this.audit.record({

@@ -476,6 +476,12 @@ model Event {
   endsAt               DateTime        @map("ends_at")
   venueName            String?         @map("venue_name")
   venueAddress         String?         @map("venue_address")
+  // Presentation overrides. Null means "inherit the workspace branding"; the public
+  // read model merges whatever is set over the workspace colours.
+  bannerUrl            String?         @map("banner_url")
+  brandPrimaryColor    String?         @map("brand_primary_color")
+  brandSecondaryColor  String?         @map("brand_secondary_color")
+  brandAccentColor     String?         @map("brand_accent_color")
   registrationOpensAt  DateTime?       @map("registration_opens_at")
   registrationClosesAt DateTime?       @map("registration_closes_at")
   publishedAt          DateTime?       @map("published_at")

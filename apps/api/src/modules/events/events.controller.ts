@@ -7,7 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CreateEventRequest,
   EventDetail,
@@ -27,7 +30,9 @@ import { RequireCapability } from '../../common/decorators/require-capability.de
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
+import { MAX_IMAGE_BYTES, type ImageFile } from '../../common/uploads/image-upload.rules';
 import { DuplicateEventService } from './events.duplicate.service';
+import { EventBannerService } from './events.banner.service';
 import { EventsService } from './events.service';
 
 /**
@@ -42,6 +47,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly duplication: DuplicateEventService,
+    private readonly banner: EventBannerService,
   ) {}
 
   @Get()
@@ -105,5 +111,16 @@ export class EventsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<EventDetail> {
     return this.duplication.duplicate(eventId, user.id);
+  }
+
+  /** The multipart limit is declared here so an oversized body never reaches the handler. */
+  @Post(':eventId/banner')
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES } }))
+  uploadBanner(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @UploadedFile() file: ImageFile | undefined,
+  ): Promise<EventDetail> {
+    return this.banner.upload(eventId, file);
   }
 }

@@ -17,6 +17,8 @@ import type {
   UpdateEventModulesRequest,
   UpdateEventRequest,
 } from '@event-platform/shared';
+import { env } from '@/lib/env';
+import { useSessionStore } from '@/stores/session.store';
 import { apiRequest, apiRequestWithMeta } from './api-client';
 import type { Paged } from './events.api';
 
@@ -120,4 +122,22 @@ export const eventAdminApi = {
     apiRequest<Badge>(`${ev(slug, id)}/registrations/${registrationId}/badge/revoke`, { method: 'POST' }),
   erase: (slug: string, id: string, registrationId: string) =>
     apiRequest<void>(`${ev(slug, id)}/registrations/${registrationId}/erase`, { method: 'POST' }),
+
+  /** Multipart upload: the envelope is JSON, the request body is not, so no apiRequest. */
+  async uploadBanner(slug: string, id: string, file: File): Promise<EventDetail> {
+    const body = new FormData();
+    body.append('file', file);
+    const token = useSessionStore.getState().accessToken;
+    const response = await fetch(`${env.apiUrl}${ev(slug, id)}/banner`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+      body,
+    });
+    const json = (await response.json()) as { data?: EventDetail; error?: { message: string } };
+    if (!response.ok || !json.data) {
+      throw new Error(json.error?.message ?? 'upload_failed');
+    }
+    return json.data;
+  },
 };

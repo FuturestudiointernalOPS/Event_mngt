@@ -31,6 +31,10 @@ export const PUBLIC_EVENT_CONTEXT_SELECT = {
   endsAt: true,
   venueName: true,
   venueAddress: true,
+  bannerUrl: true,
+  brandPrimaryColor: true,
+  brandSecondaryColor: true,
+  brandAccentColor: true,
   organization: {
     select: {
       slug: true,
@@ -57,10 +61,25 @@ export interface PublicEventContext {
     endsAt: string;
     venueName: string | null;
     venueAddress: string | null;
+    bannerUrl: string | null;
   };
   organization: { slug: string; name: string };
   branding: Branding;
   locale: { default: Locale; supported: Locale[] };
+}
+
+/**
+ * Event colour overrides win over the workspace colours; anything unset keeps the
+ * workspace value. The merge lives in the public read model so every public page gets
+ * the same theme without repeating the rule.
+ */
+export function mergeEventBranding(branding: Branding, row: PublicEventContextRow): Branding {
+  return {
+    ...branding,
+    ...(row.brandPrimaryColor ? { primaryColor: row.brandPrimaryColor } : {}),
+    ...(row.brandSecondaryColor ? { secondaryColor: row.brandSecondaryColor } : {}),
+    ...(row.brandAccentColor ? { accentColor: row.brandAccentColor } : {}),
+  };
 }
 
 export function toPublicContext(row: PublicEventContextRow): PublicEventContext {
@@ -76,14 +95,16 @@ export function toPublicContext(row: PublicEventContextRow): PublicEventContext 
       endsAt: row.endsAt.toISOString(),
       venueName: row.venueName,
       venueAddress: row.venueAddress,
+      bannerUrl: row.bannerUrl,
     },
     organization: {
       slug: row.organization.slug,
       name: row.organization.name,
     },
-    branding: row.organization.branding
-      ? toBranding(row.organization.branding)
-      : { ...DEFAULT_BRANDING },
+    branding: mergeEventBranding(
+      row.organization.branding ? toBranding(row.organization.branding) : { ...DEFAULT_BRANDING },
+      row,
+    ),
     locale: {
       default: toLocale(row.organization.settings?.defaultLocale),
       supported: ['fr', 'en'],

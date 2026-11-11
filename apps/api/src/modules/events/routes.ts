@@ -49,6 +49,12 @@ export const routes: RouteDefinition[] = [
     handler: { controller: EventsController, method: 'duplicate' },
   },
   {
+    method: 'POST',
+    path: '/workspaces/:slug/events/:eventId/banner',
+    capability: CAPABILITY_KEYS.eventsCreate,
+    handler: { controller: EventsController, method: 'uploadBanner' },
+  },
+  {
     method: 'GET',
     path: '/workspaces/:slug/events/:eventId/editions',
     capability: CAPABILITY_KEYS.editionsView,
