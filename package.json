@@ -28,7 +28,10 @@
     "db:policies": "npm run db:policies -w @event-platform/api",
     "check:policies": "npm run test -w @event-platform/api -- src/database/policies.spec.ts",
     "db:roles": "npm run db:roles -w @event-platform/api",
-    "test:isolation": "npm run test:isolation -w @event-platform/api"
+    "test:isolation": "npm run test:isolation -w @event-platform/api",
+    "local:setup": "node scripts/local-setup.mjs",
+    "local:reset": "node scripts/local-setup.mjs --reset",
+    "local:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
