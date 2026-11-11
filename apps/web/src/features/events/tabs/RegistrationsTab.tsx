@@ -9,6 +9,7 @@ import { EmptyState, LoadingState } from '@/components/ui/states';
 import { errorMessage } from '@/lib/errors';
 import { useStatusLabel } from '@/lib/status';
 import { eventAdminApi } from '@/services/event-admin.api';
+import { BadgePanel } from '../components/BadgePanel';
 import type { EventOutletContext } from '../pages/EventLayout';
 
 const STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'WAITLISTED', 'CANCELLED'];
@@ -24,7 +25,11 @@ export default function RegistrationsTab(): JSX.Element {
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canApprove = can('registration:manage');
+  const canApprove = can('registrations.approve');
+  const canReject = can('registrations.reject');
+  const canErase = can('registrations.erase');
+  const canViewBadge = can('registrations.view_badges');
+  const canManageBadge = can('registrations.manage_badges');
 
   const list = useQuery({
     queryKey: ['registrations', slug, eventId, status, search, page],
@@ -87,12 +92,12 @@ export default function RegistrationsTab(): JSX.Element {
               <div className="flex items-center gap-2">
                 <Pill>{statusLabel(row.status)}</Pill>
                 {canApprove && row.status === 'PENDING' ? (
-                  <>
-                    <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'APPROVED' })}>{t('reg.confirm')}</Button>
-                    <Button size="sm" variant="secondary" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'REJECTED' })}>{t('reg.reject')}</Button>
-                  </>
+                  <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'APPROVED' })}>{t('reg.confirm')}</Button>
                 ) : null}
-                {canApprove && !row.person.email.endsWith('@erased.invalid') ? (
+                {canReject && row.status === 'PENDING' ? (
+                  <Button size="sm" variant="secondary" disabled={decide.isPending} onClick={() => decide.mutate({ id: row.id, decision: 'REJECTED' })}>{t('reg.reject')}</Button>
+                ) : null}
+                {canErase && !row.person.email.endsWith('@erased.invalid') ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -114,6 +119,9 @@ export default function RegistrationsTab(): JSX.Element {
                   <div key={`${consent.key}-${consent.version}`}><dt className="font-medium">{t('reg.consent')} {consent.key} v{consent.version}</dt><dd>{new Date(consent.acceptedAt).toLocaleString()}</dd></div>
                 ))}
               </dl>
+            ) : null}
+            {openId === row.id && row.status === 'APPROVED' && canViewBadge ? (
+              <BadgePanel slug={slug} eventId={eventId} registrationId={row.id} canManage={canManageBadge} />
             ) : null}
           </li>
         ))}

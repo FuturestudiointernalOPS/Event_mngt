@@ -1,4 +1,5 @@
 import type {
+  Badge,
   Category,
   ConsentDocument,
   CreateCategoryRequest,
@@ -6,6 +7,7 @@ import type {
   DecideRegistrationRequest,
   EventDetail,
   EventModule,
+  IssuedBadge,
   ModuleCatalogueEntry,
   RegistrationDetail,
   RegistrationForm,
@@ -108,6 +110,14 @@ export const eventAdminApi = {
       body: payload,
     }),
   /** Anonymises the person behind the registration; the row survives so counts stay honest. */
+  /** 404 when the registration has no badge yet (not approved, or approved without one). */
+  badge: (slug: string, id: string, registrationId: string) =>
+    apiRequest<Badge>(`${ev(slug, id)}/registrations/${registrationId}/badge`),
+  /** The only response that carries the raw token: show it once, never store it. */
+  reissueBadge: (slug: string, id: string, registrationId: string) =>
+    apiRequest<IssuedBadge>(`${ev(slug, id)}/registrations/${registrationId}/badge/reissue`, { method: 'POST' }),
+  revokeBadge: (slug: string, id: string, registrationId: string) =>
+    apiRequest<Badge>(`${ev(slug, id)}/registrations/${registrationId}/badge/revoke`, { method: 'POST' }),
   erase: (slug: string, id: string, registrationId: string) =>
     apiRequest<void>(`${ev(slug, id)}/registrations/${registrationId}/erase`, { method: 'POST' }),
 };

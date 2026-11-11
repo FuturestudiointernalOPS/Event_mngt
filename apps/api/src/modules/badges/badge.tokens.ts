@@ -7,7 +7,9 @@ import { generateOpaqueToken, hashOpaqueToken } from '../../common/utils/tokens'
  * high-entropy random data, so SHA-256 is the right hash (no slow KDF needed).
  */
 
-export const BADGE_QR_PREFIX = 'ep-badge:';
+// The QR format lives in the shared contracts so the API and every client agree on it.
+export { BADGE_QR_PREFIX, badgeQrPayload } from '@event-platform/shared';
+import { BADGE_QR_PREFIX } from '@event-platform/shared';
 
 export interface BadgeToken {
   token: string;
@@ -18,11 +20,6 @@ export function createBadgeToken(): BadgeToken {
   const token = generateOpaqueToken();
 
   return { token, tokenHash: hashOpaqueToken(token) };
-}
-
-/** The value a QR code encodes. Wave 3 reverses it with `tokenFromQrPayload`. */
-export function badgeQrPayload(token: string): string {
-  return `${BADGE_QR_PREFIX}${token}`;
 }
 
 export function tokenFromQrPayload(payload: string): string | null {

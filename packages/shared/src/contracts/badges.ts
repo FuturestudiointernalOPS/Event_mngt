@@ -35,3 +35,13 @@ export const listBadgesQuerySchema = paginationQuerySchema.extend({
 });
 
 export type ListBadgesQuery = z.infer<typeof listBadgesQuerySchema>;
+
+/**
+ * What a badge QR code encodes. The prefix lets scanners ignore unrelated QR codes and lets
+ * the API and every client agree on one format.
+ */
+export const BADGE_QR_PREFIX = 'ep-badge:';
+
+export function badgeQrPayload(token: string): string {
+  return `${BADGE_QR_PREFIX}${token}`;
+}
