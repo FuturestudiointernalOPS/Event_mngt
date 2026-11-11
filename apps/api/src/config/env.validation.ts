@@ -53,7 +53,8 @@ export const envSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
 
-  EMAIL_PROVIDER: z.enum(['console', 'resend', 'ses']).default('console'),
+  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('no-reply@example.com'),
 
   STORAGE_PROVIDER: z.enum(['console', 's3']).default('console'),
@@ -62,7 +63,24 @@ export const envSchema = z.object({
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
-});
+  /** Public base URL of the bucket or its CDN, e.g. https://cdn.example.com (no trailing slash). */
+  S3_PUBLIC_BASE_URL: z.string().url().optional(),
+})
+  // A provider that is selected but not configured must stop the boot with a clear
+  // message, not fail later on the first e-mail or upload.
+  .superRefine((env, ctx) => {
+    const need = (value: unknown, path: string, message: string): void => {
+      if (!value) ctx.addIssue({ code: 'custom', path: [path], message });
+    };
+    if (env.EMAIL_PROVIDER === 'resend') {
+      need(env.RESEND_API_KEY, 'RESEND_API_KEY', 'Required when EMAIL_PROVIDER=resend');
+    }
+    if (env.STORAGE_PROVIDER === 's3') {
+      for (const key of ['S3_BUCKET', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_BASE_URL'] as const) {
+        need(env[key], key, 'Required when STORAGE_PROVIDER=s3');
+      }
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

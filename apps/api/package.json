@@ -25,6 +25,7 @@
     "test:isolation": "vitest run --config vitest.isolation.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
     "@event-platform/shared": "file:../../packages/shared",
     "@nestjs/common": "^12.4.2",
     "@nestjs/config": "^12.1.1",
