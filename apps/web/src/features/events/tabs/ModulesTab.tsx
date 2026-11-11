@@ -19,7 +19,7 @@ export default function ModulesTab(): JSX.Element {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const canManage = can('module:manage');
+  const canManage = can('events.manage_modules');
 
   const catalogue = useQuery({
     queryKey: ['module-catalogue'],

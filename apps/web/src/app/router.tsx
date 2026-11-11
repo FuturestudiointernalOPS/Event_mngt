@@ -44,7 +44,6 @@ const CheckInTab = lazy(() => import('@/features/events/tabs/CheckInTab'));
 const ReportsTab = lazy(() => import('@/features/events/tabs/ReportsTab'));
 const PublicShowcasePage = lazy(() => import('@/features/public/pages/PublicShowcasePage'));
 const SecurityPage = lazy(() => import('@/features/account/pages/SecurityPage'));
-const PrivacyPage = lazy(() => import('@/features/privacy/pages/PrivacyPage'));
 const AuditPage = lazy(() => import('@/features/audit/pages/AuditPage'));
 const NotFoundPage = lazy(() => import('./NotFoundPage'));
 
@@ -116,7 +115,6 @@ export const router = createBrowserRouter([
         ],
       },
       { path: 'team', element: suspended(<TeamPage />) },
-      { path: 'settings/privacy', element: suspended(<PrivacyPage />) },
       { path: 'audit', element: suspended(<AuditPage />) },
       {
         path: 'settings/branding',

@@ -31,19 +31,23 @@ export async function seedEvent(request: APIRequestContext, withShowcase = false
   const token = login.data.accessToken as string;
   const auth = { ...json, authorization: `Bearer ${token}` };
 
-  await request.post(`${API}/api/v1/organizations`, { headers: auth, data: { name: 'Playwright Org', slug } });
+  await request.post(`${API}/api/v1/onboarding/organizations`, { headers: auth, data: { name: 'Playwright Org', slug } });
   const event = await (await request.post(`${API}/api/v1/workspaces/${slug}/events`, {
     headers: auth,
     data: { name: 'Playwright Summit', timeZone: 'UTC', startsAt: '2027-06-01T09:00:00Z', endsAt: '2027-06-01T17:00:00Z', visibility: 'PUBLIC' },
   })).json();
   const eventId = event.data.id as string;
   const base = `${API}/api/v1/workspaces/${slug}/events/${eventId}`;
-  for (const key of ['registration', 'checkin', ...(withShowcase ? ['showcase'] : [])]) {
-    await request.put(`${base}/modules/${key}`, { headers: auth, data: { enabled: true, settings: key === 'registration' ? { approvalMode: 'manual' } : {} } });
-  }
+  const keys = ['registration', 'checkin', ...(withShowcase ? ['showcase'] : [])];
+  await request.patch(`${base}/modules`, {
+    headers: auth,
+    data: { modules: keys.map((key) => ({ key, enabled: true, ...(key === 'registration' && { settings: { approvalMode: 'manual' } }) })) },
+  });
   await request.post(`${base}/categories`, { headers: auth, data: { key: 'visitor', name: 'Visitor' } });
-  await request.post(`${base}/form-fields`, { headers: auth, data: { key: 'company', label: 'Company', type: 'TEXT', required: true } });
-  await request.put(`${base}/consent`, { headers: auth, data: { text: 'We keep your data to run the event.', version: '1' } });
+  await request.post(`${base}/consent-documents`, {
+    headers: auth,
+    data: { key: 'privacy', title: 'Privacy', body: 'We keep your data to run the event.', required: true },
+  });
   const published = await request.post(`${base}/publish`, { headers: auth });
   if (!published.ok()) throw new Error(`publish failed: ${published.status()}`);
 

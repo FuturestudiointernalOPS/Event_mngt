@@ -47,8 +47,8 @@ See `apps/api/.env.example`. Production essentials:
 | `TRUST_PROXY` | Number of reverse-proxy hops (1 behind a single load balancer); required for correct per-IP rate limits |
 | `REDIS_URL` | Enables durable queued e-mail and export jobs; without it both run in-process |
 | `JOBS_WORKER_ENABLED` | `false` on API-only instances when a separate worker runs |
-| `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` | Verify the sender domain first |
-| `STORAGE_PROVIDER=s3`, `S3_*`, `S3_PUBLIC_BASE_URL` | Bucket must serve objects publicly or through a CDN |
+| `EMAIL_PROVIDER`, `EMAIL_FROM` | **Only the console adapter is implemented today**: nothing is sent externally until a provider adapter is added (`17-implementation-status.md`) |
+| `STORAGE_PROVIDER`, `S3_*` | **Only the console adapter is implemented today**: uploaded logos are not persisted externally until an S3 adapter is added |
 | `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAULT_WINDOW_SECONDS` | Fallback only; production routes carry explicit budgets |
 | `RATE_LIMIT_RETENTION_HOURS` | How long fixed-window counters are kept; default 48 |
 
@@ -59,8 +59,8 @@ Never put any of these in the web build: the browser only knows the API origin.
 - **API**: `node apps/api/dist/main.js` (build with `npm run build`). Health:
   `/api/v1/health` (liveness), `/api/v1/health/ready` (database).
 - **Workers** run inside the API by default. To scale: run API instances with
-  `JOBS_WORKER_ENABLED=false` and one or two worker instances with it `true`. The retention
-  sweep is registered idempotently, so several workers do not duplicate it.
+  `JOBS_WORKER_ENABLED=false` and one or two worker instances with it `true`. Mail and export
+  jobs are claimed durably, so several workers do not duplicate them.
 - **Web**: `npm run build -w @event-platform/web`, serve `apps/web/dist` as static files with
   an SPA fallback to `index.html`. Serve `/sw.js` with `Cache-Control: no-cache`. Do **not**
   cache `/api/` at the CDN.
@@ -137,10 +137,8 @@ notes. Until this section has been run against the real host, Phase 7 stays "par
 ## 8. Routine operations
 
 - **Suspend a workspace**: Super Admin console (`/platform`).
-- **Erase a person**: registrations tab → Erase (or the participant does it themselves).
-- **A participant lost their link**: registrations tab → Resend link (rotates the credential).
-- **Retention**: workspace → Privacy → preview, then erase. The daily sweep (03:00) does the
-  same automatically for workspaces with a period configured.
+- **Erase a person**: registrations tab → Erase.
+- **A participant lost their badge**: registrations tab → open the registration → Reissue badge (shows the code once; the old badge stops working).
 - **Audit**: workspace → Audit log.
 
 ## 9. Local development

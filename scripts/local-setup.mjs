@@ -58,13 +58,14 @@ if (existsSync(envFile)) {
       'PORT=4000',
       'CORS_ORIGINS=http://localhost:5173',
       'WEB_APP_URL=http://localhost:5173',
-      `DATABASE_URL=${APP_URL}`,
+      // Migrations run as the owner; the API itself runs as the non-owner role so that
+      // row-level security applies.
+      `DATABASE_URL=${OWNER_URL}`,
+      `APP_DATABASE_URL=${APP_URL}`,
       `JWT_ACCESS_SECRET=${randomBytes(48).toString('base64')}`,
       'REDIS_URL=redis://localhost:63799',
-      'STORAGE_PROVIDER=local',
-      'STORAGE_LOCAL_DIR=./storage',
+      'STORAGE_PROVIDER=console',
       'EMAIL_PROVIDER=console',
-      'RATE_LIMIT_ENABLED=true',
       '',
     ].join('\n'),
   );

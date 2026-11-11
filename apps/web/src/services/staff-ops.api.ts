@@ -167,20 +167,6 @@ export interface PurgeResult {
   erased: number;
 }
 
-export const privacyApi = {
-  retention: (slug: string) => apiRequest<RetentionSettings>(`${ws(slug)}/data-retention`),
-  setRetention: (slug: string, retentionMonths: number | null) =>
-    apiRequest<RetentionSettings>(`${ws(slug)}/data-retention`, {
-      method: 'PUT',
-      body: { retentionMonths },
-    }),
-  purge: (slug: string, dryRun: boolean) =>
-    apiRequest<PurgeResult>(`${ws(slug)}/data-retention/purge`, {
-      method: 'POST',
-      body: { dryRun },
-    }),
-};
-
 export const auditApi = {
   list: (slug: string, pageNumber: number) =>
     page<AuditEntry>(`${ws(slug)}/audit?page=${pageNumber}&pageSize=25`),

@@ -10,7 +10,6 @@ import { formatDateRange } from '@/lib/date';
 import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/query-keys';
 import { eventAdminApi, type EventAction } from '@/services/event-admin.api';
-import { EventAppearance } from '../components/EventAppearance';
 import type { EventOutletContext } from '../pages/EventLayout';
 
 /** Details, lifecycle actions and a small editor for the descriptive fields. */
@@ -28,8 +27,10 @@ export default function OverviewTab(): JSX.Element {
   });
 
   const editable = !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(event.status);
-  const canPublish = can('event:publish');
-  const canManage = can('event:manage');
+  // Publishing and every status transition share one capability; editing and duplicating
+  // follow `events.create`, exactly as the API authorises them.
+  const canPublish = can('events.publish');
+  const canEdit = can('events.create');
 
   const refresh = (updated: EventDetail): void => {
     queryClient.setQueryData(queryKeys.event(slug, eventId), updated);
@@ -67,10 +68,10 @@ export default function OverviewTab(): JSX.Element {
     { action: 'open-registration', label: t('event.openRegistration'), show: canPublish && ['PUBLISHED', 'REGISTRATION_CLOSED'].includes(event.status), variant: 'secondary' },
     { action: 'close-registration', label: t('event.closeRegistration'), show: canPublish && ['PUBLISHED', 'REGISTRATION_OPEN'].includes(event.status), variant: 'secondary' },
     { action: 'unpublish', label: t('event.unpublish'), show: canPublish && event.status === 'PUBLISHED', variant: 'secondary' },
-    { action: 'complete', label: t('event.complete'), show: canManage && ['PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED'].includes(event.status), variant: 'secondary' },
-    { action: 'cancel', label: t('event.cancel'), show: canManage && ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED'].includes(event.status), variant: 'danger' },
-    { action: 'archive', label: t('event.archive'), show: canManage && ['DRAFT', 'COMPLETED', 'CANCELLED'].includes(event.status), variant: 'secondary' },
-    { action: 'duplicate', label: t('event.duplicate'), show: canManage, variant: 'secondary' },
+    { action: 'complete', label: t('event.complete'), show: canPublish && ['PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED'].includes(event.status), variant: 'secondary' },
+    { action: 'cancel', label: t('event.cancel'), show: canPublish && ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED'].includes(event.status), variant: 'danger' },
+    { action: 'archive', label: t('event.archive'), show: canPublish && ['DRAFT', 'COMPLETED', 'CANCELLED'].includes(event.status), variant: 'secondary' },
+    { action: 'duplicate', label: t('event.duplicate'), show: canEdit, variant: 'secondary' },
   ];
 
   return (
@@ -96,7 +97,7 @@ export default function OverviewTab(): JSX.Element {
         <p className="mt-1 text-xs text-brand-text/70">/e/{event.slug}</p>
       </Section>
 
-      {canManage && editable ? (
+      {canEdit && editable ? (
         <Section title={t('event.edit')}>
           <form
             className="grid gap-4 sm:grid-cols-2"
@@ -131,7 +132,6 @@ export default function OverviewTab(): JSX.Element {
           </form>
         </Section>
       ) : null}
-      {canManage && editable ? <EventAppearance slug={slug} event={event} /> : null}
     </div>
   );
 }

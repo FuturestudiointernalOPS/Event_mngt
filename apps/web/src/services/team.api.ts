@@ -1,4 +1,7 @@
-import type { AcceptInvitationResponse, InvitationSummary, MemberSummary, RoleSummary } from '@event-platform/shared';
+import type {
+  CreateOrganizationRequest,
+  OrganizationOnboardingResult,
+  AcceptInvitationResponse, InvitationSummary, MemberSummary, RoleSummary } from '@event-platform/shared';
 import { apiRequest } from './api-client';
 
 const ws = (slug: string): string => `/api/v1/workspaces/${slug}`;
@@ -11,17 +14,9 @@ const ws = (slug: string): string => `/api/v1/workspaces/${slug}`;
  * surface, and suspending a member is no longer a supported transition.
  */
 export const teamApi = {
-  /**
-   * Creates a new organisation. No server route exists for this on the current backend;
-   * the call is kept so the onboarding screen keeps its shape until the route returns.
-   */
-  createOrganization: (payload: {
-    name: string;
-    slug?: string;
-    timeZone?: string;
-    defaultLocale?: string;
-  }) =>
-    apiRequest<{ id: string; slug: string; name: string }>('/api/v1/organizations', {
+  /** Creates the caller's workspace and makes them its first administrator. */
+  createOrganization: (payload: CreateOrganizationRequest) =>
+    apiRequest<OrganizationOnboardingResult>('/api/v1/onboarding/organizations', {
       method: 'POST',
       body: payload,
     }),

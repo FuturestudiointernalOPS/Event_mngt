@@ -22,8 +22,8 @@ export default function NetworkingTab(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [historyId, setHistoryId] = useState<string | null>(null);
-  const canManageIntro = can('introduction:manage');
-  const canManageMeetings = can('meeting:manage');
+  const canManageIntro = can('introductions.manage');
+  const canManageMeetings = can('meetings.manage');
   const hasIntro = event.enabledModules.includes('introductions');
   const hasMeetings = event.enabledModules.includes('meetings');
 
