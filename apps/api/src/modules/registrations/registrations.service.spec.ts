@@ -3,6 +3,7 @@ import type { TenantPrismaClient, TenantTransactionService } from '../../databas
 import {
   RegistrationSource,
   RegistrationStatus,
+  type Badge,
   type Person,
 } from '../../database/prisma-client';
 import type { AuditService } from '../../common/audit/audit.service';
@@ -32,6 +33,24 @@ function personRow(): Person {
     country: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+}
+
+function badgeRow(overrides: Partial<Badge> = {}): Badge {
+  return {
+    id: 'badge-1',
+    organizationId: 'org-1',
+    eventId: 'event-1',
+    registrationId: 'registration-1',
+    tokenHash: 'hash',
+    status: 'ISSUED',
+    issuedAt: new Date('2026-11-10T12:00:00.000Z'),
+    revokedAt: null,
+    reissuedAt: null,
+    reissueCount: 0,
+    createdAt: new Date('2026-11-10T12:00:00.000Z'),
+    updatedAt: new Date('2026-11-10T12:00:00.000Z'),
+    ...overrides,
   };
 }
 
@@ -91,7 +110,10 @@ function harness(options: Options = {}) {
         decisionReason: (data.decisionReason as string | null) ?? null,
       });
     },
-    findDetail: async () => detailRow(RegistrationStatus.APPROVED),
+    // The database row after issuance: the badge exists even though the update that
+    // changed the status ran before it was created.
+    findDetail: async () =>
+      detailRow(RegistrationStatus.APPROVED, { badge: badgeRow() }),
   } as unknown as RegistrationsRepository;
 
   const badges = {
@@ -153,6 +175,7 @@ describe('approval workflow', () => {
     });
 
     expect(detail.status).toBe('APPROVED');
+    expect(detail.badge?.status).toBe('ISSUED');
     expect(decisions[0]).toMatchObject({
       status: RegistrationStatus.APPROVED,
       decidedByUserId: 'user-1',

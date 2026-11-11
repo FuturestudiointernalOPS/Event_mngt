@@ -136,7 +136,19 @@ export class RegistrationsService {
               )
             : null;
 
-        return { detail: toDetail(updated), notice };
+        // The badge is created after the status update, so the row read before issuance
+        // still reports `badge: null`. Re-read the detail so the response tells the truth.
+        const detailRow =
+          notice === null
+            ? updated
+            : ((await this.repository.findDetail(
+                tx,
+                tenant.organizationId,
+                eventId,
+                registrationId,
+              )) ?? updated);
+
+        return { detail: toDetail(detailRow), notice };
       },
     );
 
