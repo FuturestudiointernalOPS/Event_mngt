@@ -48,18 +48,19 @@ describe('WorkspaceShell', () => {
   it('renders the loading state and then the shell without a hook-order error (regression)', async () => {
     // A hook added after the early "loading" return made React throw "Rendered more
     // hooks than during the previous render" as soon as the workspace context resolved.
-    grant(['organization.view_members', 'organization.edit', 'organization.view_audit_log']);
+    grant(['organization.view_members', 'organization.view_audit_log']);
     renderShell();
 
-    expect(await screen.findByRole('link', { name: /privacy|confidentialité/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /^team|équipe/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /audit/i })).toBeInTheDocument();
   });
 
-  it('hides privacy and audit links from a member without those capabilities', async () => {
+  it('hides the team and audit links from a member without those capabilities', async () => {
     grant([]);
     renderShell();
 
     await screen.findByRole('navigation');
-    expect(screen.queryByRole('link', { name: /privacy|confidentialité/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^team|équipe/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /audit/i })).toBeNull();
   });
 });

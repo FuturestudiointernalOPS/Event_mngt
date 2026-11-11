@@ -28,7 +28,10 @@ export default function RegistrationSetupTab(): JSX.Element {
   const { slug: workspaceSlug, eventId, can } = useOutletContext<EventOutletContext>();
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const canManage = can('registration:manage');
+  // Categories, the form and consent are separate capabilities on the API; mirror that.
+  const canCategories = can('registrations.manage_categories');
+  const canForm = can('registrations.manage_form');
+  const canConsent = can('registrations.manage_consent');
   const [error, setError] = useState<string | null>(null);
 
   const categories = useQuery({ queryKey: ['categories', workspaceSlug, eventId], queryFn: () => eventAdminApi.categories(workspaceSlug, eventId) });
@@ -119,7 +122,7 @@ export default function RegistrationSetupTab(): JSX.Element {
                 <span className="text-xs text-brand-text/70">
                   {category.registrationCount ?? 0}{category.capacity ? ` / ${category.capacity}` : ''}
                 </span>
-                {canManage ? (
+                {canCategories ? (
                   <>
                     <Button size="sm" variant="ghost" onClick={() => toggleCategory.mutate({ id: category.id, isActive: !category.isActive })}>
                       {category.isActive ? t('setup.deactivate') : t('setup.activate')}
@@ -131,7 +134,7 @@ export default function RegistrationSetupTab(): JSX.Element {
             </li>
           ))}
         </ul>
-        {canManage ? (
+        {canCategories ? (
           <form className="mt-4 grid gap-3 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); addCategory.mutate(); }}>
             <Field label={t('setup.name')} htmlFor="cat-name"><Input id="cat-name" required value={cat.name} onChange={(e) => setCat({ ...cat, name: e.target.value })} /></Field>
             <Field label={t('setup.capacity')} htmlFor="cat-cap"><Input id="cat-cap" type="number" min={1} value={cat.capacity} onChange={(e) => setCat({ ...cat, capacity: e.target.value })} /></Field>
@@ -147,7 +150,7 @@ export default function RegistrationSetupTab(): JSX.Element {
               <span>
                 {entry.label} <Pill>{entry.type}</Pill> {entry.required ? <Pill>{t('common.required')}</Pill> : null}
               </span>
-              {canManage ? (
+              {canForm ? (
                 <Button size="sm" variant="ghost" onClick={() => setDraftFields((draftFields ?? []).filter((_, i) => i !== index))}>
                   {t('team.remove')}
                 </Button>
@@ -155,7 +158,7 @@ export default function RegistrationSetupTab(): JSX.Element {
             </li>
           ))}
         </ul>
-        {canManage ? (
+        {canForm ? (
           <>
             <form className="mt-4 grid gap-3 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); addField(); }}>
               <Field label={t('setup.label')} htmlFor="f-label"><Input id="f-label" required value={field.label} onChange={(e) => setField({ ...field, label: e.target.value })} /></Field>
@@ -191,7 +194,7 @@ export default function RegistrationSetupTab(): JSX.Element {
             </li>
           ))}
         </ul>
-        {canManage ? (
+        {canConsent ? (
           <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); publishDocument.mutate(); }}>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label={t('setup.documentKey')} htmlFor="doc-key"><Input id="doc-key" required value={document.key} onChange={(e) => setDocument({ ...document, key: slug(e.target.value) })} /></Field>

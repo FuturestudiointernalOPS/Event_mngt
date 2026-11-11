@@ -109,12 +109,6 @@ export function WorkspaceShell(): JSX.Element {
       visible: can(CAPABILITY_KEYS.organizationViewMembers),
     },
     {
-      to: `/workspace/${slug}/settings/privacy`,
-      label: t('nav.privacy'),
-      end: false,
-      visible: can(CAPABILITY_KEYS.organizationEdit),
-    },
-    {
       to: `/workspace/${slug}/audit`,
       label: t('nav.audit'),
       end: false,

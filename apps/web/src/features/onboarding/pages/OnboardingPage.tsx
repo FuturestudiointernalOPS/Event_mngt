@@ -37,7 +37,7 @@ export default function OnboardingPage(): JSX.Element {
       // Refresh memberships so the new workspace is known to the session.
       const current = await authApi.me();
       useSessionStore.getState().setUser(current.user, current.memberships);
-      navigate(`/workspace/${created.slug}/settings/branding`, { replace: true });
+      navigate(`/workspace/${created.organization.slug}/settings/branding`, { replace: true });
     } catch (failure) {
       setError(failure instanceof ApiRequestError ? failure.message : t('common.error'));
     } finally {

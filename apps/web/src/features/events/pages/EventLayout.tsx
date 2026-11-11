@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { NavLink, Outlet, useParams } from 'react-router-dom';
+import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
+import type { WorkspaceOutletContext } from '@/components/layout/WorkspaceShell';
 import type { EventDetail } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { ErrorState, LoadingState } from '@/components/ui/states';
@@ -8,13 +9,13 @@ import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/query-keys';
 import { useStatusLabel } from '@/lib/status';
 import { eventsApi } from '@/services/events.api';
-import { useSessionStore } from '@/stores/session.store';
 
 export interface EventOutletContext {
   slug: string;
   eventId: string;
   event: EventDetail;
-  can: (permission: string) => boolean;
+  /** True when the signed-in member holds this capability in the workspace. */
+  can: (capability: string) => boolean;
 }
 
 /** Shell of one event: title, status and a tab per enabled area of work. */
@@ -22,9 +23,9 @@ export default function EventLayout(): JSX.Element {
   const { slug = '', eventId = '' } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
   const statusLabel = useStatusLabel();
-  const permissions = useSessionStore(
-    (state) => state.memberships.find((m) => m.organizationSlug === slug)?.permissions ?? [],
-  );
+  // Capabilities come from the workspace shell (`/me/capabilities`), the single source the
+  // API itself enforces; the UI only hides what the API would refuse.
+  const { can } = useOutletContext<WorkspaceOutletContext>();
 
   const eventQuery = useQuery({
     queryKey: queryKeys.event(slug, eventId),
@@ -97,7 +98,7 @@ export default function EventLayout(): JSX.Element {
             slug,
             eventId,
             event,
-            can: (permission: string) => permissions.includes(permission),
+            can,
           } satisfies EventOutletContext
         }
       />

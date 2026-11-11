@@ -44,7 +44,7 @@ export default function CheckInTab(): JSX.Element {
       </div>
       <Section
         title={t('reports.byCategory')}
-        actions={can('checkin:operate') ? <Link to={`/staff/${slug}/${eventId}/check-in`}><Button size="sm">{t('checkin.openScanner')}</Button></Link> : null}
+        actions={can('check_in.operate') ? <Link to={`/staff/${slug}/${eventId}/check-in`}><Button size="sm">{t('checkin.openScanner')}</Button></Link> : null}
       >
         <ul className="divide-y divide-brand-primary/10 text-sm">
           {attendance.data.byCategory.map((category) => (

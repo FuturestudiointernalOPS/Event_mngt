@@ -15,7 +15,7 @@ export default function ShowcaseTab(): JSX.Element {
   const { t } = useI18n();
   const statusLabel = useStatusLabel();
   const queryClient = useQueryClient();
-  const canModerate = can('profile:moderate');
+  const canModerate = can('profiles.moderate');
 
   const profiles = useQuery({ queryKey: ['showcase-profiles', slug, eventId], queryFn: () => staffOpsApi.profiles(slug, eventId) });
   const innovations = useQuery({ queryKey: ['showcase-innovations', slug, eventId], queryFn: () => staffOpsApi.innovations(slug, eventId) });

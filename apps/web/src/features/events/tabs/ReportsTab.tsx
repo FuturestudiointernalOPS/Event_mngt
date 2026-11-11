@@ -39,7 +39,7 @@ export default function ReportsTab(): JSX.Element {
   const exports = useQuery({
     queryKey: ['exports', slug, eventId],
     queryFn: () => staffOpsApi.exports(slug, eventId),
-    enabled: can('report:export'),
+    enabled: can('reports.export'),
     refetchInterval: 5_000,
   });
 
@@ -96,7 +96,7 @@ export default function ReportsTab(): JSX.Element {
         </Section>
       ) : null}
 
-      {can('report:export') ? (
+      {can('reports.export') ? (
         <Section title={t('reports.export')}>
           <Button variant="secondary" disabled={requestExport.isPending} onClick={() => requestExport.mutate()}>
             {t('reports.exportCsv')}
