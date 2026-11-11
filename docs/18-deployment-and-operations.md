@@ -101,6 +101,9 @@ account straight away (`/account/security`).
 - **Suspend a workspace**: Super Admin console (`/platform`).
 - **Erase a person**: registrations tab → Erase.
 - **A participant lost their badge**: registrations tab → open the registration → Reissue badge (shows the code once; the old badge stops working).
+- **A participant asks for their data or erasure**: they can do it themselves from the `/participant` link in their badge e-mail (My data). Staff can also erase from the registrations tab.
+- **Purging expired personal data**: Data retention (workspace menu) → set the months, Preview, then Erase now. It is manual; schedule a reminder after each event.
+- **Real e-mail / storage**: set `EMAIL_PROVIDER=resend` with `RESEND_API_KEY`, `STORAGE_PROVIDER=s3` with the `S3_*` variables and `S3_PUBLIC_BASE_URL`. Send a test registration and check the badge e-mail and a logo upload before the beta.
 - **Audit**: workspace → Audit log.
 
 ## 8. Local development

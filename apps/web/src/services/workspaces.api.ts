@@ -16,6 +16,7 @@ export interface WorkspaceSettingsView {
     description: string | null;
     websiteUrl: string | null;
     contactEmail: string | null;
+    retentionMonths: number | null;
   };
 }
 

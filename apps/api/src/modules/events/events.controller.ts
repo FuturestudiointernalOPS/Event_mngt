@@ -7,7 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CreateEventRequest,
   EventDetail,
@@ -21,6 +24,8 @@ import {
   type EventTransitionRequest,
   type UpdateEventRequest,
 } from '@event-platform/shared';
+import { EventBannerService } from './event-banner.service';
+import { MAX_BRANDING_ASSET_BYTES, type BrandingAssetFile } from './event-banner.rules';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
@@ -42,6 +47,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly duplication: DuplicateEventService,
+    private readonly banner: EventBannerService,
   ) {}
 
   @Get()
@@ -85,6 +91,16 @@ export class EventsController {
     @Body(new ZodValidationPipe(updateEventRequestSchema)) body: UpdateEventRequest,
   ): Promise<EventDetail> {
     return this.eventsService.update(eventId, body);
+  }
+
+  @Post(':eventId/banner')
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BRANDING_ASSET_BYTES } }))
+  uploadBanner(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @UploadedFile() file: BrandingAssetFile | undefined,
+  ): Promise<{ bannerUrl: string }> {
+    return this.banner.upload(eventId, file);
   }
 
   @Post(':eventId/transitions')

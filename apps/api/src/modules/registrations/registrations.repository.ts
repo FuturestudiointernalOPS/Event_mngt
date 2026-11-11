@@ -191,59 +191,35 @@ export class RegistrationsRepository {
    * correct; answers, profile and listing content go, and the meetings or introductions that
    * referenced the profile go with it (their foreign keys cascade from the profile).
    */
-  async erasePersonData(
+  /**
+   * Takes the category's row lock and reports whether a seat is left. The lock serialises
+   * concurrent submissions for the same category, so two requests can never both take
+   * the last seat; it is released when the surrounding transaction ends. A category
+   * without a capacity always has room.
+   */
+  async hasSeatAvailable(
     tx: TenantPrismaClient,
     organizationId: string,
-    personId: string,
-  ): Promise<number> {
-    const registrations = await tx.registration.findMany({
-      where: { organizationId, personId },
-      select: { id: true },
-    });
-    const registrationIds = registrations.map((row) => row.id);
+    categoryId: string,
+  ): Promise<boolean> {
+    const rows = await tx.$queryRaw<{ capacity: number | null }[]>`
+      SELECT capacity FROM participant_categories
+      WHERE id = ${categoryId}::uuid AND organization_id = ${organizationId}::uuid
+      FOR UPDATE`;
+    const capacity = rows[0]?.capacity ?? null;
 
-    if (registrationIds.length === 0) {
-      return 0;
+    if (capacity === null) {
+      return true;
     }
 
-    await tx.registrationAnswer.deleteMany({
-      where: { organizationId, registrationId: { in: registrationIds } },
-    });
-    await tx.consentRecord.updateMany({
-      where: { organizationId, registrationId: { in: registrationIds } },
-      data: { ipAddress: null },
-    });
-
-    // The listing keeps its own content, so it has to go explicitly: the profile foreign
-    // key is nullable, and deleting the profile would only detach it.
-    const profiles = await tx.participantProfile.findMany({
-      where: { organizationId, registrationId: { in: registrationIds } },
-      select: { id: true },
-    });
-    const profileIds = profiles.map((row) => row.id);
-
-    if (profileIds.length > 0) {
-      await tx.innovation.deleteMany({
-        where: { organizationId, participantProfileId: { in: profileIds } },
-      });
-    }
-
-    await tx.participantProfile.deleteMany({
-      where: { organizationId, registrationId: { in: registrationIds } },
-    });
-    await tx.registration.updateMany({
+    const taken = await tx.registration.count({
       where: {
         organizationId,
-        personId,
+        categoryId,
         status: { in: [RegistrationStatus.PENDING, RegistrationStatus.APPROVED] },
       },
-      data: { status: RegistrationStatus.CANCELLED },
-    });
-    const updated = await tx.person.updateMany({
-      where: { id: personId, organizationId },
-      data: erasedPerson(personId),
     });
 
-    return updated.count;
+    return taken < capacity;
   }
 }

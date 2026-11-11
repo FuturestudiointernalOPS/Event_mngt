@@ -58,6 +58,7 @@ see `docs/16-capability-authorization.md`.
 | events | POST | `/workspaces/:slug/events` | `events.create` | `EventsController.create` |
 | events | GET | `/workspaces/:slug/events/:eventId` | `events.view` | `EventsController.detail` |
 | events | POST | `/workspaces/:slug/events/:eventId/publish` | `events.publish` | `EventsController.publish` |
+| events | POST | `/workspaces/:slug/events/:eventId/banner` | `events.create` | `EventsController.uploadBanner` |
 | events | PATCH | `/workspaces/:slug/events/:eventId` | `events.create` | `EventsController.update` |
 | events | POST | `/workspaces/:slug/events/:eventId/transitions` | `events.publish` | `EventsController.transition` |
 | events | POST | `/workspaces/:slug/events/:eventId/duplicate` | `events.create` | `EventsController.duplicate` |
@@ -87,6 +88,18 @@ see `docs/16-capability-authorization.md`.
 | module-registry | GET | `/workspaces/:slug/events/:eventId/modules` | `events.view_modules` | `ModuleRegistryController.list` |
 | module-registry | PATCH | `/workspaces/:slug/events/:eventId/modules` | `events.manage_modules` | `ModuleRegistryController.update` |
 | organizations | POST | `/onboarding/organizations` | `organization.create` | `OrganizationsController.create` |
+| participant-portal | GET | `/participant/me` | — | `ParticipantPortalController.me` |
+| participant-portal | GET | `/participant/export` | — | `ParticipantPortalController.exportData` |
+| participant-portal | POST | `/participant/withdraw` | — | `ParticipantPortalController.withdraw` |
+| participant-portal | POST | `/participant/erase` | — | `ParticipantPortalController.erase` |
+| participant-portal | GET | `/participant/profile` | — | `ParticipantPortalController.profile` |
+| participant-portal | PUT | `/participant/profile` | — | `ParticipantPortalController.saveProfile` |
+| participant-portal | GET | `/participant/directory` | — | `ParticipantPortalController.directory` |
+| participant-portal | GET | `/participant/meetings` | — | `ParticipantPortalController.meetings` |
+| participant-portal | POST | `/participant/meetings` | — | `ParticipantPortalController.proposeMeeting` |
+| participant-portal | POST | `/participant/meetings/:meetingId/respond` | — | `ParticipantPortalController.respondToMeeting` |
+| participant-portal | GET | `/participant/introductions` | — | `ParticipantPortalController.introductions` |
+| participant-portal | POST | `/participant/introductions` | — | `ParticipantPortalController.requestIntroduction` |
 | participants | GET | `/workspaces/:slug/events/:eventId/participants` | `participants.view` | `ParticipantsController.list` |
 | participants | GET | `/workspaces/:slug/events/:eventId/participants/:personId` | `participants.view` | `ParticipantsController.detail` |
 | platform | GET | `/platform/organizations/overview` | `platform.organizations.manage` | `PlatformOrganizationsController.overview` |
@@ -116,6 +129,7 @@ see `docs/16-capability-authorization.md`.
 | registrations | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/approve` | `registrations.approve` | `RegistrationsController.approve` |
 | registrations | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/reject` | `registrations.reject` | `RegistrationsController.reject` |
 | registrations | POST | `/workspaces/:slug/events/:eventId/registrations/:registrationId/erase` | `registrations.erase` | `RegistrationsController.erase` |
+| registrations | POST | `/workspaces/:slug/retention/purge` | `registrations.erase` | `RegistrationsRetentionController.purge` |
 | registrations | POST | `/public/events/:eventSlug/registrations` | — | `PublicRegistrationsController.submit` |
 | reports | GET | `/workspaces/:slug/events/:eventId/reports/summary` | `reports.view` | `ReportsController.eventSummary` |
 | reports | GET | `/workspaces/:slug/reports/summary` | `reports.view` | `ReportsController.organizationSummary` |

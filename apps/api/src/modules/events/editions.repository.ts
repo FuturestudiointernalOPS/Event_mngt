@@ -73,15 +73,18 @@ export class EditionsRepository {
     });
   }
 
-  findSlugConflict(
+  /**
+   * Public URLs are /e/:eventSlug, so a slug is unique platform-wide. Row-level security
+   * hides other organisations' events, so the check goes through a database function that
+   * answers only "is this slug taken?" (migration events_global_slug).
+   */
+  async findSlugConflict(
     tx: TenantPrismaClient,
-    organizationId: string,
+    _organizationId: string,
     slug: string,
   ): Promise<{ id: string } | null> {
-    return tx.event.findFirst({
-      where: { organizationId, slug },
-      select: { id: true },
-    });
+    const rows = await tx.$queryRaw<{ taken: boolean }[]>`SELECT event_slug_taken(${slug}) AS taken`;
+    return rows[0]?.taken ? { id: 'taken' } : null;
   }
 
   create(tx: TenantPrismaClient, data: CreateEditionData): Promise<EventWithModules> {

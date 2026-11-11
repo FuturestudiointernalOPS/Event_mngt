@@ -79,7 +79,7 @@ export class EventsService {
       if (clash) {
         throw AppException.conflict(
           'slug_taken',
-          'An event with this web address already exists in this workspace.',
+          'An event with this web address already exists.',
         );
       }
 
@@ -179,6 +179,9 @@ export class EventsService {
         ...(input.venueName !== undefined && { venueName: input.venueName }),
         ...(input.venueAddress !== undefined && { venueAddress: input.venueAddress }),
         ...(input.slug !== undefined && { slug: slugify(input.slug) }),
+        ...(input.brandOverrides !== undefined && {
+          brandOverrides: input.brandOverrides ?? Prisma.DbNull,
+        }),
       };
 
       return toDetail(await this.events.update(tx, event.id, data));

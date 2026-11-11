@@ -1,6 +1,7 @@
 import { CAPABILITY_KEYS } from '@event-platform/shared';
 import type { RouteDefinition } from '../../common/routes/route-definition';
 import { PublicRegistrationsController } from './public-registrations.controller';
+import { RegistrationsRetentionController } from './registrations-retention.controller';
 import { RegistrationsController } from './registrations.controller';
 
 export const routes: RouteDefinition[] = [
@@ -33,6 +34,12 @@ export const routes: RouteDefinition[] = [
     path: '/workspaces/:slug/events/:eventId/registrations/:registrationId/erase',
     capability: CAPABILITY_KEYS.registrationsErase,
     handler: { controller: RegistrationsController, method: 'erase' },
+  },
+  {
+    method: 'POST',
+    path: '/workspaces/:slug/retention/purge',
+    capability: CAPABILITY_KEYS.registrationsErase,
+    handler: { controller: RegistrationsRetentionController, method: 'purge' },
   },
   {
     method: 'POST',

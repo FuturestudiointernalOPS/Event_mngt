@@ -29,6 +29,7 @@ export interface WorkspaceSettingsView {
     description: string | null;
     websiteUrl: string | null;
     contactEmail: string | null;
+    retentionMonths: number | null;
   };
 }
 
@@ -135,6 +136,7 @@ export class WorkspacesService {
           description: input.description ?? null,
           websiteUrl: input.websiteUrl ?? null,
           contactEmail: input.contactEmail ?? null,
+          retentionMonths: input.retentionMonths ?? null,
         },
         update: {
           ...(input.defaultLocale === undefined ? {} : { defaultLocale: input.defaultLocale }),
@@ -142,6 +144,9 @@ export class WorkspacesService {
           ...(input.description === undefined ? {} : { description: input.description }),
           ...(input.websiteUrl === undefined ? {} : { websiteUrl: input.websiteUrl }),
           ...(input.contactEmail === undefined ? {} : { contactEmail: input.contactEmail }),
+          ...(input.retentionMonths === undefined
+            ? {}
+            : { retentionMonths: input.retentionMonths }),
         },
       });
 
@@ -226,6 +231,7 @@ export function toSettingsView(
       description: settings?.description ?? null,
       websiteUrl: settings?.websiteUrl ?? null,
       contactEmail: settings?.contactEmail ?? null,
+      retentionMonths: settings?.retentionMonths ?? null,
     },
   };
 }

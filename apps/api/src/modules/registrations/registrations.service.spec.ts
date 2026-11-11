@@ -130,7 +130,7 @@ function harness(options: Options = {}) {
   } as unknown as TenantTransactionService;
 
   return {
-    service: new RegistrationsService(tenantTransaction, repository, badges, audit),
+    service: new RegistrationsService(tenantTransaction, repository, {} as never, badges, audit),
     decisions,
     audits,
     counters: {

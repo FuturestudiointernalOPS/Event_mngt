@@ -14,6 +14,7 @@ import { RegistrationStatus } from '../../database/prisma-client';
 import { BadgesService, type IssuedBadgeNotice } from '../badges/badges.service';
 import { toDetail, toSummary } from './registrations.mapper';
 import { buildListWhere, REGISTRATION_ORDER } from './registrations.query';
+import { RegistrationsErasureRepository } from './registrations-erasure.repository';
 import { RegistrationsRepository } from './registrations.repository';
 import { assertDecidable, type Decision } from './registrations.rules';
 
@@ -33,6 +34,7 @@ export class RegistrationsService {
   constructor(
     private readonly tenantTransaction: TenantTransactionService,
     private readonly repository: RegistrationsRepository,
+    private readonly erasure: RegistrationsErasureRepository,
     private readonly badges: BadgesService,
     private readonly audit: AuditService,
   ) {}
@@ -176,7 +178,7 @@ export class RegistrationsService {
         throw AppException.notFound('not_found', 'Registration not found.');
       }
 
-      await this.repository.erasePersonData(tx, tenant.organizationId, row.person.id);
+      await this.erasure.erasePersonData(tx, tenant.organizationId, row.person.id);
 
       return row.person.id;
     });

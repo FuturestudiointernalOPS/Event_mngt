@@ -10,6 +10,7 @@ import { formatDateRange } from '@/lib/date';
 import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/query-keys';
 import { eventAdminApi, type EventAction } from '@/services/event-admin.api';
+import { EventBrandingSection } from '../components/EventBrandingSection';
 import type { EventOutletContext } from '../pages/EventLayout';
 
 /** Details, lifecycle actions and a small editor for the descriptive fields. */
@@ -132,6 +133,7 @@ export default function OverviewTab(): JSX.Element {
           </form>
         </Section>
       ) : null}
+      {canEdit && editable ? <EventBrandingSection slug={slug} eventId={eventId} event={event} /> : null}
     </div>
   );
 }

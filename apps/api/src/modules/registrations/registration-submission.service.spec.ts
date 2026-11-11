@@ -30,6 +30,19 @@ describe('registration submission', () => {
     });
   });
 
+  it('refuses a registration into a full category and stores nothing', async () => {
+    // Regression: capacity was stored but never enforced, so a category could be oversold.
+    const { service, created } = createSubmissionHarness({
+      existingPerson: person(),
+      seatAvailable: false,
+    });
+
+    await expect(
+      service.submit('village-2026', input({ categoryKey: 'visitor' }), null),
+    ).rejects.toMatchObject({ code: 'category_full' });
+    expect(created).toHaveLength(0);
+  });
+
   it('reuses the person row for the same email in the same organisation', async () => {
     const { service, counters } = createSubmissionHarness({
       existingPerson: person(),

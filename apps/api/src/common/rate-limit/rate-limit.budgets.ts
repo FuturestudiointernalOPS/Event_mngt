@@ -62,6 +62,13 @@ export const RATE_LIMIT_BUDGETS = {
       { bucket: 'public-registration', key: 'ip', limit: 120, windowSeconds: 60 },
     ],
   },
+  /** The participant space is reached with a secret link, so budgets key on the address. */
+  participant: {
+    read: [{ bucket: 'participant-read', key: 'ip', limit: 120, windowSeconds: 60 }],
+    write: [{ bucket: 'participant-write', key: 'ip', limit: 30, windowSeconds: 60 }],
+    /** Cancelling or erasing is final and rare. */
+    destructive: [{ bucket: 'participant-destructive', key: 'ip', limit: 5, windowSeconds: 3600 }],
+  },
   operations: {
     /** Event staff behind one venue network need per-account and per-address room. */
     checkInSync: [

@@ -74,6 +74,7 @@ registration tables for the support view.
 | Platform administration | `withPlatformAdmin` | a verified platform administrator | list organisations, change organisation status and manage capability entitlements |
 | Platform support | `withPlatformSupport` | a verified platform administrator | read organisation identity plus aggregate member, event and registration counts; every detail read is audited |
 | Public read | `withOrganizationScope` | anonymous visitor | read one organisation's settings and branding, and approved showcase rows, after a public identifier resolved it |
+| Participant space | `withTenant` (no user id) | a registrant holding a badge credential | read and write only the rows of the one registration the credential names; the organisation comes from the verified credential, never the request |
 | Public submission | `withOrganizationScope` | anonymous registrant | insert registration-owned rows for the organisation resolved from a published event slug |
 
 Bootstrap exists because membership resolution happens **before** a tenant is known. With

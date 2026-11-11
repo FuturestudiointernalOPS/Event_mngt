@@ -29,10 +29,13 @@ export const AUDIT_ACTIONS = {
   platformOrganizationViewed: 'platform.organization.viewed',
   registrationSubmitted: 'registration.submitted',
   personErased: 'person.erased',
+  retentionPurged: 'retention.purged',
   registrationApproved: 'registration.approved',
   registrationRejected: 'registration.rejected',
   reportExportRequested: 'report.export.requested',
   checkInRecorded: 'checkin.recorded',
+  registrationCancelledByParticipant: 'registration.cancelled_by_participant',
+  participantDataExported: 'participant.data.exported',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

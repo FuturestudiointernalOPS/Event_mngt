@@ -158,7 +158,7 @@ profiles with moderation, showcase listings and the participant read model.
 all workspaces, `build`, `check:policies`, and `test:isolation` against the runtime role
 (the new tables are covered).
 - Risks: participant self-service editing waits on the participant-account decision
-(`docs/11` D4) and is staff-performed for now; category capacity is stored, not enforced;
+(`docs/11` D4) and is staff-performed for now; category capacity is enforced at submission under a category row lock (`category_full`);
 `duplicatePolicy: warn` really does store the duplicate, by design; consent records are
 `RESTRICT` against their document, so an organisation delete must remove the records first.
 

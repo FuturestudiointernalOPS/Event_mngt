@@ -1,5 +1,6 @@
 import { Branding, DEFAULT_BRANDING, Locale } from '@event-platform/shared';
 import { toBranding, toLocale } from '../../common/utils/branding';
+import { toBrandOverrides } from './events.mapper';
 import { EventStatus, EventVisibility, Prisma } from '../../database/prisma-client';
 
 /**
@@ -31,6 +32,8 @@ export const PUBLIC_EVENT_CONTEXT_SELECT = {
   endsAt: true,
   venueName: true,
   venueAddress: true,
+  bannerUrl: true,
+  brandOverrides: true,
   organization: {
     select: {
       slug: true,
@@ -57,6 +60,7 @@ export interface PublicEventContext {
     endsAt: string;
     venueName: string | null;
     venueAddress: string | null;
+    bannerUrl: string | null;
   };
   organization: { slug: string; name: string };
   branding: Branding;
@@ -76,14 +80,19 @@ export function toPublicContext(row: PublicEventContextRow): PublicEventContext 
       endsAt: row.endsAt.toISOString(),
       venueName: row.venueName,
       venueAddress: row.venueAddress,
+      bannerUrl: row.bannerUrl,
     },
     organization: {
       slug: row.organization.slug,
       name: row.organization.name,
     },
-    branding: row.organization.branding
-      ? toBranding(row.organization.branding)
-      : { ...DEFAULT_BRANDING },
+    // Event colours override the workspace's; a missing key inherits it.
+    branding: {
+      ...(row.organization.branding
+        ? toBranding(row.organization.branding)
+        : { ...DEFAULT_BRANDING }),
+      ...(toBrandOverrides(row.brandOverrides) ?? {}),
+    },
     locale: {
       default: toLocale(row.organization.settings?.defaultLocale),
       supported: ['fr', 'en'],

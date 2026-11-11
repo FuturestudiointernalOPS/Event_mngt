@@ -27,6 +27,8 @@ function eventRow(overrides: Partial<EventWithModules> = {}): EventWithModules {
     endsAt: new Date('2026-11-10T10:00:00.000Z'),
     venueName: null,
     venueAddress: null,
+    bannerUrl: null,
+    brandOverrides: null,
     registrationOpensAt: null,
     registrationClosesAt: null,
     publishedAt: null,

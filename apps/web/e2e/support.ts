@@ -4,6 +4,16 @@ import { execFileSync } from 'node:child_process';
 export const API = process.env.E2E_API_URL ?? 'http://localhost:4000';
 export const PASSWORD = 'Str0ng-Passw0rd!x';
 
+/**
+ * Rate-limit counters persist in the database, and every spec registers a fresh account from
+ * the same address, so the register budget (5 per 10 minutes) would stop a full run. The
+ * counters hold only hashed keys; clearing them in the local test database is harmless.
+ */
+function resetRateLimits(): void {
+  execFileSync('docker', ['exec', 'eventplat-pg', 'psql', '-U', 'postgres', '-d', 'eventplat', '-qc',
+    'delete from rate_limit_counters']);
+}
+
 /** Marks the account verified, as clicking the e-mailed link would (local Docker database). */
 function verify(email: string): void {
   execFileSync('docker', ['exec', 'eventplat-pg', 'psql', '-U', 'postgres', '-d', 'eventplat', '-qc',
@@ -25,6 +35,7 @@ export async function seedEvent(request: APIRequestContext, withShowcase = false
   const slug = `${tag}-org`;
   const json = { 'content-type': 'application/json' };
 
+  resetRateLimits();
   await request.post(`${API}/api/v1/auth/register`, { data: { email, password: PASSWORD, displayName: 'Playwright' } });
   verify(email);
   const login = await (await request.post(`${API}/api/v1/auth/login`, { data: { email, password: PASSWORD } })).json();

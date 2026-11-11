@@ -131,6 +131,17 @@ export class RegistrationSubmissionService {
           );
         }
 
+        if (
+          categoryId &&
+          !(await this.repository.hasSeatAvailable(tx, target.organizationId, categoryId))
+        ) {
+          throw AppException.conflict(
+            'category_full',
+            'This category has no places left.',
+            [{ path: 'categoryKey', message: 'Choose another category.' }],
+          );
+        }
+
         const reference = await this.uniqueReference(tx, target.id);
         const status = initialStatus(settings.approvalMode);
 

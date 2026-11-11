@@ -9,6 +9,7 @@ import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { CapabilityGuard } from './common/guards/capability.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { ParticipantAccessGuard } from './common/guards/participant-access.guard';
 import { TenantAccessGuard } from './common/guards/tenant-access.guard';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
@@ -32,6 +33,7 @@ import { MeetingsModule } from './modules/meetings/meetings.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { ParticipantPortalModule } from './modules/participant-portal/participant-portal.module';
 import { ParticipantsModule } from './modules/participants/participants.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PlatformModule } from './modules/platform/platform.module';
@@ -85,6 +87,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     CheckInModule,
     RegistrationsModule,
     ProfilesModule,
+    ParticipantPortalModule,
     ParticipantsModule,
     IntroductionsModule,
     MeetingsModule,
@@ -93,6 +96,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ParticipantAccessGuard },
     { provide: APP_GUARD, useClass: TenantAccessGuard },
     { provide: APP_GUARD, useClass: CapabilityGuard },
     { provide: APP_GUARD, useClass: RateLimitGuard },

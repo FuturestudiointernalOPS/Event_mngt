@@ -41,7 +41,8 @@ export class AuditService {
   async record(entry: AuditEntryInput): Promise<void> {
     const context = this.tenantContext.get();
     const organizationId = entry.organizationId ?? context?.organizationId ?? null;
-    const actorUserId = entry.actorUserId ?? context?.userId ?? null;
+    // A participant has no staff identity: an empty id means "no actor", never a uuid.
+    const actorUserId = entry.actorUserId || context?.userId || null;
 
     if (!organizationId && !actorUserId) {
       return;

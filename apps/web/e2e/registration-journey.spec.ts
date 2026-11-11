@@ -32,7 +32,7 @@ test('a visitor registers, staff approve, and a badge is issued', async ({ page,
 
   // 3. Approval issues a badge; the staff can see its state and reissue it.
   await row.getByText('Ines Playwright').click();
-  await expect(row.getByText('Issued')).toBeVisible();
+  await expect(row.getByText('Issued', { exact: true })).toBeVisible();
   await expect(row.getByRole('button', { name: 'Reissue badge' })).toBeVisible();
 });
 

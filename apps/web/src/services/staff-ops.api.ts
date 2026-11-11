@@ -152,21 +152,6 @@ export const staffOpsApi = {
   },
 };
 
-/**
- * Data-retention settings. The current backend has no route for these: the domain was
- * removed with the other branch. The screen is kept as-is and these calls will fail
- * until the domain is reintroduced.
- */
-export interface RetentionSettings {
-  retentionMonths: number | null;
-}
-
-export interface PurgeResult {
-  dryRun: boolean;
-  eligible: number;
-  erased: number;
-}
-
 export const auditApi = {
   list: (slug: string, pageNumber: number) =>
     page<AuditEntry>(`${ws(slug)}/audit?page=${pageNumber}&pageSize=25`),

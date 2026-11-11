@@ -28,6 +28,8 @@ import { ModuleRegistryModule } from '../../modules/module-registry/module-regis
 import { routes as moduleRegistryRoutes } from '../../modules/module-registry/routes';
 import { OrganizationsModule } from '../../modules/organizations/organizations.module';
 import { routes as organizationRoutes } from '../../modules/organizations/routes';
+import { ParticipantPortalModule } from '../../modules/participant-portal/participant-portal.module';
+import { routes as participantPortalRoutes } from '../../modules/participant-portal/routes';
 import { ParticipantsModule } from '../../modules/participants/participants.module';
 import { routes as participantRoutes } from '../../modules/participants/routes';
 import { PlatformModule } from '../../modules/platform/platform.module';
@@ -67,6 +69,7 @@ export const MODULES: Array<Type<unknown>> = [
   MembershipsModule,
   ModuleRegistryModule,
   OrganizationsModule,
+  ParticipantPortalModule,
   ParticipantsModule,
   PlatformModule,
   ProfilesModule,
@@ -91,6 +94,7 @@ export const CATALOGUES: Record<string, RouteDefinition[]> = {
   memberships: membershipRoutes,
   'module-registry': moduleRegistryRoutes,
   organizations: organizationRoutes,
+  'participant-portal': participantPortalRoutes,
   participants: participantRoutes,
   platform: platformRoutes,
   profiles: profileRoutes,

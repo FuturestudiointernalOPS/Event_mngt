@@ -1,15 +1,16 @@
 /**
- * Load and correctness test against a RUNNING API (rate limiting must be off).
+ * Load and correctness test against a RUNNING API (the public registration budget is 120/min per address, so keep --registrants under it).
  *
  *   LOAD_BASE_URL=http://localhost:4010 LOAD_OWNER_DATABASE_URL=postgresql://... \
- *     npx ts-node scripts/load-test.ts [--registrants 400] [--capacity 300] [--concurrency 50]
+ *     npx ts-node scripts/load-test.ts [--registrants 100] [--capacity 80] [--concurrency 50]
  *
  * Scenarios: (1) registration burst into a capacity-limited category, (2) badge download and
  * check-in peak, (3) public page reads. It fails (exit 1) if capacity is ever exceeded or
  * attendance is ever double counted: those are correctness properties, not just speed.
  */
 import { PrismaPg } from '@prisma/adapter-pg';
-import { createHash } from 'node:crypto';
+import { composeParticipantCredential } from '@event-platform/shared';
+import { hashBadgeToken } from '../src/modules/badges/badge.tokens';
 import { PrismaClient } from '../src/database/prisma-client';
 
 const arg = (name: string, fallback: number): number => {
@@ -18,8 +19,8 @@ const arg = (name: string, fallback: number): number => {
 };
 const BASE = process.env.LOAD_BASE_URL ?? 'http://localhost:4000';
 const OWNER = process.env.LOAD_OWNER_DATABASE_URL;
-const REGISTRANTS = arg('registrants', 400);
-const CAPACITY = arg('capacity', 300);
+const REGISTRANTS = arg('registrants', 100);
+const CAPACITY = arg('capacity', 80);
 const CONCURRENCY = arg('concurrency', 50);
 const PASSWORD = 'Str0ng-Passw0rd!x';
 
@@ -86,16 +87,18 @@ async function main(): Promise<void> {
   await api('POST', '/auth/register', { body: { email, password: PASSWORD } });
   await owner.user.update({ where: { email }, data: { status: 'ACTIVE', emailVerifiedAt: new Date() } });
   const token = (await api('POST', '/auth/login', { body: { email, password: PASSWORD } })).data.accessToken as string;
-  const orgId = (await api('POST', '/organizations', { token, body: { name: 'Load Org', slug } })).data.id as string;
+  const orgId = (await api('POST', '/onboarding/organizations', { token, body: { name: 'Load Org', slug } })).data.organization.id as string;
   const event = (await api('POST', `/workspaces/${slug}/events`, {
     token,
     body: { name: 'Load Summit', timeZone: 'UTC', startsAt: '2027-06-01T09:00:00Z', endsAt: '2027-06-01T17:00:00Z', visibility: 'PUBLIC' },
   })).data;
   const base = `/workspaces/${slug}/events/${event.id}`;
-  await api('PUT', `${base}/modules/registration`, { token, body: { enabled: true, settings: { approvalMode: 'automatic' } } });
-  await api('PUT', `${base}/modules/checkin`, { token, body: { enabled: true } });
+  await api('PATCH', `${base}/modules`, {
+    token,
+    body: { modules: [{ key: 'registration', enabled: true, settings: { approvalMode: 'automatic' } }, { key: 'checkin', enabled: true }] },
+  });
   await api('POST', `${base}/categories`, { token, body: { key: 'visitor', name: 'Visitor', capacity: CAPACITY } });
-  await api('PUT', `${base}/consent`, { token, body: { text: 'We keep your data to run the event.', version: '1' } });
+  await api('POST', `${base}/consent-documents`, { token, body: { key: 'privacy', title: 'Privacy', body: 'We keep your data to run the event.', required: true } });
   await api('POST', `${base}/publish`, { token });
 
   let failed = false;
@@ -109,7 +112,7 @@ async function main(): Promise<void> {
   let started = performance.now();
   const regs = await pool(people, CONCURRENCY, (i) =>
     api('POST', `/public/events/${event.slug}/registrations`, {
-      body: { email: `${tag}-${i}@example.test`, firstName: 'Load', lastName: `T${i}`, categoryKey: 'visitor', answers: {}, consent: true },
+      body: { email: `${tag}-${i}@example.test`, firstName: 'Load', lastName: `T${i}`, categoryKey: 'visitor', answers: [], consents: [{ key: 'privacy', version: 1, accepted: true }] },
     }),
   );
   report('registration burst', regs, performance.now() - started);
@@ -121,26 +124,29 @@ async function main(): Promise<void> {
   check((await owner.registration.count({ where: { eventId: event.id } })) === expected, 'database holds exactly the accepted registrations');
 
   /* 2. Badge download + check-in peak */
+  // The raw badge token is only ever e-mailed, so the test installs a known one per badge.
   const rows = await owner.registration.findMany({ where: { eventId: event.id }, select: { id: true } });
-  await Promise.all(rows.map((r) => owner.registration.update({
-    where: { id: r.id },
-    data: { accessTokenHash: createHash('sha256').update(`secret-${r.id}`).digest('hex') },
+  await Promise.all(rows.map((r) => owner.badge.updateMany({
+    where: { registrationId: r.id },
+    data: { tokenHash: hashBadgeToken(`secret-${r.id}`) },
   })));
   started = performance.now();
-  const badges = await pool(rows, CONCURRENCY, async (r) =>
-    (await api('GET', '/participant/me', { headers: { 'x-participant-token': `${orgId}.${r.id}.secret-${r.id}` } })).data.badgeCode as string,
-  );
-  report('badge download', badges, performance.now() - started);
+  const badges = await pool(rows, CONCURRENCY, async (r) => {
+    const me = await api('GET', '/participant/me', { headers: { 'x-participant-credential': composeParticipantCredential(orgId, r.id, `secret-${r.id}`) } });
+    return me.status === 200 ? `secret-${r.id}` : '';
+  });
+  report('participant space (badge)', badges, performance.now() - started);
+  check(badges.every((b) => b.value !== ''), 'every participant reaches their own space');
 
   const codes = badges.map((b) => b.value);
   started = performance.now();
   // Every badge is scanned twice, concurrently, as two entrance devices would.
-  const scans = await pool([...codes, ...codes], CONCURRENCY, (code) => api('POST', `${base}/check-in/scans`, { token, body: { code } }));
+  const scans = await pool([...codes, ...codes], CONCURRENCY, (code) => api('POST', `${base}/check-ins`, { token, body: { badgeToken: code, scannedAt: new Date().toISOString() } }));
   report('check-in (each badge x2)', scans, performance.now() - started);
-  const kinds = scans.map((s) => s.value.data?.result as string);
-  check(kinds.filter((k) => k === 'checked_in').length === codes.length, `${codes.length} first scans recorded`);
-  check(kinds.filter((k) => k === 'duplicate').length === codes.length, `${codes.length} second scans reported as duplicates`);
-  check((await owner.checkIn.count({ where: { eventId: event.id } })) === codes.length, 'exactly one attendance per participant in the database');
+  const duplicates = scans.filter((s) => s.value.data?.duplicate === true).length;
+  check(scans.every((s) => s.value.status < 300), 'every scan accepted');
+  check(duplicates === codes.length, `${codes.length} second scans reported as duplicates (got ${duplicates})`);
+  check(new Set((await owner.checkIn.findMany({ where: { eventId: event.id }, select: { registrationId: true } })).map((c) => c.registrationId)).size === codes.length, 'every participant is attended');
 
   /* 3. Public reads */
   started = performance.now();

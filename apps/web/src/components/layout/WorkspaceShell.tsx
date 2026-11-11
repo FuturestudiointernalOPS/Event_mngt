@@ -109,6 +109,12 @@ export function WorkspaceShell(): JSX.Element {
       visible: can(CAPABILITY_KEYS.organizationViewMembers),
     },
     {
+      to: `/workspace/${slug}/settings/retention`,
+      label: t('nav.retention'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.registrationsErase),
+    },
+    {
       to: `/workspace/${slug}/audit`,
       label: t('nav.audit'),
       end: false,

@@ -20,6 +20,7 @@ const BrandingSettingsPage = lazy(
 const AccessSettingsPage = lazy(
   () => import('@/features/capabilities/pages/AccessSettingsPage'),
 );
+const RetentionPage = lazy(() => import('@/features/workspace/pages/RetentionPage'));
 const EventsListPage = lazy(() => import('@/features/events/pages/EventsListPage'));
 const EventCreatePage = lazy(() => import('@/features/events/pages/EventCreatePage'));
 const PublicEventPage = lazy(() => import('@/features/public/pages/PublicEventPage'));
@@ -45,6 +46,7 @@ const ReportsTab = lazy(() => import('@/features/events/tabs/ReportsTab'));
 const PublicShowcasePage = lazy(() => import('@/features/public/pages/PublicShowcasePage'));
 const SecurityPage = lazy(() => import('@/features/account/pages/SecurityPage'));
 const AuditPage = lazy(() => import('@/features/audit/pages/AuditPage'));
+const ParticipantPage = lazy(() => import('@/features/participant/pages/ParticipantPage'));
 const NotFoundPage = lazy(() => import('./NotFoundPage'));
 
 function suspended(node: ReactNode): JSX.Element {
@@ -126,6 +128,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'settings/retention',
+        element: suspended(
+          <RequireWorkspaceCapability capability={CAPABILITY_KEYS.registrationsErase}>
+            <RetentionPage />
+          </RequireWorkspaceCapability>,
+        ),
+      },
+      {
         path: 'settings/access',
         element: suspended(
           <RequireWorkspaceCapability capability={CAPABILITY_KEYS.organizationViewMembers}>
@@ -141,8 +151,9 @@ export const router = createBrowserRouter([
   { path: '/e/:eventSlug/register', element: suspended(<EventRegistrationPage />) },
   { path: '/e/:eventSlug/showcase', element: suspended(<PublicShowcasePage />) },
 
-  // Participant experience: the server has no participant portal yet, so the route is
-  // intentionally absent until that surface returns.
+  // Participant experience: opened from the link in the badge e-mail, authenticated by its
+  // credential rather than by a staff session.
+  { path: '/participant', element: suspended(<ParticipantPage />) },
 
   // Event staff / check-in
   {

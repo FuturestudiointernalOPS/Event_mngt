@@ -31,6 +31,12 @@ export const routes: RouteDefinition[] = [
     handler: { controller: EventsController, method: 'publish' },
   },
   {
+    method: 'POST',
+    path: '/workspaces/:slug/events/:eventId/banner',
+    capability: CAPABILITY_KEYS.eventsCreate,
+    handler: { controller: EventsController, method: 'uploadBanner' },
+  },
+  {
     method: 'PATCH',
     path: '/workspaces/:slug/events/:eventId',
     capability: CAPABILITY_KEYS.eventsCreate,
