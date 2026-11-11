@@ -5,8 +5,9 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 
 ## Before (decisions that block go-live)
 
-- [ ] **D1 Data ownership** and **D2 retention / consent wording** agreed in writing; the
-      consent text entered for the event and the retention period set (workspace → Privacy).
+- [ ] **D1–D6 answered in writing** using the decision brief in `11-open-decisions.md`;
+      the consent text entered for the event and the retention period set
+      (workspace → Privacy).
 - [ ] **E-mail provider**: sender domain verified; a test registration received the e-mail.
 - [ ] **Hosting region** confirmed acceptable for participant data.
 - [ ] Production environment built per `18-deployment-and-operations.md`; security checklist

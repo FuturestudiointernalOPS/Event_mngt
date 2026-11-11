@@ -84,7 +84,45 @@ account straight away (`/account/security`).
   e-mails, not data; accounts and registrations live in PostgreSQL.
 - Uploaded images live in the bucket; enable versioning or replication there.
 
-## 6. Security checklist before go-live
+## 6. Staging validation (before production)
+
+Build the staging environment with production-shaped settings, then prove the journey on it.
+A local green run is not evidence that the hosted stack works: the pooler, the runtime role,
+Redis, the bucket and the e-mail provider all change behaviour.
+
+1. Create the project in the region recorded for **D3** (`11-open-decisions.md`).
+2. Apply migrations as the owner, then `tenant-rls.sql`, then create or verify
+   `platform_app`. The API must connect as that role, never the owner.
+3. Deploy the API and the static web build; set `TRUST_PROXY`, `REDIS_URL`,
+   `EMAIL_PROVIDER=resend` and `STORAGE_PROVIDER=s3` explicitly.
+4. Check `GET /api/v1/health` and `GET /api/v1/health/ready`.
+5. Run the HTTP journeys against staging (they skip themselves when the variables are
+   absent, so a skipped run is not a pass):
+
+   ```sh
+   E2E_BASE_URL='https://api.staging.example' \
+   TEST_OWNER_DATABASE_URL='<owner url>' \
+   TEST_APP_DATABASE_URL='<platform_app url>' \
+   npm run test:e2e -w @event-platform/api
+   ```
+
+6. Run the isolation suite with the staging database URLs:
+
+   ```sh
+   DATABASE_URL='<owner url>' APP_DATABASE_URL='<platform_app url>' \
+   npm run test:isolation -w @event-platform/api
+   ```
+
+7. Run the browser journeys against the deployed web app (`apps/web/e2e`, Playwright).
+8. Run the load test (`apps/api/scripts/load-test.ts`) with the peak from **D6**.
+9. Exercise the failure modes by hand: repeated bad logins return 429, cookies are
+   `Secure`, CORS rejects another origin, a suspended workspace fails closed, a revoked
+   badge is refused, and the backup restore drill still works.
+
+Record the date, the deployed revision, the region and the measured numbers in the release
+notes. Until this section has been run against the real host, Phase 7 stays "partly".
+
+## 7. Security checklist before go-live
 
 - [ ] API connects as `platform_app`; `\du` shows no `BYPASSRLS`, not owner.
 - [ ] `tenant-rls.sql` applied after the last migration; isolation spec green against staging.
@@ -96,7 +134,7 @@ account straight away (`/account/security`).
 - [ ] Retention period decided and configured (`11-open-decisions.md`, D2).
 - [ ] Backup restore drill done.
 
-## 7. Routine operations
+## 8. Routine operations
 
 - **Suspend a workspace**: Super Admin console (`/platform`).
 - **Erase a person**: registrations tab → Erase (or the participant does it themselves).
@@ -105,7 +143,7 @@ account straight away (`/account/security`).
   same automatically for workspaces with a period configured.
 - **Audit**: workspace → Audit log.
 
-## 8. Local development
+## 9. Local development
 
 ```sh
 npm run local:setup     # Docker Postgres + Redis, migrations, RLS, runtime role, apps/api/.env

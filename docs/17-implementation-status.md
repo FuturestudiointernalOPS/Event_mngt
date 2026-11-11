@@ -25,8 +25,10 @@ is the bug.
   reactivate and read an audited support summary across tenants.
 - Self-service **personal-data rights**: participant export and erasure, staff erasure,
   per-workspace retention period with a daily sweep.
-- **Event-level branding**: banner image and colour overrides, inheriting the workspace.
 - **Super Admin module availability** and organisation suspension.
+- **Event appearance is only partly built**: the event screen offers colour overrides and a
+  banner upload, but the server still reports `bannerUrl` and `brandOverrides` as empty and
+  has no banner route. Events inherit workspace branding until that slice is finished.
 - **Rate limiting**, a **durable Redis/BullMQ job runner** for e-mail and exports
   (retries, fallback when Redis is absent), an offline **service worker**, one-command
   **local environment**.
@@ -42,7 +44,7 @@ is the bug.
 | Plan | Implementation | Why |
 | --- | --- | --- |
 | `registration_forms` + `registration_answers` tables | One form per event (`registration_fields`), answers as JSON on the registration | Simpler; per-event forms were the only requirement. Revisit if answers must be queried |
-| Participant "account" for portal features | E-mailed bearer credential (`orgId.registrationId.secret`, hash stored) | Public registration needs no account; the secret, not the org id, proves access |
+| Participant portal | Not built in this release. Public pages plus the badge e-mail cover registration and check-in. | The portal needs a credential column and its own capability set; the abandoned attempt had neither and did not compile (`b875908`). |
 | Event slug unique per organisation | Unique platform-wide | Public URLs are `/e/:eventSlug` |
 | `/staff/:eventId/check-in` | `/staff/:slug/:eventId/check-in` | The API needs the workspace slug |
 | `ses` e-mail provider | Not implemented (console, Resend) | One real provider is enough for the beta |
@@ -52,13 +54,22 @@ is the bug.
 
 - `npm run check:conventions`, `npm run test`, `npm run typecheck`, `npm run build`.
 - **HTTP journey specs** (`apps/api/test/*.e2e-spec.ts`): team and invitations, events and
-  modules, registration, participants and operations, branding uploads, MFA / data rights /
-  platform modules. They need a running API + database (see `AGENTS.md`).
+  modules, branding uploads, and registration → approval → badge → check-in → report. They
+  set up fixtures as the database owner, then assert only through HTTP. They skip themselves
+  unless
+  `E2E_BASE_URL`, `TEST_OWNER_DATABASE_URL` and `TEST_APP_DATABASE_URL` are set; see
+  `AGENTS.md`.
+- **What the restored journeys deliberately use**: manual check-in by registration, because
+  the raw badge token is never retrievable, and a rewritten invitation hash, because the
+  token is only sent by e-mail.
 - **Tenant isolation spec** (`apps/api/src/database/tenant-isolation.spec.ts`): real
   PostgreSQL, non-owner role. Includes a structural guard that fails if a table with
   `organization_id` has no forced RLS policy.
-- **Permission catalogue guard**: every key in `packages/shared` must be inserted by a
-  migration.
+- **Capability registry guard**: every capability must be well formed, point its
+dependencies at real keys, keep its legacy permission mapping, and stay in step with the
+typed constants.
+- **Permission catalogue guard**: every legacy permission key in `packages/shared` must be
+  inserted by a migration.
 - **Redis integration spec** (`REDIS_TEST_URL`): e-mail delivery, retry, give-up.
 - **Job runner unit specs**: Redis URL parsing, durable-queue fallback, export retry and
   stale-claim recovery.
@@ -87,10 +98,18 @@ is the bug.
 - **Never run against Supabase.** Everything was exercised on the Docker database.
   Follow `18-deployment-and-operations.md`, then re-run the journey specs and the load test
   against staging.
+- **The HTTP journey specs need a running stack.** They are not part of `npm test`'s green
+  count unless the three variables are present; a CI job without a database reports them as
+  skipped, not as passing.
+- **The participant portal does not exist.** Participants use the public event page, the
+  registration form, the public showcase and the badge link. There is no signed-in
+  participant area.
+- **Event appearance is incomplete.** The screen sends `brandOverrides` and posts a banner to
+  a route the server does not expose; the event falls back to workspace branding.
 - **Camera scanning** (jsQR) is untested on real phones; the decode loop and the offline
   queue are covered by unit tests and the manual fallback.
-- **PDF export** is not implemented (CSV only). Exports are queued when Redis is
-  configured and run in-process otherwise.
+- **PDF export is a plain text table**, not a designed document: Helvetica rows, no logo or
+  images. It is unit-tested for a valid PDF container, not visually reviewed.
 - **S3** adapter is unit-tested with a stubbed client, not against a real bucket.
 - **Resend** adapter is unit-tested with a stubbed `fetch`, not against the real API.
 - MFA is optional, including for platform administrators.
