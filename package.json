@@ -8,22 +8,40 @@
     "apps/*"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.22.3"
   },
   "scripts": {
     "dev": "npm run build -w @event-platform/shared && concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run start:dev -w @event-platform/api",
     "dev:web": "npm run dev -w @event-platform/web",
     "build": "npm run build -w @event-platform/shared && npm run build -w @event-platform/api && npm run build -w @event-platform/web",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build -w @event-platform/shared && npm run typecheck --workspaces --if-present",
+    "lint": "npm run check:conventions && npm run lint --workspaces --if-present",
+    "check:conventions": "node scripts/check-conventions.mjs",
+    "test": "npm run test:conventions && npm run test --workspaces --if-present",
+    "test:conventions": "node --test scripts/check-conventions.test.mjs",
     "db:generate": "npm run db:generate -w @event-platform/api",
     "db:migrate": "npm run db:migrate -w @event-platform/api",
     "db:deploy": "npm run db:deploy -w @event-platform/api",
-    "db:studio": "npm run db:studio -w @event-platform/api"
+    "db:seed": "npm run db:seed -w @event-platform/api",
+    "db:studio": "npm run db:studio -w @event-platform/api",
+    "db:policies": "npm run db:policies -w @event-platform/api",
+    "check:policies": "npm run test -w @event-platform/api -- src/database/policies.spec.ts",
+    "db:roles": "npm run db:roles -w @event-platform/api",
+    "test:isolation": "npm run test:isolation -w @event-platform/api",
+    "local:setup": "node scripts/local-setup.mjs",
+    "local:reset": "node scripts/local-setup.mjs --reset",
+    "local:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "allowScripts": {
+    "argon2@0.41.1": true,
+    "esbuild@0.28.2": true,
+    "@parcel/watcher@2.6.0": true,
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "@prisma/client@7.10.1": true
   }
 }

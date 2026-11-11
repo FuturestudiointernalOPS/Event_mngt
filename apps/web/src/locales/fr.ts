@@ -1,4 +1,5 @@
 import type { TranslationKey } from './en';
+import { frFeatures } from './fr.features';
 
 export const fr: Record<TranslationKey, string> = {
   'app.name': 'Plateforme Événementielle',
@@ -16,6 +17,7 @@ export const fr: Record<TranslationKey, string> = {
   'nav.events': 'Événements',
   'nav.team': 'Équipe',
   'nav.branding': 'Identité visuelle',
+  'nav.access': 'Accès',
   'nav.reports': 'Rapports',
   'nav.signOut': 'Déconnexion',
   'nav.backToSite': 'Retour au site public',
@@ -65,6 +67,23 @@ export const fr: Record<TranslationKey, string> = {
   'events.modules': 'Modules activés',
   'events.details.title': 'Détails de l’événement',
 
+  'access.title': 'Accès des membres',
+  'access.subtitle':
+    'Choisissez un membre pour voir ses capacités effectives et accorder ou révoquer un accès direct.',
+  'access.entitlement':
+    'Votre organisation dispose de {granted} capacités sur {total} dans le catalogue.',
+  'access.readOnly':
+    'Vous pouvez consulter ces permissions, mais les modifier demande la capacité « Gérer les permissions des membres ».',
+  'access.member': 'Membre',
+  'access.role': 'Rôle',
+  'access.effective': 'Capacités effectives',
+  'access.direct': 'Attributions directes',
+
+  'capabilities.sensitive': 'Sensible',
+  'capabilities.destructive': 'Destructive',
+  'capabilities.missingDependencies':
+    'Inactive tant que ces capacités ne sont pas aussi accordées : {dependencies}',
+
   'public.register': 'S’inscrire',
   'public.details': 'Détails de l’événement',
   'public.organisedBy': 'Organisé par',
@@ -73,6 +92,7 @@ export const fr: Record<TranslationKey, string> = {
   'checkin.subtitle':
     'Les scans sont stockés sur cet appareil d’abord, puis synchronisés.',
   'checkin.queue': 'Scans en attente',
+  'checkin.queued': 'Scan enregistré — en attente de synchronisation',
   'checkin.sync': 'Synchroniser',
   'checkin.addScan': 'Simuler un scan',
   'checkin.online': 'Connecté',
@@ -81,10 +101,18 @@ export const fr: Record<TranslationKey, string> = {
 
   'platform.title': 'Administration de la plateforme',
   'platform.subtitle': 'Vue Future Studio sur toutes les organisations.',
+  'platform.organization': 'Organisation',
+  'platform.entitlement':
+    '{organization} dispose de {granted} capacités sur {total}. Décocher une capacité la révoque immédiatement pour tous les membres.',
+  'platform.enabled': 'Activée',
+  'platform.forbidden': 'Réservé aux administrateurs de la plateforme',
+  'platform.forbiddenBody':
+    'Cet espace gère les droits des organisations à l’échelle de la plateforme et n’est pas accessible aux rôles d’un espace de travail.',
 
   'participant.title': 'Votre espace événement',
   'participant.subtitle': 'Badge, profil, rendez-vous et demandes.',
 
   'notFound.title': 'Page introuvable',
   'notFound.body': 'La page que vous cherchez n’existe pas.',
+  ...frFeatures,
 };

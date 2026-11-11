@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { queryKeys } from '@/lib/query-keys';
+import { BrandAssetUploads } from '../components/BrandAssetUploads';
 import { ApiRequestError } from '@/services/api-client';
 import { workspacesApi } from '@/services/workspaces.api';
 
@@ -100,6 +101,10 @@ export default function BrandingSettingsPage(): JSX.Element {
           {t('workspace.branding.subtitle')}
         </p>
       </div>
+
+      <section className="rounded-brand border border-brand-primary/10 bg-white p-5">
+        <BrandAssetUploads slug={slug} />
+      </section>
 
       <form
         className="space-y-4 rounded-brand border border-brand-primary/10 bg-white p-5"

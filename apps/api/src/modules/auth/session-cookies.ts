@@ -1,11 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { CSRF_COOKIE, CSRF_TOKEN_HEADER, REFRESH_TOKEN_COOKIE } from '@event-platform/shared';
+import { ConfigService } from '@nestjs/config';
+import {
+  API_BASE_PATH,
+  CSRF_COOKIE,
+  CSRF_TOKEN_HEADER,
+  REFRESH_TOKEN_COOKIE,
+} from '@event-platform/shared';
 import type { Request, Response } from 'express';
 import { AppException } from '../../common/app-exception';
 import { constantTimeEquals } from '../../common/utils/tokens';
-import { AppConfigService } from '../../config/config.module';
+import type { Env } from '../../config/env.validation';
 
-const REFRESH_COOKIE_PATH = '/api/v1/auth';
+/**
+ * Cookie path is derived from the shared API base path, so a version bump cannot
+ * leave the refresh cookie scoped to a route that no longer exists.
+ */
+const REFRESH_COOKIE_PATH = `${API_BASE_PATH}/auth`;
 
 /**
  * Refresh token and CSRF cookie handling.
@@ -18,7 +28,7 @@ const REFRESH_COOKIE_PATH = '/api/v1/auth';
  */
 @Injectable()
 export class AuthCookieService {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(private readonly config: ConfigService<Env, true>) {}
 
   write(response: Response, refreshToken: string, csrfToken: string): void {
     const maxAge = this.config.get('REFRESH_TOKEN_TTL_DAYS', { infer: true }) * 86_400_000;

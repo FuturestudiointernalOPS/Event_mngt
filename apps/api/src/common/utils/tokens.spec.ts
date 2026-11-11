@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { ensureUniqueSlug, slugify } from './slug';
 import { hashOpaqueToken, ttlToSeconds } from './tokens';
 

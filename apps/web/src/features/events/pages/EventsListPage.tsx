@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
+import type { WorkspaceOutletContext } from '@/components/layout/WorkspaceShell';
 import { queryKeys } from '@/lib/query-keys';
 import { ApiRequestError } from '@/services/api-client';
 import { eventsApi } from '@/services/events.api';
@@ -10,6 +12,8 @@ import { eventsApi } from '@/services/events.api';
 export default function EventsListPage(): JSX.Element {
   const { slug = '' } = useParams<{ slug: string }>();
   const { t } = useI18n();
+  const { can } = useOutletContext<WorkspaceOutletContext>();
+  const canCreate = can(CAPABILITY_KEYS.eventsCreate);
 
   const eventsQuery = useQuery({
     queryKey: queryKeys.events(slug),
@@ -21,9 +25,11 @@ export default function EventsListPage(): JSX.Element {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-brand-text">{t('events.title')}</h1>
-        <Link to={`/workspace/${slug}/events/new`}>
-          <Button>{t('events.new')}</Button>
-        </Link>
+        {canCreate ? (
+          <Link to={`/workspace/${slug}/events/new`}>
+            <Button>{t('events.new')}</Button>
+          </Link>
+        ) : null}
       </div>
 
       {eventsQuery.isLoading ? <LoadingState label={t('common.loading')} /> : null}
@@ -45,9 +51,11 @@ export default function EventsListPage(): JSX.Element {
         <EmptyState
           title={t('events.empty')}
           action={
-            <Link to={`/workspace/${slug}/events/new`}>
-              <Button size="sm">{t('events.new')}</Button>
-            </Link>
+            canCreate ? (
+              <Link to={`/workspace/${slug}/events/new`}>
+                <Button size="sm">{t('events.new')}</Button>
+              </Link>
+            ) : undefined
           }
         />
       ) : null}
@@ -55,7 +63,7 @@ export default function EventsListPage(): JSX.Element {
       {eventsQuery.data && eventsQuery.data.items.length > 0 ? (
         <div className="overflow-x-auto rounded-brand border border-brand-primary/10">
           <table className="min-w-full divide-y divide-brand-primary/10 text-sm">
-            <thead className="bg-brand-surface text-left text-xs uppercase tracking-wide text-brand-text/60">
+            <thead className="bg-brand-surface text-left text-xs uppercase tracking-wide text-brand-text/70">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">
                   {t('events.name')}

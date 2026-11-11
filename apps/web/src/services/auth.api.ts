@@ -3,6 +3,8 @@ import {
   type AuthenticatedSession,
   type CurrentUserResponse,
   type LoginRequest,
+  type MfaSetup,
+  type MfaStatus,
   type RegisterRequest,
   type SessionSummary,
 } from '@event-platform/shared';
@@ -33,6 +35,37 @@ export const authApi = {
       useSessionStore.getState().clear();
     }
   },
+
+  verifyEmail(token: string): Promise<{ verified: true }> {
+    return apiRequest<{ verified: true }>(API_PATHS.auth.verifyEmail, {
+      method: 'POST',
+      body: { token },
+    });
+  },
+
+  forgotPassword(email: string): Promise<{ accepted: true }> {
+    return apiRequest<{ accepted: true }>(API_PATHS.auth.forgotPassword, {
+      method: 'POST',
+      body: { email },
+    });
+  },
+
+  resetPassword(token: string, password: string): Promise<{ reset: true }> {
+    return apiRequest<{ reset: true }>(API_PATHS.auth.resetPassword, {
+      method: 'POST',
+      body: { token, password },
+    });
+  },
+
+  mfaStatus: () => apiRequest<MfaStatus>(API_PATHS.auth.mfa),
+  mfaSetup: () => apiRequest<MfaSetup>(API_PATHS.auth.mfaSetup, { method: 'POST' }),
+  mfaEnable: (code: string) =>
+    apiRequest<{ recoveryCodes: string[] }>(API_PATHS.auth.mfaEnable, {
+      method: 'POST',
+      body: { code },
+    }),
+  mfaDisable: (code: string) =>
+    apiRequest<void>(API_PATHS.auth.mfaDisable, { method: 'POST', body: { code } }),
 
   me(): Promise<CurrentUserResponse> {
     return apiRequest<CurrentUserResponse>(API_PATHS.auth.me);

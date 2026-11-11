@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { CAPABILITY_KEYS } from '@event-platform/shared';
 import { BrandLogo } from '@/components/branding/BrandLogo';
 import { ThemeProvider } from '@/components/branding/ThemeProvider';
 import { Button } from '@/components/ui/button';
@@ -8,11 +9,15 @@ import { useI18n } from '@/app/providers/I18nProvider';
 import { cn } from '@/lib/cn';
 import { queryKeys } from '@/lib/query-keys';
 import { authApi } from '@/services/auth.api';
+import { capabilitiesApi } from '@/features/capabilities/capabilities.api';
 import { workspacesApi } from '@/services/workspaces.api';
 import type { WorkspaceContext } from '@event-platform/shared';
 
 export interface WorkspaceOutletContext {
   context: WorkspaceContext;
+  /** Effective capabilities of the signed-in member. */
+  capabilities: string[];
+  can: (capabilityKey: string) => boolean;
 }
 
 /**
@@ -31,12 +36,19 @@ export function WorkspaceShell(): JSX.Element {
     retry: false,
   });
 
+  const capabilitiesQuery = useQuery({
+    queryKey: queryKeys.selfCapabilities(slug),
+    queryFn: () => capabilitiesApi.self(slug),
+    enabled: Boolean(slug),
+    retry: false,
+  });
+
   const logout = useMutation({
     mutationFn: () => authApi.logout(),
     onSuccess: () => navigate('/login', { replace: true }),
   });
 
-  if (contextQuery.isLoading) {
+  if (contextQuery.isLoading || capabilitiesQuery.isLoading) {
     return <LoadingState label={t('common.loading')} />;
   }
 
@@ -53,13 +65,56 @@ export function WorkspaceShell(): JSX.Element {
     );
   }
 
+  if (capabilitiesQuery.isError || !capabilitiesQuery.data) {
+    return (
+      <div className="mx-auto max-w-xl p-8">
+        <ErrorState
+          title={t('common.error')}
+          message={t('common.error')}
+          onRetry={() => void capabilitiesQuery.refetch()}
+          retryLabel={t('common.retry')}
+        />
+      </div>
+    );
+  }
+
   const context = contextQuery.data;
+  const capabilities = capabilitiesQuery.data.effectiveCapabilities;
+  const can = (capabilityKey: string): boolean => capabilities.includes(capabilityKey);
 
   const navigation = [
-    { to: `/workspace/${slug}`, label: t('nav.dashboard'), end: true },
-    { to: `/workspace/${slug}/events`, label: t('nav.events'), end: false },
-    { to: `/workspace/${slug}/settings/branding`, label: t('nav.branding'), end: false },
-  ];
+    { to: `/workspace/${slug}`, label: t('nav.dashboard'), end: true, visible: true },
+    {
+      to: `/workspace/${slug}/events`,
+      label: t('nav.events'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.eventsView),
+    },
+    {
+      to: `/workspace/${slug}/team`,
+      label: t('nav.team'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.organizationViewMembers),
+    },
+    {
+      to: `/workspace/${slug}/settings/branding`,
+      label: t('nav.branding'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.organizationManageBranding),
+    },
+    {
+      to: `/workspace/${slug}/settings/access`,
+      label: t('nav.access'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.organizationViewMembers),
+    },
+    {
+      to: `/workspace/${slug}/audit`,
+      label: t('nav.audit'),
+      end: false,
+      visible: can(CAPABILITY_KEYS.organizationViewAuditLog),
+    },
+  ].filter((item) => item.visible);
 
   return (
     <ThemeProvider
@@ -85,6 +140,8 @@ export function WorkspaceShell(): JSX.Element {
                 <option value="fr">FR</option>
                 <option value="en">EN</option>
               </select>
+
+              <Link to="/account/security" className="text-sm underline">{t('nav.security')}</Link>
 
               <Button
                 variant="ghost"
@@ -123,7 +180,7 @@ export function WorkspaceShell(): JSX.Element {
           </nav>
 
           <main className="min-w-0 flex-1">
-            <Outlet context={{ context } satisfies WorkspaceOutletContext} />
+            <Outlet context={{ context, capabilities, can } satisfies WorkspaceOutletContext} />
           </main>
         </div>
       </div>

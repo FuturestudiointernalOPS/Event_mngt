@@ -77,16 +77,35 @@ account are revoked and an audit entry is written.
 
 `user_sessions` supports listing (device, user agent, IP, last used), individual revocation
 and global revocation. Suspension flips `users.status`; the short access-token lifetime
-bounds staleness, and refresh fails immediately. Privileged roles are eligible for MFA;
-the schema keeps the door open by treating MFA state as account-level data added in
-Phase 7.
+bounds staleness, and refresh fails immediately.
+
+## Two-factor authentication
+
+MFA is optional per account, including for privileged accounts. It is TOTP (RFC 6238,
+SHA-1, 6 digits, 30 seconds) so any authenticator app works.
+
+- The secret is encrypted at rest with AES-256-GCM under a key derived from
+  `JWT_ACCESS_SECRET`; it never leaves the API after enrolment.
+- Enrolment is two-step: `setup` stores a pending secret, `enable` confirms a code and
+  returns eight recovery codes **once**. Only SHA-256 hashes of recovery codes are stored.
+- Each accepted TOTP time step is recorded, so a code cannot be replayed. Recovery codes
+  are single use and are removed when consumed.
+- Five consecutive wrong codes lock the second factor for five minutes. Sign-in returns
+  `mfa_required` before any session row or token is created, then `mfa_invalid` or
+  `mfa_locked`.
+- Turning MFA off requires a valid authenticator or recovery code.
+- Enrolment is audited as `auth.mfa.enabled` / `auth.mfa.disabled`.
 
 ## Access control
 
 - **Authentication** answers "who". **Authorisation** answers "may they, here".
-- Permissions are `resource:action` strings from the global catalogue
-  (`packages/shared/src/platform/permissions.ts`), granted to per-tenant roles.
-- Guards run in a fixed order: JWT → tenant resolution → permission check.
+- Authorisation is capability-based. The registry is
+  `packages/shared/src/platform/capability-definitions.ts`; a member can act only when
+  the organisation is entitled to the capability and the member holds it through a role
+  or a direct grant. See `docs/16-capability-authorization.md`.
+- Roles are reusable collections of capabilities. The `permissions` table remains the
+  storage format of a role template and is mapped to capabilities at the boundary.
+- Guards run in a fixed order: JWT → tenant resolution → capability check.
 - Hiding a control in the UI is a convenience, never a control. The API is authoritative.
 
 Default permission groups seeded per tenant:
@@ -99,6 +118,10 @@ Default permission groups seeded per tenant:
 | Check-in Staff | `checkin:operate` |
 | Programme Manager | `programme:manage` (P1) |
 | Reporting Officer | `report:read`, `report:export` |
+
+The strings above are the storage format of each role template. At request time they are
+mapped to capabilities and intersected with the organisation entitlement; the capability
+keys are what the guards and the UI use. See `docs/16-capability-authorization.md`.
 
 Event-scoped assignment ("assigned events") is modelled as a membership-to-event
 assignment when Phase 3 lands; until then the Event Manager role is organisation-wide and
@@ -118,12 +141,21 @@ the limitation is stated in the UI.
 | POST | `/api/v1/auth/reset-password` | Single-use token |
 | GET | `/api/v1/auth/sessions` | List active sessions |
 | DELETE | `/api/v1/auth/sessions/:id` | Revoke one session |
+| GET | `/api/v1/auth/mfa` | Whether MFA is on and recovery codes left |
+| POST | `/api/v1/auth/mfa/setup` | Begin enrolment, returns secret and otpauth URL |
+| POST | `/api/v1/auth/mfa/enable` | Confirm a code, returns recovery codes once |
+| POST | `/api/v1/auth/mfa/disable` | Turn off after a valid code |
 
 ## Rate limiting
 
-Login, register, verify, forgot-password and refresh are rate limited per IP and per
-account identifier. Exceeding the limit returns `429` with `Retry-After`. Attempts are
-logged; repeated failures on one account raise an audit event.
+Login, registration, verification, password reset, refresh and MFA changes are rate
+limited. Login uses both an address budget (60/minute, for shared networks) and an
+account budget (10 per five minutes); forgot-password uses 10 per 15 minutes per address
+and 3 per 15 minutes per account. Exceeding a budget returns `429` with `Retry-After`.
+MFA changes are keyed by account so an office address cannot block a colleague.
+
+Production deployments must set `TRUST_PROXY` to the number of load-balancer hops;
+otherwise the client address seen by the limiter is the proxy's.
 
 ## What we deliberately do not do
 

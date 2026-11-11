@@ -20,10 +20,14 @@ import {
 import { AppException } from '../../common/app-exception';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { RATE_LIMIT_BUDGETS } from '../../common/rate-limit/rate-limit.budgets';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { generateOpaqueToken } from '../../common/utils/tokens';
-import { AuthService, SessionMeta } from './auth.service';
+import { AuthService } from './auth.service';
+import type { SessionMeta } from './auth.types';
+import { AuthRegistrationService } from './auth-registration.service';
 import {
   ForgotPasswordRequest,
   LoginRequest,
@@ -42,28 +46,32 @@ import { AuthCookieService } from './session-cookies';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly registration: AuthRegistrationService,
     private readonly cookies: AuthCookieService,
   ) {}
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.register)
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   register(
     @Body(new ZodValidationPipe(registerRequestSchema)) body: RegisterRequest,
   ): Promise<{ accepted: true }> {
-    return this.authService.register(body);
+    return this.registration.register(body);
   }
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.verifyEmail)
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   verifyEmail(
     @Body(new ZodValidationPipe(verifyEmailRequestSchema)) body: VerifyEmailRequest,
   ): Promise<{ verified: true }> {
-    return this.authService.verifyEmail(body.token);
+    return this.registration.verifyEmail(body.token);
   }
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.login)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -77,6 +85,7 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.refresh)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
@@ -111,22 +120,24 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.forgotPassword)
   @Post('forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   async forgotPassword(
     @Body(new ZodValidationPipe(forgotPasswordRequestSchema)) body: ForgotPasswordRequest,
   ): Promise<{ accepted: true }> {
-    await this.authService.requestPasswordReset(body.email);
+    await this.registration.requestPasswordReset(body.email);
     return { accepted: true };
   }
 
   @Public()
+  @RateLimit(...RATE_LIMIT_BUDGETS.auth.resetPassword)
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(
     @Body(new ZodValidationPipe(resetPasswordRequestSchema)) body: ResetPasswordRequest,
   ): Promise<void> {
-    await this.authService.resetPassword(body.token, body.password);
+    await this.registration.resetPassword(body.token, body.password);
   }
 
   @Get('me')

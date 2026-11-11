@@ -12,7 +12,13 @@ export interface TenantContext {
   organizationId: string;
   userId: string;
   membershipId: string;
+  /** Effective capabilities resolved for this request or job. */
+  capabilities?: string[];
+  /** Legacy permissions implied by the capabilities (compatibility only). */
   permissions: string[];
+  /** Correlation and origin of the request, when there is one (not set for jobs). */
+  requestId?: string;
+  ipAddress?: string;
 }
 
 @Injectable()

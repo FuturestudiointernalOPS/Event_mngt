@@ -1,79 +1,93 @@
 import { Injectable } from '@nestjs/common';
-import { MemberStatus, OrganizationStatus } from '@prisma/client';
-import { ALL_PERMISSIONS } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import type { TenantAccess } from '../../common/types/authenticated-user';
-import { PrismaService } from '../../database/prisma.service';
+import { MemberStatus, OrganizationStatus } from '../../database/prisma-client';
+import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import type { TenantPrismaClient } from '../../database/tenant-transaction.service';
+import { toTenantAccess } from './permissions.mapper';
 
 /**
- * RBAC evaluation and tenant resolution.
+ * Tenant resolution and capability evaluation.
  *
  * `resolveTenantAccess*` is the only place where a workspace identifier from the
- * request becomes an organisation id. Permissions are read from the membership's role
- * on every request, so role changes and removals apply immediately.
+ * request becomes an organisation id. The member's role permissions, direct capability
+ * grants and organisation entitlements are read on every request, so role changes,
+ * direct grants and entitlement revocation apply immediately.
  *
- * These queries intentionally run outside TenantTransactionService: they are the step
- * that establishes tenant context. They always constrain by the authenticated user id.
+ * Resolution runs in the user-scoped bootstrap transaction: it must work before tenant
+ * context exists, and row-level security only exposes this caller's own memberships,
+ * direct grants and organisation entitlements there. See WP-01 and docs/03.
  */
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly tenantTransaction: TenantTransactionService) {}
 
   async resolveTenantAccessBySlug(userId: string, slug: string): Promise<TenantAccess> {
-    const organization = await this.prisma.organization.findUnique({
-      where: { slug },
-      select: { id: true, status: true },
+    return this.tenantTransaction.withUserScope(userId, async (tx) => {
+      const organization = await tx.organization.findFirst({
+        where: { slug, status: OrganizationStatus.ACTIVE },
+        select: { id: true },
+      });
+
+      // A workspace the caller cannot see and one that does not exist are answered
+      // identically: a tenant route must not reveal another organisation's existence.
+      if (!organization) {
+        throw membershipRequired();
+      }
+
+      return this.loadAccess(tx, userId, organization.id);
     });
-
-    if (!organization || organization.status !== OrganizationStatus.ACTIVE) {
-      throw AppException.notFound('tenant_not_found', 'Workspace not found.');
-    }
-
-    return this.resolveMembership(userId, organization.id);
   }
 
-  async resolveTenantAccessById(
+  async resolveTenantAccessById(userId: string, organizationId: string): Promise<TenantAccess> {
+    return this.tenantTransaction.withUserScope(userId, (tx) =>
+      this.loadAccess(tx, userId, organizationId),
+    );
+  }
+
+  private async loadAccess(
+    tx: TenantPrismaClient,
     userId: string,
     organizationId: string,
   ): Promise<TenantAccess> {
-    return this.resolveMembership(userId, organizationId);
-  }
-
-  /** Permission catalogue, used by the team management screen. */
-  listPermissionCatalogue(): string[] {
-    return [...ALL_PERMISSIONS];
-  }
-
-  private async resolveMembership(
-    userId: string,
-    organizationId: string,
-  ): Promise<TenantAccess> {
-    const membership = await this.prisma.organizationMember.findUnique({
+    const membership = await tx.organizationMember.findUnique({
       where: { organizationId_userId: { organizationId, userId } },
       select: {
         id: true,
         status: true,
+        capabilities: { select: { capabilityKey: true } },
         role: {
           select: {
             key: true,
             permissions: { select: { permission: { select: { key: true } } } },
           },
         },
+        organization: {
+          select: {
+            status: true,
+            capabilities: { select: { capabilityKey: true } },
+          },
+        },
       },
     });
 
     if (!membership || membership.status !== MemberStatus.ACTIVE) {
-      throw AppException.forbidden(
-        'membership_required',
-        'You do not have access to this workspace.',
-      );
+      throw membershipRequired();
     }
 
-    return {
-      organizationId,
-      membershipId: membership.id,
-      roleKey: membership.role.key,
-      permissions: membership.role.permissions.map((entry) => entry.permission.key),
-    };
+    // A suspended organisation is treated exactly like an inaccessible one: every
+    // tenant route fails closed on the next request, including still-valid access tokens.
+    if (membership.organization.status !== OrganizationStatus.ACTIVE) {
+      throw membershipRequired();
+    }
+
+    return toTenantAccess(organizationId, membership);
   }
+}
+
+function membershipRequired(): AppException {
+  return AppException.forbidden(
+    'membership_required',
+    'You do not have access to this workspace.',
+  );
 }

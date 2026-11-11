@@ -5,7 +5,7 @@ export const emailSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .email('Enter a valid email address');
+  .pipe(z.email('Enter a valid email address'));
 
 /**
  * Minimum lengths follow current guidance for account passwords. Argon2id hashing is
@@ -29,6 +29,8 @@ export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export const loginRequestSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, 'Password is required').max(128),
+  /** Authenticator code or a recovery code; required only for accounts with MFA enabled. */
+  mfaCode: z.string().trim().min(6).max(20).optional(),
 });
 
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
@@ -66,6 +68,8 @@ export const membershipSummarySchema = z.object({
   organizationSlug: z.string(),
   organizationName: z.string(),
   roleKey: z.string(),
+  /** Effective capabilities: organisation entitlement ∩ role ∪ direct grants. */
+  capabilities: z.array(z.string()),
   permissions: z.array(z.string()),
 });
 
@@ -108,3 +112,16 @@ export const sessionSummarySchema = z.object({
 });
 
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
+
+export const mfaCodeRequestSchema = z.object({ code: z.string().trim().min(6).max(20) });
+export type MfaCodeRequest = z.infer<typeof mfaCodeRequestSchema>;
+
+export interface MfaStatus {
+  enabled: boolean;
+  recoveryCodesLeft: number;
+}
+
+export interface MfaSetup {
+  secret: string;
+  otpauthUrl: string;
+}

@@ -11,12 +11,19 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
 
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
-  WEB_APP_URL: z.string().url().default('http://localhost:5173'),
+  WEB_APP_URL: z.url().default('http://localhost:5173'),
 
   /** Supabase PostgreSQL connection string. Database only — no Supabase services. */
   DATABASE_URL: z
     .string()
     .min(1, 'DATABASE_URL is required (PostgreSQL connection string)'),
+
+  /**
+   * Runtime connection string. When set, the API connects as this role instead of the
+   * migration owner, which is what makes row-level security apply. Use the non-owner
+   * `platform_app` role. Migrations keep using DATABASE_URL.
+   */
+  APP_DATABASE_URL: z.string().min(1).optional(),
 
   JWT_ACCESS_SECRET: z
     .string()
@@ -26,11 +33,37 @@ export const envSchema = z.object({
 
   COOKIE_DOMAIN: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Reverse-proxy hops trusted for the client address. 0 means direct connection. */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
+
+  /** Idempotent replays are scoped to a caller and expire after this many hours. */
+  IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+
+  /** Default fixed-window budget for routes annotated with @RateLimit(). */
+  RATE_LIMIT_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
+  RATE_LIMIT_DEFAULT_WINDOW_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
+  /** Old fixed-window rows are deleted after this many hours. */
+  RATE_LIMIT_RETENTION_HOURS: z.coerce.number().int().min(1).max(720).default(48),
+
+  /** Redis enables durable e-mail and export jobs. Without it those run in-process. */
+  REDIS_URL: z.string().min(1).optional(),
+  /** False on API-only instances when a separate worker consumes the queues. */
+  JOBS_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 
   EMAIL_PROVIDER: z.enum(['console', 'resend', 'ses']).default('console'),
   EMAIL_FROM: z.string().default('no-reply@example.com'),
 
-  STORAGE_PROVIDER: z.enum(['console', 's3']).default('console'),
+  STORAGE_PROVIDER: z.enum(['console', 'local', 's3']).default('local'),
+  /**
+   * Local storage provider: where uploads are written, and the public origin the browser
+   * uses to read them back. The directory is resolved from the process working directory
+   * (apps/api when started by the workspace scripts).
+   */
+  LOCAL_STORAGE_DIR: z.string().min(1).default('./storage'),
+  PUBLIC_API_URL: z.url().default('http://localhost:4000'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),

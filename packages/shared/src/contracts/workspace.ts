@@ -28,9 +28,9 @@ export const brandingSchema = z.object({
   surfaceColor: brandColorSchema,
   textColor: brandColorSchema,
   colorMode: colorModeSchema,
-  logoUrl: z.string().url().nullable(),
-  logoDarkUrl: z.string().url().nullable(),
-  faviconUrl: z.string().url().nullable(),
+  logoUrl: z.url().nullable(),
+  logoDarkUrl: z.url().nullable(),
+  faviconUrl: z.url().nullable(),
   borderRadius: z
     .string()
     .trim()
@@ -63,8 +63,8 @@ export const workspaceProfileSchema = z.object({
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  websiteUrl: z.string().url().nullable(),
-  contactEmail: z.string().email().nullable(),
+  websiteUrl: z.url().nullable(),
+  contactEmail: z.email().nullable(),
 });
 
 export type WorkspaceProfile = z.infer<typeof workspaceProfileSchema>;
@@ -79,8 +79,8 @@ export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 export const updateWorkspaceSettingsRequestSchema = workspaceSettingsSchema.partial().extend({
   name: z.string().trim().min(2).max(160).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
-  websiteUrl: z.string().url().nullable().optional(),
-  contactEmail: z.string().email().nullable().optional(),
+  websiteUrl: z.url().nullable().optional(),
+  contactEmail: z.email().nullable().optional(),
 });
 
 export type UpdateWorkspaceSettingsRequest = z.infer<

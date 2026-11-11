@@ -1,106 +1,64 @@
 import { Injectable } from '@nestjs/common';
 import {
-  Branding,
   CreateEventRequest,
-  DEFAULT_BRANDING,
   EventDetail,
   EventSummary,
+  EventTransitionAction,
   ListEventsQuery,
-  Locale,
+  UpdateEventRequest,
 } from '@event-platform/shared';
-import {
-  Event,
-  EventModule,
-  EventStatus,
-  EventVisibility,
-  OrganizationStatus,
-  Prisma,
-} from '@prisma/client';
 import { AppException } from '../../common/app-exception';
+import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
+import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
-import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
-import { PrismaService } from '../../database/prisma.service';
+import { ensureUniqueSlug, slugify, throwIfSlugConflict } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
-import { toBranding } from '../workspaces/workspaces.service';
+import { assertCanBeParent } from './editions.rules';
+import { createWithFreeSlug } from './event-slug-write';
+import { INITIAL_MODULE_KEYS } from './events.constants';
+import { assertPublishable, nextStatusFor, shouldActivatePublishingModule } from './events.lifecycle';
+import { toDetail, toSummary, type EventWithModules } from './events.mapper';
+import { toEventUpdate } from './events.update';
+import { toPublicContext, type PublicEventContext } from './events.projection';
+import { buildListWhere, buildOrderBy } from './events.query';
+import { EventsRepository, type PublicEventTarget } from './events.repository';
 
-type EventWithModules = Event & { modules: EventModule[] };
-type EventWithEditionCount = Event & { _count: { editions: number } };
+export type { PublicEventContext } from './events.projection';
+export type { PublicEventTarget } from './events.repository';
 
-const SORTABLE_FIELDS = new Set(['name', 'startsAt', 'endsAt', 'createdAt', 'status']);
-
-const PUBLIC_VISIBILITIES: EventVisibility[] = [
-  EventVisibility.PUBLIC,
-  EventVisibility.UNLISTED,
-];
-
-const NON_PUBLIC_STATUSES: EventStatus[] = [
-  EventStatus.DRAFT,
-  EventStatus.CANCELLED,
-  EventStatus.ARCHIVED,
-];
-
-export interface PublicEventContext {
-  event: {
-    slug: string;
-    name: string;
-    description: string | null;
-    format: string;
-    visibility: string;
-    timeZone: string;
-    startsAt: string;
-    endsAt: string;
-    venueName: string | null;
-    venueAddress: string | null;
-  };
-  organization: { slug: string; name: string };
-  branding: Branding;
-  locale: { default: Locale; supported: Locale[] };
-}
+/** Modules every new event starts with. Publishing adds its own module later. */
 
 /**
  * Event container: lifecycle, visibility and editions.
- * All tenant-owned access goes through TenantTransactionService with explicit
+ *
+ * Rules and the transaction boundary live here; the query surface is in the repository.
+ * All tenant-owned access runs through TenantTransactionService with explicit
  * organizationId predicates; row-level security is the second layer.
  */
 @Injectable()
 export class EventsService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly tenantTransaction: TenantTransactionService,
+    private readonly events: EventsRepository,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListEventsQuery): Promise<PaginatedResult<EventSummary>> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const where: Prisma.EventWhereInput = { organizationId: tenant.organizationId };
+      const [rows, total] = await this.events.list(
+        tx,
+        buildListWhere(query, tenant.organizationId),
+        buildOrderBy(query.sort),
+        (query.page - 1) * query.pageSize,
+        query.pageSize,
+      );
 
-      if (query.status) {
-        where.status = query.status;
-      }
-      if (query.visibility) {
-        where.visibility = query.visibility;
-      }
-      if (query.search) {
-        where.name = { contains: query.search, mode: 'insensitive' };
-      }
-
-      const [rows, total] = await Promise.all([
-        tx.event.findMany({
-          where,
-          orderBy: buildOrderBy(query.sort),
-          skip: (query.page - 1) * query.pageSize,
-          take: query.pageSize,
-          include: { _count: { select: { editions: true } } },
-        }),
-        tx.event.count({ where }),
-      ]);
-
-      const result: PaginatedResult<EventSummary> = {
+      return {
         items: rows.map(toSummary),
         page: query.page,
         pageSize: query.pageSize,
         total,
       };
-      return result;
     });
   }
 
@@ -109,17 +67,15 @@ export class EventsService {
       const slug = input.slug
         ? slugify(input.slug)
         : await ensureUniqueSlug(input.name, async (candidate) => {
-            const found = await tx.event.findFirst({
-              where: { organizationId: tenant.organizationId, slug: candidate },
-              select: { id: true },
-            });
+            const found = await this.events.findSlugConflict(
+              tx,
+              tenant.organizationId,
+              candidate,
+            );
             return found !== null;
           });
 
-      const clash = await tx.event.findFirst({
-        where: { organizationId: tenant.organizationId, slug },
-        select: { id: true },
-      });
+      const clash = await this.events.findSlugConflict(tx, tenant.organizationId, slug);
 
       if (clash) {
         throw AppException.conflict(
@@ -129,24 +85,28 @@ export class EventsService {
       }
 
       if (input.parentEventId) {
-        const parent = await tx.event.findFirst({
-          where: { id: input.parentEventId, organizationId: tenant.organizationId },
-          select: { id: true },
-        });
+        const parent = await this.events.findParentForCreate(
+          tx,
+          tenant.organizationId,
+          input.parentEventId,
+        );
         if (!parent) {
           throw AppException.badRequest(
             'invalid_reference',
             'The parent event does not exist in this workspace.',
           );
         }
+
+        // Depth is one, whichever route creates the edition.
+        assertCanBeParent(parent);
       }
 
-      const created = await tx.event.create({
-        data: {
+      const insert = (eventSlug: string): Promise<EventWithModules> =>
+        this.events.create(tx, {
           organizationId: tenant.organizationId,
           createdByUserId: userId,
           parentEventId: input.parentEventId ?? null,
-          slug,
+          slug: eventSlug,
           name: input.name,
           description: input.description ?? null,
           format: input.format,
@@ -156,26 +116,26 @@ export class EventsService {
           endsAt: new Date(input.endsAt),
           venueName: input.venueName ?? null,
           venueAddress: input.venueAddress ?? null,
-          modules: {
-            create: [
-              { moduleKey: 'core', enabled: true },
-              { moduleKey: 'reporting', enabled: true },
-            ],
-          },
-        },
-        include: { modules: true },
-      });
+          initialModuleKeys: INITIAL_MODULE_KEYS,
+        });
 
-      return toDetail(created);
+      // A slug the user typed is theirs: refuse rather than silently rename it. A slug we
+      // generated may still clash outside this workspace, which the pre-check cannot see.
+      if (input.slug) {
+        try {
+          return toDetail(await insert(slug));
+        } catch (error) {
+          throwIfSlugConflict(error);
+        }
+      }
+
+      return toDetail(await createWithFreeSlug(insert, slug));
     });
   }
 
   async getById(eventId: string): Promise<EventDetail> {
     return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const event = await tx.event.findFirst({
-        where: { id: eventId, organizationId: tenant.organizationId },
-        include: { modules: true },
-      });
+      const event = await this.events.findById(tx, tenant.organizationId, eventId);
 
       if (!event) {
         throw AppException.notFound('not_found', 'Event not found.');
@@ -186,172 +146,111 @@ export class EventsService {
   }
 
   async publish(eventId: string): Promise<EventDetail> {
-    return this.tenantTransaction.withTenant(async (tx, tenant) => {
-      const event = await tx.event.findFirst({
-        where: { id: eventId, organizationId: tenant.organizationId },
-        select: { id: true, status: true, visibility: true },
-      });
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
 
       if (!event) {
         throw AppException.notFound('not_found', 'Event not found.');
       }
 
-      if (event.status === EventStatus.PUBLISHED) {
-        throw AppException.conflict('conflict', 'This event is already published.');
+      assertPublishable(event.status);
+
+      if (shouldActivatePublishingModule(event.visibility)) {
+        await this.events.enablePublishingModule(tx, event.id);
       }
 
-      if (event.status === EventStatus.CANCELLED || event.status === EventStatus.ARCHIVED) {
-        throw AppException.unprocessable(
-          'invalid_status_transition',
-          'A cancelled or archived event cannot be published.',
-        );
-      }
-
-      // Publishing activates the publishing module without deleting anything.
-      if (event.visibility !== 'PRIVATE') {
-        await tx.eventModule.upsert({
-          where: { eventId_moduleKey: { eventId: event.id, moduleKey: 'publishing' } },
-          create: {
-            eventId: event.id,
-            moduleKey: 'publishing',
-            enabled: true,
-            settings: {},
-          },
-          update: { enabled: true },
-        });
-      }
-
-      const updated = await tx.event.update({
-        where: { id: event.id },
-        data: { status: EventStatus.PUBLISHED, publishedAt: new Date() },
-        include: { modules: true },
-      });
-
-      return toDetail(updated);
+      return toDetail(await this.events.publish(tx, event.id));
     });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventPublished,
+      targetType: 'event',
+      targetId: eventId,
+    });
+
+    return detail;
+  }
+
+  /** Edits the container. The status is owned by the transition route, never by a PATCH. */
+  async update(eventId: string, input: UpdateEventRequest): Promise<EventDetail> {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
+
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      try {
+        return toDetail(await this.events.update(tx, event.id, toEventUpdate(input)));
+      } catch (error) {
+        throwIfSlugConflict(error);
+      }
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventUpdated,
+      targetType: 'event',
+      targetId: eventId,
+    });
+
+    return detail;
+  }
+
+  /** Any lifecycle move that is not a publish. The rule table decides what is legal. */
+  async transition(
+    eventId: string,
+    action: EventTransitionAction,
+  ): Promise<EventDetail> {
+    const detail = await this.tenantTransaction.withTenant(async (tx, tenant) => {
+      const event = await this.events.findStatus(tx, tenant.organizationId, eventId);
+
+      if (!event) {
+        throw AppException.notFound('not_found', 'Event not found.');
+      }
+
+      const next = nextStatusFor(action, event.status);
+      return toDetail(await this.events.setStatus(tx, event.id, next));
+    });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.eventTransitioned,
+      targetType: 'event',
+      targetId: eventId,
+      metadata: { transition: action },
+    });
+
+    return detail;
   }
 
   /**
-   * Public event context. Runs without a session: the projection is explicit and
-   * visibility is enforced in the query, never by hiding fields in the client.
+   * Public registration target, resolved from the event slug before any tenant context
+   * exists. The caller uses the organisation id from the row, never from the request.
+   */
+  findPublicTarget(eventSlug: string): Promise<PublicEventTarget | null> {
+    return this.events.findPublicTarget(eventSlug);
+  }
+
+  /**
+   * Public event context. Runs without a session: the event is located through the
+   * public read policy, then the projection is read inside the organisation scope so
+   * branding and settings stay protected. Visibility is enforced in both queries.
    */
   async getPublicContext(eventSlug: string): Promise<PublicEventContext> {
-    const event = await this.prisma.event.findFirst({
-      where: {
-        slug: eventSlug,
-        visibility: { in: PUBLIC_VISIBILITIES },
-        status: { notIn: NON_PUBLIC_STATUSES },
-        organization: { status: OrganizationStatus.ACTIVE },
-      },
-      select: {
-        slug: true,
-        name: true,
-        description: true,
-        format: true,
-        visibility: true,
-        timeZone: true,
-        startsAt: true,
-        endsAt: true,
-        venueName: true,
-        venueAddress: true,
-        organization: {
-          select: {
-            slug: true,
-            name: true,
-            branding: true,
-            settings: { select: { defaultLocale: true } },
-          },
-        },
-      },
-    });
+    const located = await this.events.findPublicEventLocation(eventSlug);
 
-    if (!event) {
+    if (!located) {
       throw AppException.notFound('not_found', 'Event not found.');
     }
 
-    return {
-      event: {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        format: event.format,
-        visibility: event.visibility,
-        timeZone: event.timeZone,
-        startsAt: event.startsAt.toISOString(),
-        endsAt: event.endsAt.toISOString(),
-        venueName: event.venueName,
-        venueAddress: event.venueAddress,
-      },
-      organization: {
-        slug: event.organization.slug,
-        name: event.organization.name,
-      },
-      branding: event.organization.branding
-        ? toBranding(event.organization.branding)
-        : { ...DEFAULT_BRANDING },
-      locale: {
-        default: event.organization.settings?.defaultLocale === 'en' ? 'en' : 'fr',
-        supported: ['fr', 'en'],
-      },
-    };
+    const row = await this.tenantTransaction.withOrganizationScope(
+      located.organizationId,
+      (tx) => this.events.findPublicContextById(tx, located.id, located.organizationId),
+    );
+
+    if (!row) {
+      throw AppException.notFound('not_found', 'Event not found.');
+    }
+
+    return toPublicContext(row);
   }
-}
-
-function buildOrderBy(sort: string | undefined): Prisma.EventOrderByWithRelationInput {
-  if (!sort) {
-    return { startsAt: 'desc' };
-  }
-
-  const descending = sort.startsWith('-');
-  const field = descending ? sort.slice(1) : sort;
-
-  if (!SORTABLE_FIELDS.has(field)) {
-    return { startsAt: 'desc' };
-  }
-
-  return { [field]: descending ? 'desc' : 'asc' } as Prisma.EventOrderByWithRelationInput;
-}
-
-function toSummary(event: EventWithEditionCount): EventSummary {
-  return {
-    id: event.id,
-    organizationId: event.organizationId,
-    slug: event.slug,
-    name: event.name,
-    status: event.status,
-    visibility: event.visibility,
-    format: event.format,
-    timeZone: event.timeZone,
-    startsAt: event.startsAt.toISOString(),
-    endsAt: event.endsAt.toISOString(),
-    publishedAt: event.publishedAt ? event.publishedAt.toISOString() : null,
-    editionCount: event._count.editions,
-  };
-}
-
-function toDetail(event: EventWithModules): EventDetail {
-  return {
-    id: event.id,
-    organizationId: event.organizationId,
-    slug: event.slug,
-    name: event.name,
-    status: event.status,
-    visibility: event.visibility,
-    format: event.format,
-    timeZone: event.timeZone,
-    startsAt: event.startsAt.toISOString(),
-    endsAt: event.endsAt.toISOString(),
-    publishedAt: event.publishedAt ? event.publishedAt.toISOString() : null,
-    description: event.description,
-    venueName: event.venueName,
-    venueAddress: event.venueAddress,
-    parentEventId: event.parentEventId,
-    registrationOpensAt: event.registrationOpensAt
-      ? event.registrationOpensAt.toISOString()
-      : null,
-    registrationClosesAt: event.registrationClosesAt
-      ? event.registrationClosesAt.toISOString()
-      : null,
-    enabledModules: event.modules.filter((module) => module.enabled).map((m) => m.moduleKey),
-  };
 }

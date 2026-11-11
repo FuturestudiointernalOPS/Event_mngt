@@ -1,113 +1,214 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import type { RegistrationSummary, SyncScanResult } from '@event-platform/shared';
 import { useI18n } from '@/app/providers/I18nProvider';
 import { Button } from '@/components/ui/button';
-import { EmptyState, ErrorState } from '@/components/ui/states';
+import { Input } from '@/components/ui/field';
+import { cn } from '@/lib/cn';
+import { useStatusLabel } from '@/lib/status';
+import { ApiRequestError } from '@/services/api-client';
+import { staffOpsApi } from '@/services/staff-ops.api';
+import { QrScanner } from '../components/QrScanner';
 import {
   createScan,
   enqueueScan,
   listPendingScans,
+  markSynced,
   type QueuedScan,
 } from '../offline/scan-queue';
 
+interface Shown {
+  tone: 'ok' | 'dup' | 'bad';
+  title: string;
+  detail: string;
+}
+
 /**
- * Mobile-first staff check-in. Scans are written to IndexedDB before any network call,
- * so a lost connection or a page reload never loses an attendance record.
+ * Mobile-first check-in.
  *
- * The server-side sync endpoint and QR verification arrive with Phase 5
- * (docs/10-roadmap-and-backlog.md, epic E6); until then the queue is visible and the
- * sync action is intentionally disabled rather than pretending to succeed.
+ * The badge token is opaque on purpose: it is hashed on the server and never distributed,
+ * so the device cannot decide by itself whether a scan is valid. Every scan is written to
+ * IndexedDB before any network attempt and the server is the only authority; the queue
+ * therefore survives a reload, a lost connection or a closed browser.
  */
 export default function CheckInPage(): JSX.Element {
-  const { eventId = '' } = useParams<{ eventId: string }>();
+  const { slug = '', eventId = '' } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
-  const [scans, setScans] = useState<QueuedScan[]>([]);
-  const [online, setOnline] = useState<boolean>(() => navigator.onLine);
-  const [error, setError] = useState<string | null>(null);
+  const statusLabel = useStatusLabel();
+  const [online, setOnline] = useState(navigator.onLine);
+  const [pending, setPending] = useState<QueuedScan[]>([]);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<RegistrationSummary[]>([]);
 
-  const refresh = useCallback(async () => {
-    try {
-      setScans(await listPendingScans(eventId));
-      setError(null);
-    } catch {
-      setError(t('common.error'));
+  const refreshPending = useCallback(
+    async () => setPending(await listPendingScans(eventId)),
+    [eventId],
+  );
+
+  const showResult = useCallback(
+    (result: SyncScanResult): void => {
+      const name = result.participant?.displayName ?? '';
+      const value: Shown =
+        result.status === 'created'
+          ? { tone: 'ok', title: t('checkin.welcome', { name }), detail: result.participant?.category ?? '' }
+          : result.status === 'duplicate'
+            ? { tone: 'dup', title: t('checkin.already', { name }), detail: '' }
+            : { tone: 'bad', title: t('checkin.invalid'), detail: result.code ?? '' };
+      setShown(value);
+      navigator.vibrate?.(value.tone === 'ok' ? 60 : [80, 60, 80]);
+    },
+    [t],
+  );
+
+  const syncNow = useCallback(async () => {
+    const queue = await listPendingScans(eventId);
+    if (queue.length === 0 || !navigator.onLine) {
+      return;
     }
-  }, [eventId, t]);
+    setSyncing(true);
+    try {
+      const response = await staffOpsApi.syncCheckIns(slug, eventId, {
+        scans: queue.map((scan) => ({
+          scanId: scan.id,
+          badgeToken: scan.badgeToken,
+          scannedAt: scan.scannedAt,
+        })),
+      });
+      const last = response.results[response.results.length - 1];
+      if (last) {
+        showResult(last);
+      }
+      await markSynced(queue);
+    } catch {
+      /* stays queued; the next reconnect retries and the server de-duplicates */
+    } finally {
+      setSyncing(false);
+      await refreshPending();
+    }
+  }, [eventId, slug, refreshPending, showResult]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refreshPending();
+  }, [refreshPending]);
 
   useEffect(() => {
-    const handleOnline = (): void => setOnline(true);
-    const handleOffline = (): void => setOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const up = (): void => { setOnline(true); void syncNow(); };
+    const down = (): void => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
     };
-  }, []);
+  }, [syncNow]);
 
-  const addScan = async (): Promise<void> => {
-    await enqueueScan(createScan(eventId, `demo-${Date.now()}`));
-    await refresh();
-  };
+  async function handleCode(code: string): Promise<void> {
+    await enqueueScan(createScan(eventId, code)); // durable first
+    await refreshPending();
+    setShown({ tone: 'ok', title: t('checkin.queued'), detail: '' });
+    if (navigator.onLine) {
+      await syncNow();
+    }
+  }
+
+  async function search(): Promise<void> {
+    try {
+      const result = await staffOpsApi.searchRegistrations(slug, eventId, query);
+      setMatches(result.items);
+    } catch (error) {
+      setShown({
+        tone: 'bad',
+        title: error instanceof ApiRequestError ? error.message : t('common.error'),
+        detail: '',
+      });
+    }
+  }
+
+  /** Staff check-in by name: the registration identifies the badge, never a raw token. */
+  async function manual(registrationId: string): Promise<void> {
+    try {
+      const checkIn = await staffOpsApi.recordCheckIn(slug, eventId, {
+        registrationId,
+        scannedAt: new Date().toISOString(),
+      });
+      const value: Shown = checkIn.duplicate
+        ? { tone: 'dup', title: t('checkin.already', { name: checkIn.participant.displayName }), detail: '' }
+        : { tone: 'ok', title: t('checkin.welcome', { name: checkIn.participant.displayName }), detail: checkIn.participant.category ?? '' };
+      setShown(value);
+      navigator.vibrate?.(value.tone === 'ok' ? 60 : [80, 60, 80]);
+      await search();
+    } catch (error) {
+      setShown({
+        tone: 'bad',
+        title: error instanceof ApiRequestError ? error.message : t('common.error'),
+        detail: '',
+      });
+    }
+  }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 p-4">
-      <header>
-        <h1 className="text-2xl font-semibold text-brand-text">{t('checkin.title')}</h1>
-        <p className="mt-1 text-sm text-brand-text/70">{t('checkin.subtitle')}</p>
-      </header>
+    <div className="mx-auto max-w-md space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">{t('checkin.title')}</h1>
+        <Link to={`/workspace/${slug}/events/${eventId}/check-in`} className="text-sm underline">{t('common.back')}</Link>
+      </div>
 
-      <p
-        role="status"
-        className={`rounded-brand px-3 py-2 text-sm font-medium ${
-          online ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'
-        }`}
-      >
-        {online ? t('checkin.online') : t('checkin.offline')}
+      <p role="status" className={cn('rounded-brand p-2 text-center text-sm font-medium', online ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900')}>
+        {online ? t('checkin.online') : t('checkin.offline')} · {pending.length}
       </p>
 
-      {error ? <ErrorState title={t('common.error')} message={error} /> : null}
+      <QrScanner active={scanning} onCode={(code) => void handleCode(code)} />
+      <Button variant="secondary" className="w-full" onClick={() => setScanning(!scanning)}>
+        {scanning ? t('checkin.pause') : t('checkin.resume')}
+      </Button>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-brand-text">
-            {t('checkin.queue')} ({scans.length})
-          </h2>
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void addScan()}>
-              {t('checkin.addScan')}
-            </Button>
-            <Button size="sm" disabled title="Available once the Phase 5 sync endpoint lands">
-              {t('checkin.sync')}
-            </Button>
-          </div>
+      {shown ? (
+        <div
+          role="status"
+          aria-live="assertive"
+          className={cn('rounded-brand p-5 text-center text-lg font-semibold', shown.tone === 'ok' && 'bg-green-600 text-white', shown.tone === 'dup' && 'bg-amber-500 text-white', shown.tone === 'bad' && 'bg-red-600 text-white')}
+        >
+          <p>{shown.title}</p>
+          {shown.detail ? <p className="text-sm font-normal opacity-90">{shown.detail}</p> : null}
         </div>
+      ) : null}
 
-        {scans.length === 0 ? (
-          <EmptyState title={t('checkin.empty')} />
-        ) : (
-          <ul className="divide-y divide-brand-primary/5 rounded-brand border border-brand-primary/10 bg-white">
-            {scans.map((scan) => (
-              <li key={scan.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span className="font-mono text-xs text-brand-text/70">
-                  {scan.badgeToken}
-                </span>
-                <time className="text-xs text-brand-text/50" dateTime={scan.scannedAt}>
-                  {new Date(scan.scannedAt).toLocaleTimeString()}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="rounded-brand border border-brand-primary/10 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">{t('checkin.queue')} ({pending.length})</h2>
+          <Button size="sm" variant="secondary" disabled={!online || syncing || pending.length === 0} onClick={() => void syncNow()}>
+            {syncing ? t('common.saving') : t('checkin.sync')}
+          </Button>
+        </div>
+        {pending.length === 0 ? <p className="mt-2 text-xs text-brand-text/70">{t('checkin.empty')}</p> : null}
+      </section>
 
-        <p className="text-xs text-brand-text/50">
-          Server-side verification, duplicate reconciliation and the sync endpoint are
-          implemented in Phase 5 (epic E6). Scans remain queued on this device until then.
-        </p>
+      <section className="rounded-brand border border-brand-primary/10 bg-white p-4">
+        <h2 className="text-sm font-semibold">{t('checkin.manual')}</h2>
+        <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); void search(); }}>
+          <Input aria-label={t('common.search')} placeholder={t('checkin.searchHint')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Button type="submit" disabled={!online || query.trim().length < 2}>{t('common.search')}</Button>
+        </form>
+        <ul className="mt-3 divide-y divide-brand-primary/10">
+          {matches.map((match) => (
+            <li key={match.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+              <span>
+                {match.person.firstName} {match.person.lastName}
+                <br />
+                <span className="text-xs text-brand-text/70">{match.person.email}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-xs">{statusLabel(match.status)}</span>
+                <Button size="sm" disabled={!online} onClick={() => void manual(match.id)}>
+                  {t('checkin.checkIn')}
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

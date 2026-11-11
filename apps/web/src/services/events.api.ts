@@ -32,6 +32,7 @@ export interface PublicEventContextView {
     endsAt: string;
     venueName: string | null;
     venueAddress: string | null;
+    bannerUrl: string | null;
   };
   organization: { slug: string; name: string };
   branding: import('@event-platform/shared').Branding;

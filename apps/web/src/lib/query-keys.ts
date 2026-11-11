@@ -10,6 +10,15 @@ export const queryKeys = {
   events: (slug: string, filters?: Record<string, unknown>) =>
     ['events', slug, filters ?? {}] as const,
   event: (slug: string, eventId: string) => ['event', slug, eventId] as const,
+  selfCapabilities: (slug: string) => ['capabilities', 'self', slug] as const,
+  organizationCapabilities: (slug: string) =>
+    ['capabilities', 'organization', slug] as const,
+  memberCapabilities: (slug: string, memberId: string) =>
+    ['capabilities', 'member', slug, memberId] as const,
+  members: (slug: string) => ['members', slug] as const,
+  platformOrganizations: () => ['platform', 'organizations'] as const,
+  platformOrganizationCapabilities: (organizationId: string) =>
+    ['platform', 'organization-capabilities', organizationId] as const,
   session: () => ['session'] as const,
   sessions: () => ['sessions'] as const,
 };

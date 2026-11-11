@@ -1,0 +1,29 @@
+# Local development services. NOT for production: fixed passwords, no persistence guarantees.
+#   npm run local:setup   start these, apply migrations, RLS, runtime role, write apps/api/.env
+#   npm run local:down    stop them (add -v to the docker command to wipe the data)
+name: eventplat
+services:
+  postgres:
+    image: postgres:16
+    container_name: eventplat-pg
+    environment:
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: eventplat
+    ports: ['54329:5432']
+    volumes: ['pgdata:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d eventplat']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7
+    container_name: eventplat-redis
+    ports: ['63799:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  pgdata:

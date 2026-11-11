@@ -41,7 +41,7 @@ export function Field({ label, htmlFor, error, hint, children }: FieldProps): JS
         {label}
       </label>
       {children}
-      {hint ? <p className="text-xs text-brand-text/60">{hint}</p> : null}
+      {hint ? <p className="text-xs text-brand-text/70">{hint}</p> : null}
       {error ? (
         <p role="alert" aria-live="polite" className="text-xs font-medium text-red-600">
           {error}

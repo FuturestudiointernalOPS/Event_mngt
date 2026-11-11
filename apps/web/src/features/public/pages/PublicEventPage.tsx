@@ -58,6 +58,8 @@ export default function PublicEventPage(): JSX.Element {
           </div>
         </header>
 
+        {event.bannerUrl ? <img src={event.bannerUrl} alt="" className="max-h-64 w-full object-cover" /> : null}
+
         <main className="mx-auto max-w-4xl px-4 py-10">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">
             {t('public.organisedBy')} {organization.name}
@@ -83,15 +85,16 @@ export default function PublicEventPage(): JSX.Element {
           ) : null}
 
           <div className="mt-8">
-            {event.visibility === 'PUBLIC' ? (
+            <div className="flex flex-wrap gap-3">
               <Link to={`/e/${event.slug}/register`}>
                 <Button size="lg">{t('public.register')}</Button>
               </Link>
-            ) : (
-              <p className="text-sm text-brand-text/60">
-                {t('public.details')} — {event.visibility.toLowerCase()}
-              </p>
-            )}
+              {event.visibility === 'PUBLIC' ? (
+                <Link to={`/e/${event.slug}/showcase`}>
+                  <Button size="lg" variant="secondary">{t('showcase.public')}</Button>
+                </Link>
+              ) : null}
+            </div>
           </div>
         </main>
       </div>

@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
-import { AppConfigService } from '../../config/config.module';
+import type { Env } from '../../config/env.validation';
 import { AppException } from '../app-exception';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { AccessTokenPayload, AuthenticatedUser } from '../types/authenticated-user';
@@ -19,7 +20,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
-    private readonly config: AppConfigService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

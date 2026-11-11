@@ -24,12 +24,45 @@ export const API_PATHS = {
     me: `${API_BASE_PATH}/auth/me`,
     sessions: `${API_BASE_PATH}/auth/sessions`,
     session: (sessionId: string) => `${API_BASE_PATH}/auth/sessions/${sessionId}`,
+    mfa: `${API_BASE_PATH}/auth/mfa`,
+    mfaSetup: `${API_BASE_PATH}/auth/mfa/setup`,
+    mfaEnable: `${API_BASE_PATH}/auth/mfa/enable`,
+    mfaDisable: `${API_BASE_PATH}/auth/mfa/disable`,
   },
 
   workspaces: {
     context: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/context`,
     settings: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/settings`,
     branding: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/branding`,
+    brandingAsset: (slug: string, kind: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/branding/assets/${kind}`,
+    members: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/members`,
+    roles: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/roles`,
+    selfCapabilities: (slug: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/me/capabilities`,
+    capabilities: (slug: string) => `${API_BASE_PATH}/workspaces/${slug}/capabilities`,
+    memberCapabilities: (slug: string, memberId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/members/${memberId}/capabilities`,
+    memberCapability: (slug: string, memberId: string, capabilityKey: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/members/${memberId}/capabilities/${capabilityKey}`,
+  },
+
+  platform: {
+    capabilities: `${API_BASE_PATH}/platform/capabilities`,
+    organizations: `${API_BASE_PATH}/platform/organizations`,
+    organizationOverview: `${API_BASE_PATH}/platform/organizations/overview`,
+    organizationDetail: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}`,
+    organizationStatus: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/status`,
+    organizationCapabilities: (organizationId: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities`,
+    organizationCapability: (organizationId: string, capabilityKey: string) =>
+      `${API_BASE_PATH}/platform/organizations/${organizationId}/capabilities/${capabilityKey}`,
+  },
+
+  onboarding: {
+    organizations: `${API_BASE_PATH}/onboarding/organizations`,
   },
 
   events: {
@@ -40,14 +73,34 @@ export const API_PATHS = {
       `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/modules`,
     publish: (slug: string, eventId: string) =>
       `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/publish`,
+    editions: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/editions`,
+    edition: (slug: string, eventId: string, editionId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/editions/${editionId}`,
   },
 
   publicEvents: {
     context: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}/context`,
     detail: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}`,
+    metrics: (eventSlug: string) => `${API_BASE_PATH}/public/events/${eventSlug}/metrics`,
   },
 
-  moduleRegistry: `${API_BASE_PATH}/module-registry`,
+  reports: {
+    eventSummary: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/reports/summary`,
+    organizationSummary: (slug: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/reports/summary`,
+    editions: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/reports/editions`,
+    exports: (slug: string, eventId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/events/${eventId}/exports`,
+    exportDetail: (slug: string, exportId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/exports/${exportId}`,
+    exportDownload: (slug: string, exportId: string) =>
+      `${API_BASE_PATH}/workspaces/${slug}/exports/${exportId}/download`,
+  },
+
+  moduleRegistry: `${API_BASE_PATH}/modules`,
 } as const;
 
 export const ACCESS_TOKEN_COOKIE = 'ep_access';

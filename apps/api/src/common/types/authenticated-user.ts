@@ -29,6 +29,15 @@ export interface TenantAccess {
   organizationId: string;
   membershipId: string;
   roleKey: string;
+  /** Effective capabilities: entitlement ∩ (role ∪ direct), dependencies satisfied. */
+  capabilities: string[];
+  /** Raw organisation entitlement, kept for management screens. */
+  organizationCapabilities: string[];
+  /** Capabilities implied by the member's role. */
+  roleCapabilities: string[];
+  /** Capabilities granted directly to the membership. */
+  directCapabilities: string[];
+  /** Legacy permissions implied by the effective capabilities (compatibility only). */
   permissions: string[];
 }
 

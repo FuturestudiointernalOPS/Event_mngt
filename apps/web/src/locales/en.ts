@@ -1,3 +1,4 @@
+import { enFeatures } from './en.features';
 export const en = {
   'app.name': 'Event Platform',
   'common.loading': 'Loading…',
@@ -14,6 +15,7 @@ export const en = {
   'nav.events': 'Events',
   'nav.team': 'Team',
   'nav.branding': 'Branding',
+  'nav.access': 'Access',
   'nav.reports': 'Reports',
   'nav.signOut': 'Sign out',
   'nav.backToSite': 'Back to public site',
@@ -60,6 +62,22 @@ export const en = {
   'events.modules': 'Enabled modules',
   'events.details.title': 'Event details',
 
+  'access.title': 'Member access',
+  'access.subtitle':
+    'Choose a member to see their effective capabilities and grant or revoke direct access.',
+  'access.entitlement':
+    'Your organisation is entitled to {granted} of {total} capabilities in the catalogue.',
+  'access.readOnly':
+    'You can inspect these permissions, but changing them requires the “Manage member permissions” capability.',
+  'access.member': 'Member',
+  'access.role': 'Role',
+  'access.effective': 'Effective capabilities',
+  'access.direct': 'Direct grants',
+
+  'capabilities.sensitive': 'Sensitive',
+  'capabilities.destructive': 'Destructive',
+  'capabilities.missingDependencies': 'Ineffective until these are also granted: {dependencies}',
+
   'public.register': 'Register',
   'public.details': 'Event details',
   'public.organisedBy': 'Organised by',
@@ -67,6 +85,7 @@ export const en = {
   'checkin.title': 'Check-in',
   'checkin.subtitle': 'Scans are stored on this device first, then synchronised.',
   'checkin.queue': 'Queued scans',
+  'checkin.queued': 'Scan saved — waiting to be synchronised',
   'checkin.sync': 'Synchronise now',
   'checkin.addScan': 'Simulate scan',
   'checkin.online': 'Connected',
@@ -75,12 +94,20 @@ export const en = {
 
   'platform.title': 'Platform administration',
   'platform.subtitle': 'Future Studio view across organisations.',
+  'platform.organization': 'Organisation',
+  'platform.entitlement':
+    '{organization} is entitled to {granted} of {total} capabilities. Unchecking one revokes it for every member immediately.',
+  'platform.enabled': 'Enabled',
+  'platform.forbidden': 'Platform administrators only',
+  'platform.forbiddenBody':
+    'This area manages organisation entitlements across the platform and is unavailable to workspace roles.',
 
   'participant.title': 'Your event space',
   'participant.subtitle': 'Badge, profile, meetings and requests.',
 
   'notFound.title': 'Page not found',
   'notFound.body': 'The page you are looking for does not exist.',
+  ...enFeatures,
 } as const;
 
 export type TranslationKey = keyof typeof en;

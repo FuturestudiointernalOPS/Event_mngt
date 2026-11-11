@@ -50,7 +50,7 @@ src/modules/
   reports/              aggregates, CSV/PDF exports
   analytics/            live operational metrics
   consent/              consent purposes, versions, records
-  audit-logs/           append-only sensitive action log
+  audit/                append-only sensitive action log
 ```
 
 Folder convention:
@@ -59,15 +59,21 @@ Folder convention:
 modules/events/
   events.module.ts          NestJS wiring, imports/exports only
   events.controller.ts      HTTP surface
+  routes.ts                 per-module route catalogue, checked against the controllers
   events.service.ts         business rules
-  events.repository.ts      Prisma access, tenant-scoped
-  dto/events.contract.ts    re-exports shared Zod schemas + Swagger decorators
+  events.repository.ts      Prisma access, tenant-scoped (only for complex queries)
+  dto/events.contracts.ts   re-exports shared Zod schemas + Swagger decorators
   events.service.spec.ts    unit tests
 ```
 
+**Phase 1 note.** Branding is implemented inside `workspaces/` (context, settings and
+the brand-token editor) rather than as a standalone `branding/` module. The two are
+split once brand assets and event-level overrides land in Phase 2; until then separate
+modules would only add a pass-through layer.
+
 ## Dependency rules between modules
 
-1. A module may import another module's **service**, never its repository or controller.
+1. A module may import another module's **service**, never its model or controller.
 2. No circular imports. If two modules need each other, extract the shared concern into a
    lower-level module (e.g. `permissions`, `audit-logs`).
 3. Cross-cutting concerns live in `common/` as guards, decorators, interceptors, filters
@@ -82,7 +88,7 @@ modules/events/
 | --- | --- | --- |
 | Authentication | `JwtAuthGuard` | Global, opt out with `@Public()` |
 | Tenant resolution | `TenantAccessGuard` | Global, active only with `@TenantScoped('slug')` |
-| Authorisation | `PermissionsGuard` | Global, driven by `@RequirePermissions()` |
+| Authorisation | `CapabilityGuard` | Global, driven by `@RequireCapability()` |
 | Tenant context | `TenantContextInterceptor` | Wraps handler in AsyncLocalStorage |
 | Validation | `ZodValidationPipe` | Per route with a shared schema |
 | Response envelope | `ResponseEnvelopeInterceptor` | Global |
@@ -124,12 +130,12 @@ a readable listing of missing/invalid variables. Type-safe access through
 
 | Level | Tooling | Proves |
 | --- | --- | --- |
-| Unit | Jest | Services, state transitions, permission policies, token logic |
-| Integration | Jest + real PostgreSQL | Prisma queries, migrations, RLS, tenant transactions, adapters |
-| Contract | Jest against shared schemas | API payloads match `packages/shared` |
-| API/E2E | Supertest | Onboarding, publishing, registration, approval, check-in |
-| Security | Jest, dedicated suite | Tenant A/B isolation, escalation, refresh reuse, CSRF, rate limits |
-| Reliability | Jest + queue harness | Offline sync, duplicates, retries, restore |
+| Unit | Vitest | Services, state transitions, permission policies, token logic |
+| Integration | Vitest + real PostgreSQL | Prisma queries, migrations, RLS, tenant transactions, adapters |
+| Contract | Vitest against shared schemas | API payloads match `packages/shared` |
+| API/E2E | Supertest via Vitest | Onboarding, publishing, registration, approval, check-in |
+| Security | Vitest, dedicated suite | Tenant A/B isolation, escalation, refresh reuse, CSRF, rate limits |
+| Reliability | Vitest + queue harness | Offline sync, duplicates, retries, restore |
 | Performance | k6 (Phase 7) | Registration bursts, check-in peaks, report generation |
 
 The security suite is mandatory in CI from Phase 2 onward: a failing tenant-isolation test

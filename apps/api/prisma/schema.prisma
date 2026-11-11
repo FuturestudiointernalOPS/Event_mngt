@@ -10,12 +10,18 @@
 // After editing: npm run db:migrate (dev) or npm run db:deploy (CI).
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // The API compiles to CommonJS, so generated imports stay extensionless. That keeps
+  // the client resolvable from TypeScript source (ts-node seed, tests) as well as from
+  // the compiled output, where sibling .js files exist.
+  moduleFormat        = "cjs"
+  importFileExtension = ""
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // The connection string lives in prisma.config.ts (required since Prisma 7).
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +72,100 @@ enum EventFormat {
   HYBRID
 }
 
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WAITLISTED
+  CANCELLED
+}
+
+enum RegistrationSource {
+  PUBLIC
+  STAFF
+  IMPORT
+}
+
+enum RegistrationFieldType {
+  TEXT
+  TEXTAREA
+  EMAIL
+  PHONE
+  NUMBER
+  DATE
+  URL
+  SELECT
+  MULTI_SELECT
+  CHECKBOX
+}
+
+enum ModerationStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProfileVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum BadgeStatus {
+  ISSUED
+  REVOKED
+}
+
+enum ExportKind {
+  REGISTRATIONS
+}
+
+enum ExportFormat {
+  CSV
+  PDF
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum CheckInSource {
+  ONLINE
+  OFFLINE
+  MANUAL
+}
+
+enum MeetingStatus {
+  PROPOSED
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+enum MeetingOutcome {
+  MET
+  NO_SHOW
+  FOLLOW_UP
+}
+
+enum IntroductionStatus {
+  REQUESTED
+  ASSIGNED
+  INTRODUCED
+  DECLINED
+}
+
+enum IntroductionOutcome {
+  CONNECTED
+  FOLLOW_UP
+  NO_MATCH
+  DECLINED
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -78,14 +178,38 @@ model User {
   status          UserStatus @default(PENDING_VERIFICATION)
   isPlatformAdmin Boolean    @default(false) @map("is_platform_admin")
   emailVerifiedAt DateTime?  @map("email_verified_at")
+  /// TOTP secret, AES-256-GCM encrypted. Active only once mfaEnabledAt is set.
+  mfaSecretEnc      String?   @map("mfa_secret_enc")
+  mfaEnabledAt      DateTime? @map("mfa_enabled_at")
+  /// Highest accepted TOTP time step, so a code cannot be replayed.
+  mfaLastStep       BigInt?   @map("mfa_last_step")
+  mfaRecoveryHashes String[]  @default([]) @map("mfa_recovery_hashes")
+  mfaFailedAttempts Int       @default(0) @map("mfa_failed_attempts")
+  mfaLockedUntil    DateTime? @map("mfa_locked_until")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
   sessions           UserSession[]
   memberships        OrganizationMember[]
   verificationTokens VerificationToken[]
+  sentInvitations    Invitation[]       @relation("InvitationSender")
   createdEvents      Event[]            @relation("EventCreator")
   auditLogs          AuditLog[]         @relation("AuditActor")
+
+  assignedOrganizationCapabilities OrganizationCapability[] @relation("OrganizationCapabilityAssigner")
+  assignedMemberCapabilities       MemberCapability[]       @relation("MemberCapabilityAssigner")
+
+  decidedRegistrations   Registration[]       @relation("RegistrationDecision")
+  moderatedProfiles      ParticipantProfile[] @relation("ParticipantProfileModerator")
+  moderatedOrganizations OrganizationProfile[] @relation("OrganizationProfileModerator")
+  moderatedInnovations   Innovation[]         @relation("InnovationModerator")
+
+  checkIns              CheckIn[]               @relation("CheckInOperator")
+  decidedMeetings       Meeting[]               @relation("MeetingDecider")
+  assignedIntroductions IntroductionRequest[]   @relation("IntroductionAssignee")
+  decidedIntroductions  IntroductionRequest[]   @relation("IntroductionDecider")
+  introductionHistory   IntroductionStatusHistory[] @relation("IntroductionHistoryActor")
+  requestedReportExports ReportExport[]          @relation("ReportExportRequester")
 
   @@map("users")
 }
@@ -143,8 +267,31 @@ model Organization {
   branding   WorkspaceBranding?
   members    OrganizationMember[]
   roles      OrganizationRole[]
+  invitations Invitation[]
   events     Event[]
   auditLogs  AuditLog[]
+  idempotencyRecords IdempotencyRecord[]
+  capabilities       OrganizationCapability[]
+  memberCapabilities MemberCapability[]
+
+  participantCategories ParticipantCategory[]
+  registrationForms     RegistrationForm[]
+  registrationFields    RegistrationField[]
+  people                Person[]
+  registrations         Registration[]
+  registrationAnswers   RegistrationAnswer[]
+  consentDocuments      ConsentDocument[]
+  consentRecords        ConsentRecord[]
+  badges                Badge[]
+  participantProfiles   ParticipantProfile[]
+  organizationProfile   OrganizationProfile?
+  innovations           Innovation[]
+
+  checkIns             CheckIn[]
+  meetings             Meeting[]
+  introductionRequests IntroductionRequest[]
+  introductionHistory  IntroductionStatusHistory[]
+  reportExports        ReportExport[]
 
   @@map("organizations")
 }
@@ -163,6 +310,7 @@ model OrganizationMember {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   role         OrganizationRole @relation(fields: [roleId], references: [id])
+  capabilities MemberCapability[]
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -182,6 +330,7 @@ model OrganizationRole {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   permissions  RolePermission[]
   members      OrganizationMember[]
+  invitations  Invitation[]
 
   @@unique([organizationId, key])
   @@map("organization_roles")
@@ -207,6 +356,64 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+/// Capabilities an organisation is entitled to use. Revoking a row immediately makes
+/// the capability ineffective for every member; member grants are left intact.
+model OrganizationCapability {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  capabilityKey    String   @map("capability_key")
+  assignedByUserId String?  @map("assigned_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy   User?        @relation("OrganizationCapabilityAssigner", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, capabilityKey])
+  @@index([capabilityKey])
+  @@map("organization_capabilities")
+}
+
+/// A capability granted directly to one membership. Role-derived capabilities are not
+/// stored here; they are computed from the role's permissions on every request.
+model MemberCapability {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  memberId         String   @map("member_id") @db.Uuid
+  capabilityKey    String   @map("capability_key")
+  assignedByUserId String?  @map("assigned_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  assignedBy   User?              @relation("MemberCapabilityAssigner", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, memberId, capabilityKey])
+  @@index([organizationId, memberId])
+  @@map("member_capabilities")
+}
+
+/// Pending invitation to join a workspace. Only the token hash is stored.
+/// Consumed and expired invitations are kept as history, never reused.
+model Invitation {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  email           String
+  roleId          String    @map("role_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  invitedByUserId String    @map("invited_by_user_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at")
+  consumedAt      DateTime? @map("consumed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         OrganizationRole @relation(fields: [roleId], references: [id])
+  invitedBy    User             @relation("InvitationSender", fields: [invitedByUserId], references: [id])
+
+  @@index([organizationId, email])
+  @@index([email])
+  @@map("invitations")
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +465,7 @@ model Event {
   id                   String          @id @default(uuid()) @db.Uuid
   organizationId       String          @map("organization_id") @db.Uuid
   parentEventId        String?         @map("parent_event_id") @db.Uuid
-  slug                 String
+  slug                 String          @unique
   name                 String
   description          String?
   format               EventFormat     @default(IN_PERSON)
@@ -269,6 +476,12 @@ model Event {
   endsAt               DateTime        @map("ends_at")
   venueName            String?         @map("venue_name")
   venueAddress         String?         @map("venue_address")
+  // Presentation overrides. Null means "inherit the workspace branding"; the public
+  // read model merges whatever is set over the workspace colours.
+  bannerUrl            String?         @map("banner_url")
+  brandPrimaryColor    String?         @map("brand_primary_color")
+  brandSecondaryColor  String?         @map("brand_secondary_color")
+  brandAccentColor     String?         @map("brand_accent_color")
   registrationOpensAt  DateTime?       @map("registration_opens_at")
   registrationClosesAt DateTime?       @map("registration_closes_at")
   publishedAt          DateTime?       @map("published_at")
@@ -282,7 +495,19 @@ model Event {
   editions     Event[]        @relation("EventEditions")
   modules      EventModule[]
 
-  @@unique([organizationId, slug])
+  categories        ParticipantCategory[]
+  registrationForm  RegistrationForm?
+  registrations     Registration[]
+  consentDocuments  ConsentDocument[]
+  badges            Badge[]
+  participantProfiles ParticipantProfile[]
+  innovations       Innovation[]
+  checkIns          CheckIn[]
+  meetings          Meeting[]
+  introductionRequests IntroductionRequest[]
+  introductionHistory  IntroductionStatusHistory[]
+  reportExports     ReportExport[]
+
   @@index([organizationId, status])
   @@index([organizationId, startsAt])
   @@map("events")
@@ -303,6 +528,507 @@ model EventModule {
   @@unique([eventId, moduleKey])
   @@index([eventId])
   @@map("event_modules")
+}
+
+// ---------------------------------------------------------------------------
+// Registration — categories, forms, people and registrations
+// ---------------------------------------------------------------------------
+
+/// Categories are event-scoped: the same key in two events is unrelated.
+model ParticipantCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventId        String   @map("event_id") @db.Uuid
+  key            String
+  name           String
+  description    String?
+  capacity       Int?
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+
+  @@unique([eventId, key])
+  @@index([organizationId, eventId])
+  @@map("participant_categories")
+}
+
+/// One form per event. Saving replaces the field set and increments `version`.
+model RegistrationForm {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventId        String   @unique @map("event_id") @db.Uuid
+  title          String
+  description    String?
+  version        Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fields       RegistrationField[]
+
+  @@index([organizationId])
+  @@map("registration_forms")
+}
+
+/// A question in the current form. Answers reference `key`, never the row id.
+model RegistrationField {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  formId         String                @map("form_id") @db.Uuid
+  key            String
+  label          String
+  type           RegistrationFieldType
+  required       Boolean               @default(false)
+  placeholder    String?
+  helpText       String?               @map("help_text")
+  options        Json?
+  sortOrder      Int                   @default(0) @map("sort_order")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  form         RegistrationForm    @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers      RegistrationAnswer[]
+
+  @@unique([formId, key])
+  @@index([organizationId, formId])
+  @@map("registration_fields")
+}
+
+/// The human behind registrations, scoped to one organisation (docs/11 D4).
+model Person {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  email            String
+  firstName        String   @map("first_name")
+  lastName         String   @map("last_name")
+  phone            String?
+  organizationName String?  @map("organization_name")
+  jobTitle         String?  @map("job_title")
+  country          String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, lastName, firstName])
+  @@map("people")
+}
+
+/// Participation in one event. Duplicates are a policy decision, not a constraint.
+model Registration {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @map("organization_id") @db.Uuid
+  eventId         String             @map("event_id") @db.Uuid
+  personId        String             @map("person_id") @db.Uuid
+  categoryId      String?            @map("category_id") @db.Uuid
+  reference       String
+  status          RegistrationStatus @default(PENDING)
+  source          RegistrationSource @default(PUBLIC)
+  submittedAt     DateTime           @default(now()) @map("submitted_at")
+  decidedAt       DateTime?          @map("decided_at")
+  decidedByUserId String?            @map("decided_by_user_id") @db.Uuid
+  decisionReason  String?            @map("decision_reason")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  person       Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+  category     ParticipantCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  decidedBy    User?               @relation("RegistrationDecision", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  answers      RegistrationAnswer[]
+  consents     ConsentRecord[]
+  badge        Badge?
+  profile      ParticipantProfile?
+  checkIns     CheckIn[]
+
+  @@unique([eventId, reference])
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, personId])
+  @@index([eventId, personId])
+  @@map("registrations")
+}
+
+/// One answer per field key. The key survives a form edit that deletes the field row.
+model RegistrationAnswer {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  registrationId String   @map("registration_id") @db.Uuid
+  fieldId        String?  @map("field_id") @db.Uuid
+  fieldKey       String   @map("field_key")
+  value          Json
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registration Registration        @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  field        RegistrationField?   @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+
+  @@unique([registrationId, fieldKey])
+  @@index([organizationId, registrationId])
+  @@map("registration_answers")
+}
+
+// ---------------------------------------------------------------------------
+// Consent and badges
+// ---------------------------------------------------------------------------
+
+/// Versioned consent wording. Only the latest published version per key is required.
+model ConsentDocument {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  key            String
+  version        Int       @default(1)
+  title          String
+  body           String
+  required       Boolean   @default(true)
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  records      ConsentRecord[]
+
+  @@unique([eventId, key, version])
+  @@index([organizationId, eventId])
+  @@map("consent_documents")
+}
+
+/// Append-only evidence of what was accepted, with the version it applied to.
+model ConsentRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  registrationId  String   @map("registration_id") @db.Uuid
+  documentId      String   @map("document_id") @db.Uuid
+  documentKey     String   @map("document_key")
+  documentVersion Int      @map("document_version")
+  accepted        Boolean  @default(true)
+  acceptedAt      DateTime @default(now()) @map("accepted_at")
+  ipAddress       String?  @map("ip_address")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registration Registration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  document     ConsentDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([registrationId, documentId])
+  @@index([organizationId, registrationId])
+  @@map("consent_records")
+}
+
+/// One badge per registration. Only the token hash is stored; the raw token is shown once.
+model Badge {
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @map("organization_id") @db.Uuid
+  eventId        String      @map("event_id") @db.Uuid
+  registrationId String      @unique @map("registration_id") @db.Uuid
+  tokenHash      String      @unique @map("token_hash")
+  status         BadgeStatus @default(ISSUED)
+  issuedAt       DateTime    @default(now()) @map("issued_at")
+  revokedAt      DateTime?   @map("revoked_at")
+  reissuedAt     DateTime?   @map("reissued_at")
+  reissueCount   Int         @default(0) @map("reissue_count")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, eventId])
+  @@map("badges")
+}
+
+// ---------------------------------------------------------------------------
+// Profiles and showcase
+// ---------------------------------------------------------------------------
+
+/// Presentation attached to one registration, moderated before it can be public.
+model ParticipantProfile {
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  eventId           String            @map("event_id") @db.Uuid
+  registrationId    String            @unique @map("registration_id") @db.Uuid
+  headline          String?
+  bio               String?
+  company           String?
+  jobTitle          String?           @map("job_title")
+  websiteUrl        String?           @map("website_url")
+  photoUrl          String?           @map("photo_url")
+  links             Json?
+  visibility        ProfileVisibility @default(PRIVATE)
+  moderationStatus  ModerationStatus  @default(DRAFT)
+  submittedAt       DateTime?         @map("submitted_at")
+  moderatedAt       DateTime?         @map("moderated_at")
+  moderatedByUserId String?           @map("moderated_by_user_id") @db.Uuid
+  moderationNote    String?           @map("moderation_note")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  moderatedBy  User?        @relation("ParticipantProfileModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+  innovations  Innovation[]
+
+  meetingsAsProposer    Meeting[]             @relation("MeetingProposer")
+  meetingsAsRecipient   Meeting[]             @relation("MeetingRecipient")
+  introductionRequests  IntroductionRequest[] @relation("IntroductionRequester")
+
+  @@index([organizationId, eventId, moderationStatus])
+  @@map("participant_profiles")
+}
+
+/// The workspace's own listing. One per organisation, not per event.
+model OrganizationProfile {
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @unique @map("organization_id") @db.Uuid
+  name              String
+  description       String?
+  websiteUrl        String?           @map("website_url")
+  logoUrl           String?           @map("logo_url")
+  contactEmail      String?           @map("contact_email")
+  country           String?
+  sector            String?
+  visibility        ProfileVisibility @default(PUBLIC)
+  moderationStatus  ModerationStatus  @default(DRAFT)
+  submittedAt       DateTime?         @map("submitted_at")
+  moderatedAt       DateTime?         @map("moderated_at")
+  moderatedByUserId String?           @map("moderated_by_user_id") @db.Uuid
+  moderationNote    String?           @map("moderation_note")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  moderatedBy  User?        @relation("OrganizationProfileModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+  innovations  Innovation[]
+
+  @@map("organization_profiles")
+}
+
+/// A showcase entry attached to an event and to either a participant or an organisation.
+model Innovation {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @map("organization_id") @db.Uuid
+  eventId               String            @map("event_id") @db.Uuid
+  participantProfileId  String?           @map("participant_profile_id") @db.Uuid
+  organizationProfileId String?           @map("organization_profile_id") @db.Uuid
+  title                 String
+  summary               String?
+  category              String?
+  externalUrl           String?           @map("external_url")
+  imageUrl              String?           @map("image_url")
+  visibility            ProfileVisibility @default(PUBLIC)
+  moderationStatus      ModerationStatus  @default(PENDING)
+  submittedAt           DateTime          @default(now()) @map("submitted_at")
+  moderatedAt           DateTime?         @map("moderated_at")
+  moderatedByUserId     String?           @map("moderated_by_user_id") @db.Uuid
+  moderationNote        String?           @map("moderation_note")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event               Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantProfile  ParticipantProfile? @relation(fields: [participantProfileId], references: [id], onDelete: SetNull)
+  organizationProfile OrganizationProfile? @relation(fields: [organizationProfileId], references: [id], onDelete: SetNull)
+  moderatedBy         User?               @relation("InnovationModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventId, moderationStatus])
+  @@map("innovations")
+}
+
+// ---------------------------------------------------------------------------
+// Reporting
+// ---------------------------------------------------------------------------
+
+/// One requested report file. The row is the job: it is created PENDING, claimed by
+/// the in-process worker (PROCESSING) and finishes COMPLETED or FAILED. The generated
+/// bytes live with the row so a download is a stable snapshot, not a re-query.
+model ReportExport {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  eventId           String       @map("event_id") @db.Uuid
+  requestedByUserId String?      @map("requested_by_user_id") @db.Uuid
+  kind              ExportKind   @default(REGISTRATIONS)
+  format            ExportFormat
+  status            ExportStatus @default(PENDING)
+  fileName          String       @map("file_name")
+  contentType       String       @map("content_type")
+  content           Bytes?
+  rowCount          Int          @default(0) @map("row_count")
+  byteSize          Int          @default(0) @map("byte_size")
+  truncated         Boolean      @default(false)
+  error             String?
+  createdAt         DateTime     @default(now()) @map("created_at")
+  startedAt         DateTime?    @map("started_at")
+  completedAt       DateTime?    @map("completed_at")
+  expiresAt         DateTime?    @map("expires_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requestedBy  User?        @relation("ReportExportRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@map("report_exports")
+}
+
+// ---------------------------------------------------------------------------
+// Event operations — check-in, meetings and introductions
+// ---------------------------------------------------------------------------
+
+/// Attendance for one registration. The unique pair is the attendance invariant:
+/// a repeat scan returns the existing row instead of creating a second one (WP-15).
+model CheckIn {
+  id                String        @id @default(uuid()) @db.Uuid
+  organizationId    String        @map("organization_id") @db.Uuid
+  eventId           String        @map("event_id") @db.Uuid
+  registrationId    String        @map("registration_id") @db.Uuid
+  source            CheckInSource @default(ONLINE)
+  /// Device-generated idempotency key for offline sync; unique per event when present.
+  scanId            String?       @map("scan_id")
+  scannedAt         DateTime      @map("scanned_at")
+  receivedAt        DateTime      @default(now()) @map("received_at")
+  checkedInByUserId String?       @map("checked_in_by_user_id") @db.Uuid
+  deviceId          String?       @map("device_id")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  checkedInBy  User?        @relation("CheckInOperator", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, registrationId])
+  @@unique([eventId, scanId])
+  @@index([organizationId, eventId, scannedAt])
+  @@map("check_ins")
+}
+
+/// A proposed meeting between two participant profiles. `requiresStaffConfirmation` is
+/// snapshotted from the module setting so the UI can explain whether staff must decide.
+model Meeting {
+  id                        String         @id @default(uuid()) @db.Uuid
+  organizationId            String         @map("organization_id") @db.Uuid
+  eventId                   String         @map("event_id") @db.Uuid
+  proposerProfileId         String         @map("proposer_profile_id") @db.Uuid
+  recipientProfileId        String         @map("recipient_profile_id") @db.Uuid
+  status                    MeetingStatus  @default(PROPOSED)
+  requiresStaffConfirmation Boolean        @default(true) @map("requires_staff_confirmation")
+  proposedAt                DateTime       @default(now()) @map("proposed_at")
+  durationMinutes           Int            @default(30) @map("duration_minutes")
+  note                      String?
+  decidedAt                 DateTime?      @map("decided_at")
+  decidedByUserId           String?        @map("decided_by_user_id") @db.Uuid
+  outcome                   MeetingOutcome?
+  outcomeNotes              String?        @map("outcome_notes")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  proposer     ParticipantProfile @relation("MeetingProposer", fields: [proposerProfileId], references: [id], onDelete: Cascade)
+  recipient    ParticipantProfile @relation("MeetingRecipient", fields: [recipientProfileId], references: [id], onDelete: Cascade)
+  decidedBy    User?             @relation("MeetingDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, eventId, proposerProfileId])
+  @@index([organizationId, eventId, recipientProfileId])
+  @@map("meetings")
+}
+
+/// One introduction request from a participant profile, moved through a staff queue.
+model IntroductionRequest {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  eventId             String              @map("event_id") @db.Uuid
+  requestingProfileId String              @map("requesting_profile_id") @db.Uuid
+  reason              String?
+  offeredHelp         String?             @map("offered_help")
+  status              IntroductionStatus  @default(REQUESTED)
+  assignedToUserId    String?             @map("assigned_to_user_id") @db.Uuid
+  decidedAt           DateTime?           @map("decided_at")
+  decidedByUserId     String?             @map("decided_by_user_id") @db.Uuid
+  outcome             IntroductionOutcome?
+  outcomeNotes        String?             @map("outcome_notes")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event             Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requestingProfile ParticipantProfile         @relation("IntroductionRequester", fields: [requestingProfileId], references: [id], onDelete: Cascade)
+  assignedTo        User?                      @relation("IntroductionAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  decidedBy         User?                      @relation("IntroductionDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  statusHistory     IntroductionStatusHistory[]
+
+  @@index([organizationId, eventId, status])
+  @@map("introduction_requests")
+}
+
+/// Append-only audit trail of every introduction transition. No update or delete path.
+model IntroductionStatusHistory {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  eventId        String              @map("event_id") @db.Uuid
+  requestId      String              @map("request_id") @db.Uuid
+  fromStatus     IntroductionStatus? @map("from_status")
+  toStatus       IntroductionStatus  @map("to_status")
+  actorUserId    String?             @map("actor_user_id") @db.Uuid
+  note           String?
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  request      IntroductionRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor        User?                @relation("IntroductionHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventId, requestId, createdAt], map: "introduction_history_scope_idx")
+  @@map("introduction_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Infrastructure
+// ---------------------------------------------------------------------------
+
+/// Short-lived replay cache for requests carrying an Idempotency-Key header.
+/// Not product data: no product endpoint lists it, and rows expire after a day.
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// `org:<id>`, `user:<id>` or `anon:<method>:<route>:<ip>` — the caller's namespace.
+  scope          String
+  key            String
+  requestHash    String   @map("request_hash")
+  /// 0 while the request is in flight; the real status once stored.
+  responseStatus Int      @default(0) @map("response_status")
+  responseBody   Json?    @map("response_body")
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+/// Fixed-window counters for rate limiting. Keyed by route and caller, never by data.
+model RateLimitCounter {
+  key         String
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@map("rate_limit_counters")
 }
 
 // ---------------------------------------------------------------------------

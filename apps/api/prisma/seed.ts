@@ -9,18 +9,27 @@
 import {
   ALL_PERMISSIONS,
   DEFAULT_BRANDING,
+  ORGANIZATION_CAPABILITY_KEYS,
   SYSTEM_ROLES,
   SYSTEM_ROLE_TEMPLATES,
 } from '@event-platform/shared';
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import * as argon2 from 'argon2';
 import {
   MemberStatus,
   OrganizationStatus,
   PrismaClient,
   UserStatus,
-} from '@prisma/client';
-import * as argon2 from 'argon2';
+} from '../src/database/prisma-client';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required to seed the database.');
+}
+
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 async function main(): Promise<void> {
   // 1. Global permission catalogue
@@ -54,7 +63,19 @@ async function main(): Promise<void> {
     update: {},
   });
 
-  // 3. System roles for that organisation
+  // 3. Organisation entitlements. Existing organisations keep every capability their
+  // roles could previously exercise; platform administrators can revoke individually.
+  for (const capabilityKey of ORGANIZATION_CAPABILITY_KEYS) {
+    await prisma.organizationCapability.upsert({
+      where: {
+        organizationId_capabilityKey: { organizationId: organization.id, capabilityKey },
+      },
+      create: { organizationId: organization.id, capabilityKey },
+      update: {},
+    });
+  }
+
+  // 4. System roles for that organisation
   for (const template of SYSTEM_ROLE_TEMPLATES) {
     const role = await prisma.organizationRole.upsert({
       where: {
@@ -85,7 +106,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // 4. Optional first administrator
+  // 5. Optional first administrator
   const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD;
 

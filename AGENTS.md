@@ -1,0 +1,105 @@
+# Agent instructions
+
+Multi-tenant, white-label event platform. One deployment, many organisations.
+NestJS API + React web app + shared contracts in a single repository.
+
+**Read first:** `docs/README.md` (decisions already made), then `docs/13-coding-rules.md`
+(the binding rulebook). This file is the short version; the rulebook wins on detail.
+
+## Non-negotiable rules
+
+- **R1 — No file over 300 lines.** 270+ is a warning: split before adding. Never split by
+  position (`part2`); split by responsibility.
+- **R3/R4 — Controller → service → repository, proportionately.** Controllers never touch
+  the database. A service may run a simple single-table query itself; when a query joins,
+  paginates, sorts, aggregates, feeds a public projection or is reused, it moves to
+  `<feature>.repository.ts`. Never add a layer that only forwards calls.
+- **R5 — Import the database client from one local entry point**, never the generated path
+  or the vendor package.
+- **R6 — Inject typed configuration.** Never read the environment in feature code.
+- **R7 — The tenant id comes from a verified membership server-side.** Never from a body,
+  query or header. Every tenant-owned query carries the predicate.
+- **R9 — Shapes live in the shared contracts package** and are validated at the route.
+- **R10 — A module may import another module's service only** — not its repository,
+  controller or internals.
+- **R12 — Every protected action has a capability.** Register it in
+  `packages/shared/src/platform/capability-definitions.ts`, enforce it with
+  `@RequireCapability(...)`, catalogue the route, and gate the UI. Never add an
+  independent permission mechanism. See `docs/16-capability-authorization.md`.
+- **R11 — New logic gets a spec; every bug fix gets a regression test** that fails on the
+  old code. Tests sit beside the code.
+
+## Where code goes
+
+```
+apps/api/src/modules/<feature>/
+  <feature>.module.ts       wiring only
+  <feature>.controller.ts   HTTP surface
+  <feature>.service.ts      rules, transactions, audit
+  <feature>.repository.ts   complex queries, tenant predicates, projections
+  <feature>.mapper.ts       pure row -> contract mapping (when mapping is non-trivial)
+  dto/                      shared schema re-exports
+  <feature>.service.spec.ts behaviour tests
+apps/api/src/common/        guards, decorators, pipes, filters, interceptors
+apps/api/src/modules/capabilities/  registry management, entitlement and member grants
+apps/api/src/database/      the only place that constructs or re-exports the client
+apps/api/src/config/        the only place that reads the environment
+packages/shared/src/        contracts, permissions, module registry
+apps/web/src/features/      one folder per feature: pages, components, hooks
+```
+
+If a feature needs three collaborators, give it three files — not one 700-line service.
+Only add a repository when the query is complex, not by default.
+
+## Testing is part of the work
+
+- Rules, mapping, validation and state transitions get a spec beside them.
+- Every bug fix gets a regression test that fails on the previous code.
+- `npm run test` runs the rules check test first, then the API and web suites.
+
+## Before you say you are done
+
+```sh
+npm run check:conventions   # file size, layering, env access, client imports
+npm run test                # rules test, then API and web suites
+npm run typecheck           # all workspaces
+npm run build               # server and site
+```
+
+For data-access work, also run `npm run test:isolation` (needs the database and the runtime
+role). It is not part of `npm test` because it requires a real database.
+
+Report which of these actually ran. Do not claim a check passed without running it.
+
+Also confirm by hand for data-touching work: tenant predicate present, no database import
+in a controller or component, no file crossed 300 lines, a capability exists for every
+protected action, and a test exists for the logic you added.
+
+## Running it locally
+
+```sh
+npm run local:setup   # Docker Postgres + Redis, migrations, RLS, runtime role, apps/api/.env
+npm run dev           # API :4000, web :5173 (e-mails are printed in the API log)
+```
+
+Deployment and operations: `docs/18-deployment-and-operations.md`.
+
+## Traps that have already cost time
+
+- **Never run `npm audit fix`** — it downgrades to escape advisory ranges. `--force` is
+  never acceptable.
+- The database client and its command-line tool are pinned to the same exact version.
+- After any schema change: `npm run db:generate`. The generated client is gitignored and
+  recreated on install; imports go through the local entry point.
+- The Supabase connection must use the **pooler** host (the direct host is IPv6-only) and
+  `sslmode=no-verify` (the pooler's certificate chain is not trusted by Node).
+- A stale incremental build cache can replay errors that are already fixed. Delete the
+  build cache before concluding that a config change failed.
+- Row-level security is now enforced end to end and the API works with it on. Reads that
+  happen before a tenant is known (workspace/public context, own memberships) rely on the
+  SELECT-only policies in `apps/api/prisma/policies/tenant-rls.sql`; apply the whole file with
+  the migrations, and run the API as the non-owner `platform_app` role. A new table with
+  `organization_id` must be added to that file (the isolation spec fails if it is not).
+- HTTP journey specs live in `apps/api/test/*.e2e-spec.ts` and are skipped unless
+  `E2E_BASE_URL`, `TEST_OWNER_DATABASE_URL` and `TEST_APP_DATABASE_URL` are set (a running API
+  against a database with the migrations, RLS and permission seed applied).
