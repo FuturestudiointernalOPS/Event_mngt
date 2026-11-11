@@ -12,59 +12,105 @@ is the bug. The API follows the work-package design (`14-backend-work-packages.m
 | --- | --- | --- |
 | 1. Foundation | Done | Auth, tenancy, RLS enforced end to end, audit, migrations |
 | 2. Organisation & branding | Done | Onboarding, team and invitations, capability grants, branding and asset upload, dashboard |
-| 3. Event management | Done | Lifecycle and transitions, editions, module registry with dependencies, publish validation |
-| 4. Registration & profiles | Done | Categories, versioned form, versioned consent, approval, hashed QR badges, profiles and showcase moderation |
+| 3. Event management | Done | Lifecycle and transitions, editions, module registry with dependencies, publish validation, per-event banner and colours |
+| 4. Registration & profiles | Done | Categories, one form per event, versioned consent, approval, hashed QR badges, profiles and showcase moderation |
 | 5. Event operations | Done | Meetings, introductions, check-in with offline sync and manual fallback |
-| 6. Reporting | Done | Event and organisation summaries, edition comparison, queued CSV exports, anonymised public metrics |
-| 7. QA & security | Partly | See below |
+| 6. Reporting | Done | Event and organisation summaries, edition comparison, queued CSV/PDF exports, anonymised public metrics |
+| 7. QA & security | Partly | Two-factor, escalation guards, rate limits and the isolation spec are in place; data retention and participant rights are not built (plan: `20-privacy-retention-and-participant-rights.md`) |
 | 8. Innovation Village beta | Not started | Needs the decisions in `11-open-decisions.md`; runbook in `19-beta-runbook.md` |
 
-## Web screens
+## Screens
 
-Workspace (capability-gated): dashboard, events list and creation, event tabs (overview and
-lifecycle, modules, registration setup, registrations with approve / reject / erase and the
-badge panel, showcase, networking, check-in, reports and exports), team, access
-(capabilities), branding with asset upload, audit log. Account: onboarding, security (MFA),
-sign-in, registration, e-mail verification, password reset, invitation acceptance. Public:
-event page, dynamic registration form, showcase. Staff: mobile check-in scanner with offline
-queue. Platform: organisation oversight.
+**Account.** Sign-in, registration, e-mail verification, password reset, invitation
+acceptance, security (two-factor), and self-service onboarding where a signed-in account
+creates a workspace and becomes its first administrator without a platform administrator.
 
-## Known gaps in the product
+**Workspace** (capability-gated). Dashboard, events list and creation, team, access
+(capability grants), branding with asset upload, audit log.
 
-- **No participant portal.** A registrant gets a receipt reference on screen and the badge
-  code by e-mail (as text). There is no page that shows them their QR badge; staff can
-  reissue a badge and show or print its QR from the registrations tab (the code is displayed
-  once).
-- **No workspace-level retention or purge, and no participant-initiated export or erasure.**
-  Staff can erase one registration (`registrations.erase`).
-- **No event-level branding** (banner, colour overrides): the contract fields exist and are
-  always null.
-- **Integrations are console-only.** `EMAIL_PROVIDER` and `STORAGE_PROVIDER` accept
-  `resend` / `ses` / `s3` in the environment contract, but only the console adapters are
-  implemented, so nothing is actually sent or stored externally yet.
-- Meeting `proposedStart/End` are informational; no availability matching.
-- PDF export is not implemented (CSV only).
+**Event.** Tabs for overview and lifecycle, modules, registration setup, registrations
+(approve, reject, erase, badge panel with reissue and a QR shown once), showcase, networking,
+check-in, reports and exports. The overview also carries the **appearance** panel: a banner
+upload and up to three colour overrides; anything left unset inherits the workspace.
+
+**Public and staff.** Public event page, registration form and showcase; a staff check-in
+page with an offline queue and a manual fallback.
+
+**Platform.** A console that lists workspaces with their status and toggles the capabilities
+each workspace is entitled to. Creating a workspace on someone's behalf, suspend/reactivate
+buttons and an audited support summary are **not** in the screen; suspension exists in the
+API under `platform.organizations.manage`.
+
+## Where the build deliberately differs
+
+| Decision | What the code does | Why |
+| --- | --- | --- |
+| Registration forms | One form per event (enforced unique), a version number on the form, and answers stored as separate rows keyed by the question key | A form edit must not orphan past answers; answers stay queryable |
+| Public event address | The slug is unique **platform-wide**, enforced by a unique index; a generated slug that collides is retried once with a random suffix, a slug typed by the user is refused | The public address is the slug alone, so the lookup has nothing else to disambiguate with; two workspaces could otherwise publish the same address and one would win arbitrarily |
+| Staff check-in route | `/staff/:slug/:eventId/check-in` | The API resolves the workspace from its slug |
+| Event appearance | `banner_url` plus three nullable colour columns on the event; null means inherit | No backfill, and the editing screen can tell "set" from "inherits" |
+| Upload storage | Local disk by default (`local`), served by the API at `/static`; `console` only logs; `s3` has no adapter yet and falls back to console | One deployment, one server for the beta; the port is already in place for an object store |
+| Event slug changes | A unique violation is translated into a `slug_taken` conflict instead of leaking a database error | The user needs an actionable message |
+
+## Known limits
+
+- **No participant portal.** A badge stores only a hash of its code, and the code is
+  displayed once. Participants use the public pages and the e-mailed badge.
+- **No data retention and no participant-initiated export or erasure.** Staff can erase one
+  registration, which anonymises the **person** and therefore affects every registration of
+  that person in the workspace. The plan is in `20-privacy-retention-and-participant-rights.md`.
+- **E-mail is console-only.** `resend` and `ses` are accepted by the configuration but no
+  adapter exists, so nothing leaves the process.
+- **Storage is single-server.** The local provider writes to `LOCAL_STORAGE_DIR`; a
+  multi-instance deployment needs the object-store adapter first.
+- **Modules at P1/P2 are catalogued and can be enabled.** There is no priority gate; the
+  dependency rules and the core module are the only constraints.
+- **Meeting times are informational.** `proposedStart`/`proposedEnd` are stored, with no
+  availability matching.
+- **PDF export is a plain text table** (Helvetica rows, no logo or images). It is
+  unit-tested for a valid PDF container, not visually reviewed.
+- **Two-factor is optional**, including for platform administrators.
+- **MFA, e-mail and storage adapters are unit-tested against stubs**, not against real
+  providers.
 
 ## Quality evidence
 
 - `npm run check:conventions`, `npm run test`, `npm run typecheck`, `npm run build`.
-- `npm run test:isolation` (needs the database and the runtime role): tenant isolation on a
-  real PostgreSQL, including a structural guard that every table with `organization_id` has
-  forced row-level security.
-- Route catalogue drift spec, capability registry spec, escalation specs, rate-limit specs,
-  MFA specs (RFC 6238 vectors), job-runner specs, badge token specs.
-- Web unit tests (shell regression, onboarding route, badge panel) and Playwright specs in
-  `apps/web/e2e` (registration to approval and badge, consent refusal, unknown event,
-  accessibility, mobile overflow, offline shell). The Playwright specs need a running stack
-  and a Chromium matching the installed Playwright (`npx playwright install chromium`).
-- `apps/api/scripts/load-test.ts`: registration burst and check-in correctness under
-  concurrency (written against an earlier API surface; re-check its routes before relying
-  on it).
-- Last verified in a browser against the running stack: sign-in, onboarding, team, event
-  tabs, public registration, approval, badge reissue (QR shown once), manual check-in.
+- **HTTP journey specs** (`apps/api/test/*.e2e-spec.ts`): team and invitations, events and
+  modules, branding uploads, and registration → approval → badge → check-in → report — four
+  files, fourteen tests. They create fixtures as the database owner, then assert only through
+  HTTP. They skip themselves unless `E2E_BASE_URL`, `TEST_OWNER_DATABASE_URL` and
+  `TEST_APP_DATABASE_URL` are set; see `AGENTS.md`. The restored journeys use manual check-in
+  by registration, because the raw badge token is never retrievable, and a rewritten
+  invitation hash, because the token is only sent by e-mail.
+- **Tenant isolation spec** (needs a real PostgreSQL and the runtime role): cross-tenant reads
+  and writes refused through HTTP, plus a structural guard that fails when a table with
+  `organization_id` has no forced row-level security.
+- **Catalogues that cannot drift**: every controller route must appear in the route
+  catalogue, and every capability key must exist in the registry and in a migration.
+- **Behaviour specs beside the code**: escalation guards, rate-limit budgets and windows,
+  MFA (RFC 6238 vectors, encrypted secrets, recovery single-use, lockout), job runner and
+  export retries, badge tokens, event mapping and the public theme merge, slug conflict
+  retry, image upload rules, and the local storage adapter.
+- **Web unit tests**: shell regression, onboarding route, badge panel, event appearance.
+- **Browser tests** (`apps/web/e2e`, Playwright, Chromium): six tests, eight runs — the
+  accessibility and mobile-width specs also run on the phone profile. They cover public
+  registration to staff confirmation, consent refusal, unknown event, accessibility, mobile
+  overflow and the offline shell. They need a running stack and a matching Chromium.
+- **Load test** (`apps/api/scripts/load-test.ts`): registration burst and check-in
+  correctness under concurrency. It was written against an earlier API surface; re-check its
+  routes before relying on the numbers.
 
 ## Not covered
 
-- Never run against Supabase; everything was exercised on the Docker database.
-- Camera scanning (jsQR) is untested on real phones.
-- MFA is optional, including for platform administrators.
+- **Never run against Supabase.** Everything was exercised on the Docker database. Follow
+  `18-deployment-and-operations.md`, then re-run the journey specs and the load test on
+  staging.
+- **The journey specs need a running stack.** Without the three variables a CI job reports
+  them as skipped, not as passing.
+- **Camera scanning** (jsQR) is untested on real phones; the decode loop and the offline queue
+  are covered by unit tests and the manual fallback.
+- **No participant-facing data rights.** Public pages, the registration form, the showcase and
+  the badge link are the whole participant experience.
+- **The platform console is read-mostly**: no impersonation, no support summary, no
+  suspend/reactivate control.

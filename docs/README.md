@@ -30,6 +30,7 @@ disagreed, the stricter interpretation wins and the deviation is recorded in
 | [17-implementation-status.md](17-implementation-status.md) | What is built, deviations from the plans, quality evidence, known limits |
 | [18-deployment-and-operations.md](18-deployment-and-operations.md) | Supabase, configuration, processes, backups, security checklist, runbook |
 | [19-beta-runbook.md](19-beta-runbook.md) | Innovation Village beta: configure, simulate, run, roll back |
+| [20-privacy-retention-and-participant-rights.md](20-privacy-retention-and-participant-rights.md) | Retention per workspace, participant export and erasure: rationale and plan |
 
 ## Decisions already made (do not re-litigate without cause)
 
