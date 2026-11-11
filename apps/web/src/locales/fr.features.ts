@@ -268,8 +268,4 @@ export const frFeatures = {
   'retention.confirm': 'Effacer les données personnelles de toutes les personnes hors durée de conservation ? Action irréversible.',
   'retention.previewResult': '{count} personnes seraient effacées.',
   'retention.done': '{count} personnes effacées.',
-  'event.branding': "Identité visuelle de l'événement",
-  'event.brandingHelp': "Les couleurs laissées vides reprennent celles de l'organisation.",
-  'event.bannerUploaded': 'Bannière mise à jour.',
-  'event.brandingSaved': "Identité visuelle de l'événement enregistrée.",
 } as const;

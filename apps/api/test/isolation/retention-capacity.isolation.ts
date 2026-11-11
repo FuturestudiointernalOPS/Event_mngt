@@ -11,8 +11,8 @@ import {
   type RunningApi,
 } from './harness';
 
-/** Retention purge, event branding and category capacity on the real server and database. */
-describe.skipIf(!isolationEnabled)('retention, event branding and capacity', () => {
+/** Retention purge and category capacity on the real server and database. */
+describe.skipIf(!isolationEnabled)('retention and capacity', () => {
   const owner = createOwnerClient();
   let api: RunningApi;
   let fixtures: Fixtures;
@@ -101,37 +101,5 @@ describe.skipIf(!isolationEnabled)('retention, event branding and capacity', () 
     await apiSend(api.baseUrl, tokenB, 'PATCH', `/workspaces/${fixtures.slugB}/settings`, { retentionMonths: 1 });
     const result = await apiSend(api.baseUrl, tokenB, 'POST', `/workspaces/${fixtures.slugB}/retention/purge`, { dryRun: false });
     expect((result.body.data as { people: number }).people).toBe(0);
-  });
-
-  it('stores colour overrides and shows them on the public event page', async () => {
-    const saved = await staff('PATCH', `${ws()}/events/${eventId}`, { brandOverrides: { primaryColor: '#123456' } });
-    expect(saved.status).toBe(200);
-    expect((saved.body.data as { brandOverrides: unknown }).brandOverrides).toEqual({ primaryColor: '#123456' });
-
-    const response = await fetch(`${api.baseUrl}/public/events/${eventSlug}/context`);
-    const context = (await response.json()) as { data: { branding: { primaryColor: string } } };
-    expect(context.data.branding.primaryColor).toBe('#123456');
-
-    const cleared = await staff('PATCH', `${ws()}/events/${eventId}`, { brandOverrides: null });
-    expect((cleared.body.data as { brandOverrides: unknown }).brandOverrides).toBeNull();
-    expect((await staff('PATCH', `${ws()}/events/${eventId}`, { brandOverrides: { primaryColor: 'red; x' } })).status).toBe(400);
-  });
-
-  it('accepts a real image as banner and refuses a disguised file', async () => {
-    const upload = async (bytes: Buffer, name: string, type: string) => {
-      const form = new FormData();
-      form.append('file', new Blob([new Uint8Array(bytes)], { type }), name);
-      const response = await fetch(`${api.baseUrl}${ws()}/events/${eventId}/banner`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
-      return { status: response.status, body: (await response.json()) as { data?: { bannerUrl: string } } };
-    };
-    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
-
-    const ok = await upload(png, 'banner.png', 'image/png');
-    expect(ok.status).toBeLessThan(300);
-    expect(ok.body.data?.bannerUrl).toBeTruthy();
-    expect((await owner.event.findUniqueOrThrow({ where: { id: eventId } })).bannerUrl).toBe(ok.body.data?.bannerUrl);
-
-    const fake = await upload(Buffer.from('<svg onload="x"/>'), 'banner.png', 'image/png');
-    expect(fake.status).toBe(422);
   });
 });

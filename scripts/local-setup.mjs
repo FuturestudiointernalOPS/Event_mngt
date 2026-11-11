@@ -64,7 +64,11 @@ if (existsSync(envFile)) {
       `APP_DATABASE_URL=${APP_URL}`,
       `JWT_ACCESS_SECRET=${randomBytes(48).toString('base64')}`,
       'REDIS_URL=redis://localhost:63799',
-      'STORAGE_PROVIDER=console',
+      // Uploads land on disk and are served by the API, so logos and banners are visible
+      // locally without an object store.
+      'STORAGE_PROVIDER=local',
+      'LOCAL_STORAGE_DIR=./storage',
+      'PUBLIC_API_URL=http://localhost:4000',
       'EMAIL_PROVIDER=console',
       '',
     ].join('\n'),

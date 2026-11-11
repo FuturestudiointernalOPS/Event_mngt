@@ -223,6 +223,15 @@ surface cannot inherit a staff projection by accident.
   `PROCESSING`; a stale-claim sweep is part of the BullMQ move. Public metrics expose
   event-scale figures and can be polled; a short cache is the next step if abuse appears.
 
+### Wave 5 progress
+
+WP-21 is partly restored. The HTTP journeys in `apps/api/test/*.e2e-spec.ts` now cover
+team and invitations, events and modules, branding uploads, and registration → approval →
+badge → check-in → report. They create fixtures as the owner and assert through HTTP, and
+they skip unless
+`E2E_BASE_URL`, `TEST_OWNER_DATABASE_URL` and `TEST_APP_DATABASE_URL` are set. WP-22 (peak
+load on staging) and WP-23 (backup drill and deployment review) remain launch work.
+
 ### Wave 1 status — complete
 
 Waves 0 and 1 are implemented and their migrations are applied:

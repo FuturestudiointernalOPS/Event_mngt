@@ -268,8 +268,4 @@ export const enFeatures = {
   'retention.confirm': 'Erase the personal data of everyone past the retention period? This cannot be undone.',
   'retention.previewResult': '{count} people would be erased.',
   'retention.done': '{count} people erased.',
-  'event.branding': 'Event branding',
-  'event.brandingHelp': 'Colours left empty inherit the workspace branding.',
-  'event.bannerUploaded': 'Banner updated.',
-  'event.brandingSaved': 'Event branding saved.',
 } as const;

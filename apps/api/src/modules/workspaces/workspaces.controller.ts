@@ -24,13 +24,13 @@ import { Public } from '../../common/decorators/public.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { MAX_IMAGE_BYTES, type ImageFile } from '../../common/uploads/image-upload.rules';
 import {
   BrandingView,
   WorkspaceSettingsView,
   WorkspacesService,
 } from './workspaces.service';
 import { BrandingAssetsService } from './branding-assets.service';
-import { MAX_BRANDING_ASSET_BYTES, type BrandingAssetFile } from './branding-assets.rules';
 
 @Controller('workspaces')
 export class WorkspacesController {
@@ -91,11 +91,11 @@ export class WorkspacesController {
   @RequireCapability(CAPABILITY_KEYS.organizationManageBranding)
   @Post(':slug/branding/assets/:kind')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_BRANDING_ASSET_BYTES } }),
+    FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES } }),
   )
   uploadBrandAsset(
     @Param('kind', new ZodValidationPipe(brandingAssetKindSchema)) kind: BrandingAssetKind,
-    @UploadedFile() file: BrandingAssetFile | undefined,
+    @UploadedFile() file: ImageFile | undefined,
   ): Promise<BrandingAssetUploadResult> {
     return this.assets.upload(kind, file);
   }

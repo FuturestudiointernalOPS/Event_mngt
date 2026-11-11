@@ -29,4 +29,6 @@ test-results/
 # prisma
 apps/api/prisma/*.db
 # generated client (recreated by `prisma generate`, which runs on postinstall)
+# local storage provider uploads (logos, banners)
+apps/api/storage/
 apps/api/src/generated/

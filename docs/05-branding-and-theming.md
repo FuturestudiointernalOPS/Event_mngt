@@ -62,14 +62,23 @@ Default palette (from the source plans):
   must meet WCAG AA (4.5:1 for body text). The branding editor shows a warning with the
   measured ratio, and the API returns `contrastWarnings` alongside the saved branding
   rather than silently accepting an unreadable theme.
-- Logos: SVG, PNG or WebP; max 2 MB; recommended minimum dimensions returned in the
-  response. Uploaded binaries go to object storage through the API; the database stores
-  only references and metadata.
+- Logos and banners: PNG, JPEG or WebP; SVG is refused because it can carry script and
+  would be served from the same origin. Maximum 2 MB. The declared content type is never
+  trusted alone — the bytes decide. Uploaded binaries go to object storage through the API;
+  the database stores only references and metadata.
 
 ## Data and API
 
-`workspace_branding` holds the organisation's tokens and asset references.
-`event_modules`-adjacent event settings hold optional override values in Phase 3.
+`workspace_branding` holds the organisation's tokens and asset references. The `events`
+table holds the optional per-event overrides: `banner_url` plus the three colour
+overrides. A null override means "inherit the workspace", so an existing event needs no
+backfill.
+
+The merge happens server-side in the public read model: the public event context returns
+the workspace branding with the event's colours applied on top, so every public page
+(event page, registration form, showcase) renders the same resolved theme without
+duplicating the rule. The staff event-detail response keeps the overrides and the banner
+separate, so the editing screen can tell "set" from "inherits" and clear them.
 
 ```ts
 // GET /api/v1/workspaces/:slug/context

@@ -7,10 +7,11 @@ import type {
 } from '@event-platform/shared';
 import { AppException } from '../../common/app-exception';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
-import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
+import { ensureUniqueSlug, slugify, throwIfSlugConflict } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import { createWithFreeSlug } from './event-slug-write';
 import { INITIAL_MODULE_KEYS } from './events.constants';
-import { toDetail, toSummary } from './events.mapper';
+import { toDetail, toSummary, type EventWithModules } from './events.mapper';
 import { EditionsRepository } from './editions.repository';
 import { assertCanBeParent } from './editions.rules';
 
@@ -69,24 +70,33 @@ export class EditionsService {
         );
       }
 
-      const created = await this.editions.create(tx, {
-        organizationId: tenant.organizationId,
-        createdByUserId: userId,
-        parentEventId,
-        slug,
-        name: input.name,
-        description: input.description ?? null,
-        format: input.format,
-        visibility: input.visibility,
-        timeZone: input.timeZone,
-        startsAt: new Date(input.startsAt),
-        endsAt: new Date(input.endsAt),
-        venueName: input.venueName ?? null,
-        venueAddress: input.venueAddress ?? null,
-        initialModuleKeys: INITIAL_MODULE_KEYS,
-      });
+      const insert = (eventSlug: string): Promise<EventWithModules> =>
+        this.editions.create(tx, {
+          organizationId: tenant.organizationId,
+          createdByUserId: userId,
+          parentEventId,
+          slug: eventSlug,
+          name: input.name,
+          description: input.description ?? null,
+          format: input.format,
+          visibility: input.visibility,
+          timeZone: input.timeZone,
+          startsAt: new Date(input.startsAt),
+          endsAt: new Date(input.endsAt),
+          venueName: input.venueName ?? null,
+          venueAddress: input.venueAddress ?? null,
+          initialModuleKeys: INITIAL_MODULE_KEYS,
+        });
 
-      return toDetail(created);
+      if (input.slug) {
+        try {
+          return toDetail(await insert(slug));
+        } catch (error) {
+          throwIfSlugConflict(error);
+        }
+      }
+
+      return toDetail(await createWithFreeSlug(insert, slug));
     });
   }
 

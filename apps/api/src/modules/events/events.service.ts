@@ -11,13 +11,14 @@ import { AppException } from '../../common/app-exception';
 import { AUDIT_ACTIONS } from '../../common/audit/audit.actions';
 import { AuditService } from '../../common/audit/audit.service';
 import type { PaginatedResult } from '../../common/types/authenticated-user';
-import { ensureUniqueSlug, slugify } from '../../common/utils/slug';
-import { Prisma } from '../../database/prisma-client';
+import { ensureUniqueSlug, slugify, throwIfSlugConflict } from '../../common/utils/slug';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
 import { assertCanBeParent } from './editions.rules';
+import { createWithFreeSlug } from './event-slug-write';
 import { INITIAL_MODULE_KEYS } from './events.constants';
 import { assertPublishable, nextStatusFor, shouldActivatePublishingModule } from './events.lifecycle';
-import { toDetail, toSummary } from './events.mapper';
+import { toDetail, toSummary, type EventWithModules } from './events.mapper';
+import { toEventUpdate } from './events.update';
 import { toPublicContext, type PublicEventContext } from './events.projection';
 import { buildListWhere, buildOrderBy } from './events.query';
 import { EventsRepository, type PublicEventTarget } from './events.repository';
@@ -79,7 +80,7 @@ export class EventsService {
       if (clash) {
         throw AppException.conflict(
           'slug_taken',
-          'An event with this web address already exists.',
+          'An event with this web address already exists in this workspace.',
         );
       }
 
@@ -100,24 +101,35 @@ export class EventsService {
         assertCanBeParent(parent);
       }
 
-      const created = await this.events.create(tx, {
-        organizationId: tenant.organizationId,
-        createdByUserId: userId,
-        parentEventId: input.parentEventId ?? null,
-        slug,
-        name: input.name,
-        description: input.description ?? null,
-        format: input.format,
-        visibility: input.visibility,
-        timeZone: input.timeZone,
-        startsAt: new Date(input.startsAt),
-        endsAt: new Date(input.endsAt),
-        venueName: input.venueName ?? null,
-        venueAddress: input.venueAddress ?? null,
-        initialModuleKeys: INITIAL_MODULE_KEYS,
-      });
+      const insert = (eventSlug: string): Promise<EventWithModules> =>
+        this.events.create(tx, {
+          organizationId: tenant.organizationId,
+          createdByUserId: userId,
+          parentEventId: input.parentEventId ?? null,
+          slug: eventSlug,
+          name: input.name,
+          description: input.description ?? null,
+          format: input.format,
+          visibility: input.visibility,
+          timeZone: input.timeZone,
+          startsAt: new Date(input.startsAt),
+          endsAt: new Date(input.endsAt),
+          venueName: input.venueName ?? null,
+          venueAddress: input.venueAddress ?? null,
+          initialModuleKeys: INITIAL_MODULE_KEYS,
+        });
 
-      return toDetail(created);
+      // A slug the user typed is theirs: refuse rather than silently rename it. A slug we
+      // generated may still clash outside this workspace, which the pre-check cannot see.
+      if (input.slug) {
+        try {
+          return toDetail(await insert(slug));
+        } catch (error) {
+          throwIfSlugConflict(error);
+        }
+      }
+
+      return toDetail(await createWithFreeSlug(insert, slug));
     });
   }
 
@@ -168,23 +180,11 @@ export class EventsService {
         throw AppException.notFound('not_found', 'Event not found.');
       }
 
-      const data: Prisma.EventUpdateInput = {
-        ...(input.name !== undefined && { name: input.name }),
-        ...(input.description !== undefined && { description: input.description }),
-        ...(input.format !== undefined && { format: input.format }),
-        ...(input.visibility !== undefined && { visibility: input.visibility }),
-        ...(input.timeZone !== undefined && { timeZone: input.timeZone }),
-        ...(input.startsAt !== undefined && { startsAt: new Date(input.startsAt) }),
-        ...(input.endsAt !== undefined && { endsAt: new Date(input.endsAt) }),
-        ...(input.venueName !== undefined && { venueName: input.venueName }),
-        ...(input.venueAddress !== undefined && { venueAddress: input.venueAddress }),
-        ...(input.slug !== undefined && { slug: slugify(input.slug) }),
-        ...(input.brandOverrides !== undefined && {
-          brandOverrides: input.brandOverrides ?? Prisma.DbNull,
-        }),
-      };
-
-      return toDetail(await this.events.update(tx, event.id, data));
+      try {
+        return toDetail(await this.events.update(tx, event.id, toEventUpdate(input)));
+      } catch (error) {
+        throwIfSlugConflict(error);
+      }
     });
 
     await this.audit.record({

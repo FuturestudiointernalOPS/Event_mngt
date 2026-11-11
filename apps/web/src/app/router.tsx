@@ -82,7 +82,6 @@ export const router = createBrowserRouter([
     element: <RequireAuth>{suspended(<WorkspaceShell />)}</RequireAuth>,
     children: [
       { index: true, element: suspended(<WorkspaceDashboardPage />) },
-      { index: true, element: suspended(<WorkspaceDashboardPage />) },
       {
         path: 'events',
         element: suspended(

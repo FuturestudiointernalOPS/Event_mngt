@@ -24,15 +24,15 @@ import {
   type EventTransitionRequest,
   type UpdateEventRequest,
 } from '@event-platform/shared';
-import { EventBannerService } from './event-banner.service';
-import { MAX_BRANDING_ASSET_BYTES, type BrandingAssetFile } from './event-banner.rules';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotency.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { TenantScoped } from '../../common/decorators/tenant-scoped.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser, PaginatedResult } from '../../common/types/authenticated-user';
+import { MAX_IMAGE_BYTES, type ImageFile } from '../../common/uploads/image-upload.rules';
 import { DuplicateEventService } from './events.duplicate.service';
+import { EventBannerService } from './events.banner.service';
 import { EventsService } from './events.service';
 
 /**
@@ -93,16 +93,6 @@ export class EventsController {
     return this.eventsService.update(eventId, body);
   }
 
-  @Post(':eventId/banner')
-  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BRANDING_ASSET_BYTES } }))
-  uploadBanner(
-    @Param('eventId', new ParseUUIDPipe()) eventId: string,
-    @UploadedFile() file: BrandingAssetFile | undefined,
-  ): Promise<{ bannerUrl: string }> {
-    return this.banner.upload(eventId, file);
-  }
-
   @Post(':eventId/transitions')
   @RequireCapability(CAPABILITY_KEYS.eventsPublish)
   transition(
@@ -121,5 +111,16 @@ export class EventsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<EventDetail> {
     return this.duplication.duplicate(eventId, user.id);
+  }
+
+  /** The multipart limit is declared here so an oversized body never reaches the handler. */
+  @Post(':eventId/banner')
+  @RequireCapability(CAPABILITY_KEYS.eventsCreate)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES } }))
+  uploadBanner(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @UploadedFile() file: ImageFile | undefined,
+  ): Promise<EventDetail> {
+    return this.banner.upload(eventId, file);
   }
 }

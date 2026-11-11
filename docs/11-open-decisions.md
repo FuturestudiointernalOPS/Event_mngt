@@ -71,6 +71,25 @@ the load tests and the pooling configuration.
 - **Owner:** Future Studio + Innovation Village
 - **Needed by:** Phase 7
 
+## Decision brief for the beta
+
+Nothing below is decided. Each row is the recommendation to put in front of the owner, the
+observable consequence of accepting it, and what still needs a written answer. A beta can
+run on these defaults; they are not product commitments.
+
+| Decision | Recommendation | Consequence if accepted | Still needed |
+| --- | --- | --- | --- |
+| D1 Data ownership | The organisation owns its event data; the platform keeps audited support access and can suspend a workspace. Exports belong to the organisation. | Retention, erasure and export rights have one owner; support actions stay visible in the audit log. | A written clause for the Innovation Village agreement. |
+| D2 Retention and consent | Keep event records for the beta plus 12 months, erase on request, and show the provisional consent wording to legal review before launch. | The privacy screen can be configured and the daily sweep enabled; wording is clearly marked provisional until reviewed. | Legal review of the wording and of the retention period. |
+| D3 Hosting region | Choose the region with acceptable latency for Cotonou and confirm that participant data may reside there before creating the production project. | The Supabase project, bucket and backups live in one recorded region. | The region name, written down before the project exists. |
+| D4 Participant identity | No reuse across organisations. Within one organisation, reuse an email-matched person across its events with explicit consent. | Cross-tenant sharing stays impossible; staff see one person record per organisation. | Confirmation that this is the intended beta behaviour. |
+| D5 E-mail provider | Resend for the beta, with a verified sender domain; console adapter locally. | Invitations and badges leave the building; delivery can be diagnosed from the provider dashboard. | Sender domain, SPF/DKIM/DMARC, and the `EMAIL_FROM` value. |
+| D6 Peak load | Use the measured local baseline as the provisional target, then replace it with the rehearsal's real numbers. | The load test has a target instead of an arbitrary one. | Expected registrations, concurrent check-ins and acceptable latency from Innovation Village. |
+
+If an item is still open when the staging environment is built, record the default that was
+used and treat it as temporary. Do not silently let an implementation choice become the
+decision.
+
 ## Non-blocking, revisit later
 
 | Topic | Note |

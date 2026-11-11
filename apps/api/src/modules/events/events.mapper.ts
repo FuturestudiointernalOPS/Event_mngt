@@ -1,14 +1,23 @@
-import {
-  brandOverridesSchema,
-  type BrandOverrides,
-  type EventDetail,
-  type EventSummary,
-} from '@event-platform/shared';
+import type { BrandOverrides, EventDetail, EventSummary } from '@event-platform/shared';
 import type { Event, EventModule } from '../../database/prisma-client';
 
 /** Row shapes the mappers accept. Named so the Prisma payload stays in one place. */
 export type EventWithModules = Event & { modules: EventModule[] };
 export type EventWithEditionCount = Event & { _count: { editions: number } };
+
+/**
+ * Null when nothing is overridden: the event then shows the workspace branding.
+ * Only the colours actually set appear, so the client can tell "unset" from "black".
+ */
+export function toBrandOverrides(event: Event): BrandOverrides | null {
+  const overrides: BrandOverrides = {
+    ...(event.brandPrimaryColor ? { primaryColor: event.brandPrimaryColor } : {}),
+    ...(event.brandSecondaryColor ? { secondaryColor: event.brandSecondaryColor } : {}),
+    ...(event.brandAccentColor ? { accentColor: event.brandAccentColor } : {}),
+  };
+
+  return Object.keys(overrides).length > 0 ? overrides : null;
+}
 
 export function toSummary(event: EventWithEditionCount): EventSummary {
   return {
@@ -52,12 +61,6 @@ export function toDetail(event: EventWithModules): EventDetail {
       : null,
     enabledModules: event.modules.filter((module) => module.enabled).map((m) => m.moduleKey),
     bannerUrl: event.bannerUrl,
-    brandOverrides: toBrandOverrides(event.brandOverrides),
+    brandOverrides: toBrandOverrides(event),
   };
-}
-
-/** The stored JSON is validated on the way out; anything unexpected reads as no override. */
-export function toBrandOverrides(value: unknown): BrandOverrides | null {
-  const parsed = brandOverridesSchema.safeParse(value);
-  return parsed.success && Object.keys(parsed.data).length > 0 ? parsed.data : null;
 }

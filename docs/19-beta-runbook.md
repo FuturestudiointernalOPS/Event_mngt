@@ -5,9 +5,11 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 
 ## Before (decisions that block go-live)
 
-- [ ] **D1 Data ownership** and **D2 retention / consent wording** agreed in writing; the
-      consent text published for the event; retention is applied by hand until a retention
-      feature exists (see `17-implementation-status.md`).
+- [ ] **D1–D6 answered in writing** using the decision brief in `11-open-decisions.md`;
+      the consent text published for the event. **Retention is applied by hand**: there is no
+      per-workspace retention setting yet, so agree the period and erase on a schedule
+      (registrations tab → Erase) until the feature in
+      `20-privacy-retention-and-participant-rights.md` exists.
 - [ ] **E-mail provider**: sender domain verified; a test registration received the e-mail.
 - [ ] **Hosting region** confirmed acceptable for participant data.
 - [ ] Production environment built per `18-deployment-and-operations.md`; security checklist
@@ -22,7 +24,9 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 4. Create the 2026 event; enable modules **Registration, Showcase, Meetings, Introductions,
    Check-in, Reporting**; set categories (e.g. Visitor, Startup, Investor, Partner), form
    fields, capacities and the consent statement; choose approval mode per category.
-5. Preview, then publish. Share `/e/<slug>`.
+5. Event appearance: upload a banner and set only the colours that should differ from the
+   workspace; anything left unset inherits it.
+6. Preview, then publish. Share `/e/<slug>`.
 
 ## Simulate (one week before)
 
@@ -33,7 +37,9 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
   connection, switch to airplane mode, scan 10 badges, reconnect, confirm they sync and that
   scanning the same badge twice reports a duplicate. Also try the manual lookup.
 - Run the load test against staging with the expected peak (`apps/api/scripts/load-test.ts`).
-- Erase the test registrations (registrations tab → Erase) before launch.
+- Erase the test registrations (registrations tab → Erase) before launch. Remember that this
+  anonymises each person across the workspace, so make sure the test accounts are not also
+  used for the real invitation rehearsal.
 
 ## Event day
 
@@ -48,6 +54,8 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
   data, so store and share it accordingly.
 - Review the reports and the public figures (small groups are hidden by design).
 - Erase personal data you no longer need (registrations tab → Erase); keep the aggregate figures.
+  **One erasure anonymises the person, not just that registration**: their identity disappears
+  from every registration of that person in this workspace. Say so before using it on live data.
 - Hold a short review against the beta learning objectives and log what to change.
 
 ## Rollback / incident
