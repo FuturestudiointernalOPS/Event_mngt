@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   ListParticipantProfilesQuery,
   ModerateProfileRequest,
+  ParticipantDirectoryEntry,
   ParticipantProfile,
   UpdateParticipantProfileRequest,
 } from '@event-platform/shared';
@@ -23,8 +24,8 @@ import {
 /**
  * Participant profiles and their moderation (WP-14).
  *
- * Staff edit on the participant's behalf in wave 2; self-service needs participant
- * accounts, which is an open decision. Any content edit invalidates an approval.
+ * Staff edit on a participant's behalf; a participant edits their own through the
+ * participant space. Any content edit invalidates an approval.
  */
 @Injectable()
 export class ParticipantProfilesService {
@@ -73,6 +74,35 @@ export class ParticipantProfilesService {
       }
 
       return toParticipantProfile(row);
+    });
+  }
+
+  /** The participant's own profile, or null before they have written one. */
+  getForRegistration(eventId: string, registrationId: string): Promise<ParticipantProfile | null> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      await this.modules.requireEnabled(tx, tenant.organizationId, eventId, 'showcase');
+      const row = await this.repository.findByRegistration(tx, tenant.organizationId, eventId, registrationId);
+      return row ? toParticipantProfile(row) : null;
+    });
+  }
+
+  /**
+   * Other participants a registrant may propose a meeting to: approved, public and attached
+   * to an approved registration. Names are reduced to a first name and a last initial.
+   */
+  directory(eventId: string, ownRegistrationId: string): Promise<ParticipantDirectoryEntry[]> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      await this.modules.requireEnabled(tx, tenant.organizationId, eventId, 'showcase');
+      const rows = await this.repository.listPublic(tx, tenant.organizationId, eventId);
+      return rows
+        .filter((row) => row.registrationId !== ownRegistrationId)
+        .map((row) => ({
+          profileId: row.id,
+          displayName: `${row.registration.person.firstName} ${row.registration.person.lastName.charAt(0)}.`.trim(),
+          headline: row.headline,
+          company: row.company,
+          jobTitle: row.jobTitle,
+        }));
     });
   }
 

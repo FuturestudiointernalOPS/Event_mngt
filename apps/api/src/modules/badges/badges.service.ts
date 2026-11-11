@@ -214,6 +214,7 @@ export class BadgesService {
     registration: BadgeRegistration,
   ): IssuedBadgeNotice {
     return {
+      organizationId: row.organizationId,
       badge: toBadge(row),
       token,
       recipient: {

@@ -94,3 +94,31 @@ export function maxProposalsPerParticipant(
 
   return typeof value === 'number' && Number.isFinite(value) ? value : 10;
 }
+
+/**
+ * What a participant (not staff) may do to a meeting they are part of.
+ *
+ * Either side may cancel. Accepting or declining belongs to the recipient, and only when the
+ * event does not route that decision through staff (`requiresStaffConfirmation`).
+ */
+export function assertParticipantMayRespond(input: {
+  action: Exclude<MeetingAction, 'complete'>;
+  isProposer: boolean;
+  isRecipient: boolean;
+  requiresStaffConfirmation: boolean;
+}): void {
+  if (input.action === 'cancel') {
+    return;
+  }
+
+  if (!input.isRecipient) {
+    throw AppException.forbidden('not_recipient', 'Only the invited participant can answer a proposal.');
+  }
+
+  if (input.requiresStaffConfirmation) {
+    throw AppException.forbidden(
+      'staff_decision_required',
+      'This event\'s staff decide on meeting proposals.',
+    );
+  }
+}

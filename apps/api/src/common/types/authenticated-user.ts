@@ -41,6 +41,19 @@ export interface TenantAccess {
   permissions: string[];
 }
 
+/**
+ * A registrant acting through the credential in their e-mailed link. The organisation was
+ * proven by the secret token inside that organisation's scope, never trusted from the client.
+ */
+export interface ParticipantAccess {
+  organizationId: string;
+  registrationId: string;
+  eventId: string;
+  badgeReference: string;
+  /** The badge token from the credential, used only to render the participant's own QR. */
+  badgeToken: string;
+}
+
 export interface PaginatedResult<T> {
   items: T[];
   page: number;

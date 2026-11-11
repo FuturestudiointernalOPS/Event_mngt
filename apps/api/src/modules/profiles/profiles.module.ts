@@ -30,5 +30,6 @@ import { ShowcaseService } from './showcase.service';
     OrganizationProfileRepository,
     ShowcaseRepository,
   ],
+  exports: [ParticipantProfilesService],
 })
 export class ProfilesModule {}

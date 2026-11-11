@@ -1,4 +1,6 @@
+import type { ConfigService } from '@nestjs/config';
 import { describe, expect, it } from 'vitest';
+import type { Env } from '../../config/env.validation';
 import type { EmailMessage, EmailPort } from '../../integrations/email/email.port';
 import type {
   TenantPrismaClient,
@@ -115,13 +117,15 @@ function harness(options: HarnessOptions = {}) {
   };
 
   return {
-    service: new BadgesService(tenantTransaction, repository, new BadgeNotifier(email)),
+    service: new BadgesService(tenantTransaction, repository, new BadgeNotifier(email, CONFIG)),
     created,
     updates,
     emails,
     getBadge: () => badge,
   };
 }
+
+const CONFIG = { get: () => 'http://localhost:5173' } as unknown as ConfigService<Env, true>;
 
 describe('badge issuance', () => {
   it('stores only the hash and returns a token that matches it', async () => {
@@ -172,11 +176,14 @@ describe('badge issuance', () => {
     const failing: BadgesService = new BadgesService(
       {} as TenantTransactionService,
       {} as BadgesRepository,
-      new BadgeNotifier({
-        send: async () => {
-          throw new Error('provider down');
+      new BadgeNotifier(
+        {
+          send: async () => {
+            throw new Error('provider down');
+          },
         },
-      }),
+        CONFIG,
+      ),
     );
 
     await expect(failing.notifyIssued(notice)).resolves.toBeUndefined();

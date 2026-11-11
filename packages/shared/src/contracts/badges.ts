@@ -45,3 +45,40 @@ export const BADGE_QR_PREFIX = 'ep-badge:';
 export function badgeQrPayload(token: string): string {
   return `${BADGE_QR_PREFIX}${token}`;
 }
+
+/**
+ * The participant-portal credential carried in the e-mailed link: `organizationId.registrationId.token`.
+ *
+ * The token is the badge token (hashed on the server), so reissuing a badge also invalidates
+ * the old link. The organisation and registration ids are routing hints only: access is
+ * proven by the secret token, looked up inside that organisation's scope.
+ */
+export function composeParticipantCredential(
+  organizationId: string,
+  registrationId: string,
+  token: string,
+): string {
+  return `${organizationId}.${registrationId}.${token}`;
+}
+
+export function parseParticipantCredential(
+  value: string,
+): { organizationId: string; registrationId: string; token: string } | null {
+  const parts = value.split('.');
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const [organizationId, registrationId, token] = parts;
+
+  if (
+    parts.length !== 3 ||
+    !organizationId ||
+    !registrationId ||
+    !token ||
+    !uuid.test(organizationId) ||
+    !uuid.test(registrationId) ||
+    token.length < 16
+  ) {
+    return null;
+  }
+
+  return { organizationId, registrationId, token };
+}

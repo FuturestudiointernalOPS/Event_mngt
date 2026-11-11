@@ -125,10 +125,10 @@ export class IntroductionsService {
         throw AppException.notFound('not_found', 'Profile not found.');
       }
 
-      const assignment = initialAssignment(
-        autoAssignEnabled(settings),
-        tenant.userId,
-      );
+      // A participant has no staff identity: an empty id is "no actor", so a request made
+      // from the participant space is never auto-assigned to nobody.
+      const actor = tenant.userId || null;
+      const assignment = initialAssignment(autoAssignEnabled(settings), actor);
 
       const row = await this.repository.createWithHistory(
         tx,
@@ -141,10 +141,19 @@ export class IntroductionsService {
           status: assignment.status,
           assignedToUserId: assignment.assignedToUserId,
         },
-        tenant.userId,
+        actor,
       );
 
       return toIntroductionRequest(row);
+    });
+  }
+
+  /** The requests a participant made themselves. */
+  listForProfile(eventId: string, profileId: string): Promise<IntroductionRequest[]> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      await this.modules.requireEnabled(tx, tenant.organizationId, eventId, 'introductions');
+      const rows = await this.repository.listForProfile(tx, tenant.organizationId, eventId, profileId);
+      return rows.map(toIntroductionRequest);
     });
   }
 

@@ -1,10 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { Badge } from '@event-platform/shared';
+import { ConfigService } from '@nestjs/config';
+import { composeParticipantCredential, type Badge } from '@event-platform/shared';
+import type { Env } from '../../config/env.validation';
 import { EMAIL_PORT, type EmailPort } from '../../integrations/email/email.port';
 import { badgeQrPayload } from './badge.tokens';
 
 /** What the caller needs to send the confirmation once its transaction commits. */
 export interface IssuedBadgeNotice {
+  organizationId: string;
   badge: Badge;
   token: string | null;
   recipient: { email: string; name: string };
@@ -22,7 +25,10 @@ export interface IssuedBadgeNotice {
 export class BadgeNotifier {
   private readonly logger = new Logger(BadgeNotifier.name);
 
-  constructor(@Inject(EMAIL_PORT) private readonly email: EmailPort) {}
+  constructor(
+    @Inject(EMAIL_PORT) private readonly email: EmailPort,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
 
   async notify(notice: IssuedBadgeNotice): Promise<void> {
     if (!notice.token) {
@@ -36,6 +42,9 @@ export class BadgeNotifier {
       `Badge code: ${badgeQrPayload(notice.token)}`,
       '',
       'Show this code at the entrance. Reissuing your badge invalidates this one.',
+      '',
+      'Your participant space (badge QR, your data, meetings):',
+      this.portalLink(notice),
     ];
 
     try {
@@ -51,5 +60,16 @@ export class BadgeNotifier {
         }`,
       );
     }
+  }
+
+  /** The secret travels in the URL fragment-free query only to the participant's own e-mail. */
+  private portalLink(notice: IssuedBadgeNotice): string {
+    const base = this.config.get('WEB_APP_URL', { infer: true }).replace(/\/+$/, '');
+    const credential = composeParticipantCredential(
+      notice.organizationId,
+      notice.badge.registrationId,
+      notice.token ?? '',
+    );
+    return `${base}/participant?credential=${encodeURIComponent(credential)}`;
   }
 }

@@ -65,7 +65,8 @@ export interface TransitionIntroductionData {
   requestId: string;
   fromStatus: IntroductionStatus | null;
   toStatus: IntroductionStatus;
-  actorUserId: string;
+  /** Null for a request a participant made themselves. */
+  actorUserId: string | null;
   note: string | null;
   data: UpdateIntroductionData;
 }
@@ -149,6 +150,20 @@ export class IntroductionsRepository {
     ]);
   }
 
+  /** The requests one profile made, newest first (the participant's own view). */
+  listForProfile(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    profileId: string,
+  ): Promise<IntroductionRequestRow[]> {
+    return tx.introductionRequest.findMany({
+      where: { organizationId, eventId, requestingProfileId: profileId },
+      orderBy: [{ createdAt: 'desc' }],
+      include: REQUEST_INCLUDE,
+    });
+  }
+
   findRequest(
     tx: TenantPrismaClient,
     organizationId: string,
@@ -180,7 +195,8 @@ export class IntroductionsRepository {
   async createWithHistory(
     tx: TenantPrismaClient,
     data: CreateIntroductionData,
-    actorUserId: string,
+    /** Null when a participant, not a staff member, made the request. */
+    actorUserId: string | null,
   ): Promise<IntroductionRequestRow> {
     const row = await tx.introductionRequest.create({
       data,

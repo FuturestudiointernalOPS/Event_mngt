@@ -3,6 +3,7 @@ import { MeetingStatus } from '../../database/prisma-client';
 import {
   assertDistinctProfiles,
   assertMeetingTransition,
+  assertParticipantMayRespond,
   assertProposalLimit,
   maxProposalsPerParticipant,
   requiresStaffConfirmation,
@@ -91,5 +92,34 @@ describe('meeting proposal rules', () => {
     expect(
       maxProposalsPerParticipant({ maxProposalsPerParticipant: 'many' }),
     ).toBe(10);
+  });
+});
+
+describe('assertParticipantMayRespond', () => {
+  const base = { isProposer: false, isRecipient: true, requiresStaffConfirmation: false } as const;
+  const code = (fn: () => void): string | null => {
+    try {
+      fn();
+      return null;
+    } catch (error) {
+      return (error as { code?: string }).code ?? 'other';
+    }
+  };
+
+  it('lets the recipient accept or decline when staff do not decide', () => {
+    expect(code(() => assertParticipantMayRespond({ ...base, action: 'accept' }))).toBeNull();
+    expect(code(() => assertParticipantMayRespond({ ...base, action: 'decline' }))).toBeNull();
+  });
+
+  it('does not let the proposer answer their own proposal', () => {
+    expect(code(() => assertParticipantMayRespond({ ...base, isProposer: true, isRecipient: false, action: 'accept' }))).toBe('not_recipient');
+  });
+
+  it('reserves the answer for staff when the event asks for staff confirmation', () => {
+    expect(code(() => assertParticipantMayRespond({ ...base, requiresStaffConfirmation: true, action: 'accept' }))).toBe('staff_decision_required');
+  });
+
+  it('lets either side cancel regardless of the staff setting', () => {
+    expect(code(() => assertParticipantMayRespond({ ...base, isProposer: true, isRecipient: false, requiresStaffConfirmation: true, action: 'cancel' }))).toBeNull();
   });
 });

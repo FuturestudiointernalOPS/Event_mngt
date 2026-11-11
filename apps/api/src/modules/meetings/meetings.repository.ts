@@ -49,7 +49,8 @@ export interface CreateMeetingData {
 export interface UpdateMeetingData {
   status: MeetingStatus;
   decidedAt: Date;
-  decidedByUserId: string;
+  /** Null when a participant, not a staff member, made the decision. */
+  decidedByUserId: string | null;
   outcome?: MeetingOutcome | null;
   outcomeNotes?: string | null;
 }
@@ -158,6 +159,24 @@ export class MeetingsRepository {
       }),
       tx.meeting.count({ where }),
     ]);
+  }
+
+  /** Meetings where this profile is either side, newest first. */
+  listForProfile(
+    tx: TenantPrismaClient,
+    organizationId: string,
+    eventId: string,
+    profileId: string,
+  ): Promise<MeetingRow[]> {
+    return tx.meeting.findMany({
+      where: {
+        organizationId,
+        eventId,
+        OR: [{ proposerProfileId: profileId }, { recipientProfileId: profileId }],
+      },
+      orderBy: [{ proposedAt: 'desc' }],
+      include: MEETING_INCLUDE,
+    });
   }
 
   find(

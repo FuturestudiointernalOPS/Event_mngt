@@ -125,6 +125,8 @@ export interface HarnessOptions {
   duplicate?: { id: string; reference: string } | null;
   fields?: RegistrationField[];
   categoryAvailable?: boolean;
+  /** False simulates a category whose seats are all taken. */
+  seatAvailable?: boolean;
 }
 
 export function createSubmissionHarness(options: HarnessOptions = {}) {
@@ -143,6 +145,7 @@ export function createSubmissionHarness(options: HarnessOptions = {}) {
       return personRow({ email: String(data.email) });
     },
     findDuplicate: async () => options.duplicate ?? null,
+    hasSeatAvailable: async () => options.seatAvailable !== false,
     findReference: async () => null,
     create: async (_tx: unknown, data: Record<string, unknown>) => {
       created.push(data);
@@ -199,6 +202,7 @@ export function createSubmissionHarness(options: HarnessOptions = {}) {
     issueForApproved: async () => {
       issueCalls += 1;
       const notice: IssuedBadgeNotice = {
+        organizationId: 'org-1',
         badge: {
           id: 'badge-1',
           registrationId: 'registration-1',

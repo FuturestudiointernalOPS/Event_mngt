@@ -8,5 +8,6 @@ import { MeetingsService } from './meetings.service';
   imports: [ModuleRegistryModule],
   controllers: [MeetingsController],
   providers: [MeetingsService, MeetingsRepository],
+  exports: [MeetingsService],
 })
 export class MeetingsModule {}

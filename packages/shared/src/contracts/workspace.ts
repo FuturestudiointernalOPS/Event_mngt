@@ -81,6 +81,7 @@ export const updateWorkspaceSettingsRequestSchema = workspaceSettingsSchema.part
   description: z.string().trim().max(2000).nullable().optional(),
   websiteUrl: z.url().nullable().optional(),
   contactEmail: z.email().nullable().optional(),
+  retentionMonths: z.number().int().min(1).max(120).nullable().optional(),
 });
 
 export type UpdateWorkspaceSettingsRequest = z.infer<

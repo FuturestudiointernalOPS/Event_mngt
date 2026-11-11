@@ -15,6 +15,7 @@ import { ModuleRegistryService } from '../module-registry/module-registry.servic
 import { toMeeting } from './meetings.mapper';
 import { MeetingsRepository } from './meetings.repository';
 import {
+  assertParticipantMayRespond,
   assertDistinctProfiles,
   assertMeetingTransition,
   assertProposalLimit,
@@ -168,6 +169,52 @@ export class MeetingsService {
             : {}),
         },
       );
+
+      return toMeeting(row);
+    });
+  }
+
+  /** The meetings a participant is part of. Staff-only data never appears in the contract. */
+  listForProfile(eventId: string, profileId: string): Promise<Meeting[]> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      await this.modules.requireEnabled(tx, tenant.organizationId, eventId, 'meetings');
+      const rows = await this.repository.listForProfile(tx, tenant.organizationId, eventId, profileId);
+      return rows.map(toMeeting);
+    });
+  }
+
+  /**
+   * A participant answers or cancels a meeting they are part of. A meeting that involves
+   * someone else is reported exactly like a missing one.
+   */
+  respondAsParticipant(
+    eventId: string,
+    profileId: string,
+    meetingId: string,
+    action: 'accept' | 'decline' | 'cancel',
+  ): Promise<Meeting> {
+    return this.tenantTransaction.withTenant(async (tx, tenant) => {
+      await this.modules.requireEnabled(tx, tenant.organizationId, eventId, 'meetings');
+      const existing = await this.repository.find(tx, tenant.organizationId, eventId, meetingId);
+      const isProposer = existing?.proposer.id === profileId;
+      const isRecipient = existing?.recipient.id === profileId;
+
+      if (!existing || (!isProposer && !isRecipient)) {
+        throw AppException.notFound('not_found', 'Meeting not found.');
+      }
+
+      assertParticipantMayRespond({
+        action,
+        isProposer,
+        isRecipient,
+        requiresStaffConfirmation: existing.requiresStaffConfirmation,
+      });
+      const status = assertMeetingTransition(existing.status, action);
+      const row = await this.repository.update(tx, tenant.organizationId, eventId, meetingId, {
+        status,
+        decidedAt: new Date(),
+        decidedByUserId: null,
+      });
 
       return toMeeting(row);
     });

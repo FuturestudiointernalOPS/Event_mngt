@@ -8,5 +8,6 @@ import { IntroductionsService } from './introductions.service';
   imports: [ModuleRegistryModule],
   controllers: [IntroductionsController],
   providers: [IntroductionsService, IntroductionsRepository],
+  exports: [IntroductionsService],
 })
 export class IntroductionsModule {}
