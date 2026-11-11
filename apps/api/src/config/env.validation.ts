@@ -56,7 +56,14 @@ export const envSchema = z.object({
   EMAIL_PROVIDER: z.enum(['console', 'resend', 'ses']).default('console'),
   EMAIL_FROM: z.string().default('no-reply@example.com'),
 
-  STORAGE_PROVIDER: z.enum(['console', 's3']).default('console'),
+  STORAGE_PROVIDER: z.enum(['console', 'local', 's3']).default('local'),
+  /**
+   * Local storage provider: where uploads are written, and the public origin the browser
+   * uses to read them back. The directory is resolved from the process working directory
+   * (apps/api when started by the workspace scripts).
+   */
+  LOCAL_STORAGE_DIR: z.string().min(1).default('./storage'),
+  PUBLIC_API_URL: z.url().default('http://localhost:4000'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),

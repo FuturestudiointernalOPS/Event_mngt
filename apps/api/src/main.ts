@@ -1,16 +1,18 @@
 import { Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { API_PREFIX } from '@event-platform/shared';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/config.module';
 import { parseCorsOrigins } from './config/env.validation';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get<AppConfigService>(ConfigService);
 
   // Swagger UI ships inline scripts, so a strict CSP is only enforced in production.
@@ -21,6 +23,16 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.use(cookieParser());
+
+  // The local storage provider writes uploads to disk; the same process serves them so
+  // logos and banners are visible without a separate web server.
+  if (config.get('STORAGE_PROVIDER', { infer: true }) === 'local') {
+    app.useStaticAssets(join(process.cwd(), config.get('LOCAL_STORAGE_DIR', { infer: true })), {
+      prefix: '/static/',
+      index: false,
+      redirect: false,
+    });
+  }
 
   // Behind a load balancer, use the forwarded client address for per-IP rate limits.
   // The hop count is explicit so a client cannot spoof it by sending its own header.

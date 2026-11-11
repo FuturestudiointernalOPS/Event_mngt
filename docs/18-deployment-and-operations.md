@@ -48,7 +48,10 @@ See `apps/api/.env.example`. Production essentials:
 | `REDIS_URL` | Enables durable queued e-mail and export jobs; without it both run in-process |
 | `JOBS_WORKER_ENABLED` | `false` on API-only instances when a separate worker runs |
 | `EMAIL_PROVIDER`, `EMAIL_FROM` | **Only the console adapter is implemented today**: nothing is sent externally until a provider adapter is added (`17-implementation-status.md`) |
-| `STORAGE_PROVIDER`, `S3_*` | **Only the console adapter is implemented today**: uploaded logos are not persisted externally until an S3 adapter is added |
+| `STORAGE_PROVIDER` | `local` (default) writes uploads to `LOCAL_STORAGE_DIR` and serves them at `PUBLIC_API_URL/static`. Single-server only: a multi-instance deployment must move to an object store. `console` only logs. `s3` has no adapter yet and falls back to console |
+| `LOCAL_STORAGE_DIR` | Directory for the local provider, resolved from the API working directory. Mount a persistent volume here |
+| `PUBLIC_API_URL` | The origin the browser uses to fetch uploaded files; must be reachable and match the API's public address |
+| `S3_*` | Reserved for the object-store adapter; unused today |
 | `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAULT_WINDOW_SECONDS` | Fallback only; production routes carry explicit budgets |
 | `RATE_LIMIT_RETENTION_HOURS` | How long fixed-window counters are kept; default 48 |
 
@@ -82,7 +85,10 @@ account straight away (`/account/security`).
   project, point a staging API at it, and run the journey specs. Record the time it took.
 - Redis holds only transient jobs (queued e-mails, schedules). Losing it loses pending
   e-mails, not data; accounts and registrations live in PostgreSQL.
-- Uploaded images live in the bucket; enable versioning or replication there.
+- Uploaded images live wherever the storage provider puts them. With the local provider that
+  is `LOCAL_STORAGE_DIR` on the API host: back that directory up with the database, or the
+  workspace logos and event banners are lost on a rebuild. An object-store adapter removes
+  that step once it exists.
 
 ## 6. Staging validation (before production)
 
@@ -93,8 +99,10 @@ Redis, the bucket and the e-mail provider all change behaviour.
 1. Create the project in the region recorded for **D3** (`11-open-decisions.md`).
 2. Apply migrations as the owner, then `tenant-rls.sql`, then create or verify
    `platform_app`. The API must connect as that role, never the owner.
-3. Deploy the API and the static web build; set `TRUST_PROXY`, `REDIS_URL`,
-   `EMAIL_PROVIDER=resend` and `STORAGE_PROVIDER=s3` explicitly.
+3. Deploy the API and the static web build; set `TRUST_PROXY`, `REDIS_URL` and
+   `PUBLIC_API_URL` explicitly. Keep `STORAGE_PROVIDER=local` with a persistent volume for
+   a single API instance, or add the object-store adapter before running more than one.
+   `EMAIL_PROVIDER` stays `console` until the e-mail adapter is implemented.
 4. Check `GET /api/v1/health` and `GET /api/v1/health/ready`.
 5. Run the HTTP journeys against staging (they skip themselves when the variables are
    absent, so a skipped run is not a pass):
