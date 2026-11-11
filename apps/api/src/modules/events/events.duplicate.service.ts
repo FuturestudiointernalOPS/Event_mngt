@@ -6,6 +6,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { ensureUniqueSlug } from '../../common/utils/slug';
 import { EventVisibility } from '../../database/prisma-client';
 import { TenantTransactionService } from '../../database/tenant-transaction.service';
+import { createWithFreeSlug } from './event-slug-write';
 import { toDetail } from './events.mapper';
 import { EventsRepository } from './events.repository';
 
@@ -37,24 +38,28 @@ export class DuplicateEventService {
         (await this.events.findSlugConflict(tx, tenant.organizationId, candidate)) !== null,
       );
 
-      const created = await this.events.create(tx, {
-        organizationId: tenant.organizationId,
-        createdByUserId: userId,
-        parentEventId: source.parentEventId,
+      const created = await createWithFreeSlug(
+        (eventSlug) =>
+          this.events.create(tx, {
+            organizationId: tenant.organizationId,
+            createdByUserId: userId,
+            parentEventId: source.parentEventId,
+            slug: eventSlug,
+            name,
+            description: source.description,
+            format: source.format,
+            visibility: EventVisibility.PRIVATE,
+            timeZone: source.timeZone,
+            startsAt: source.startsAt,
+            endsAt: source.endsAt,
+            venueName: source.venueName,
+            venueAddress: source.venueAddress,
+            initialModuleKeys: source.modules
+              .filter((module) => module.enabled)
+              .map((module) => module.moduleKey),
+          }),
         slug,
-        name,
-        description: source.description,
-        format: source.format,
-        visibility: EventVisibility.PRIVATE,
-        timeZone: source.timeZone,
-        startsAt: source.startsAt,
-        endsAt: source.endsAt,
-        venueName: source.venueName,
-        venueAddress: source.venueAddress,
-        initialModuleKeys: source.modules
-          .filter((module) => module.enabled)
-          .map((module) => module.moduleKey),
-      });
+      );
 
       await this.audit.record({
         action: AUDIT_ACTIONS.eventDuplicated,

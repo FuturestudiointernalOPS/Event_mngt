@@ -465,7 +465,7 @@ model Event {
   id                   String          @id @default(uuid()) @db.Uuid
   organizationId       String          @map("organization_id") @db.Uuid
   parentEventId        String?         @map("parent_event_id") @db.Uuid
-  slug                 String
+  slug                 String          @unique
   name                 String
   description          String?
   format               EventFormat     @default(IN_PERSON)
@@ -508,7 +508,6 @@ model Event {
   introductionHistory  IntroductionStatusHistory[]
   reportExports     ReportExport[]
 
-  @@unique([organizationId, slug])
   @@index([organizationId, status])
   @@index([organizationId, startsAt])
   @@map("events")
