@@ -6,7 +6,8 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 ## Before (decisions that block go-live)
 
 - [ ] **D1 Data ownership** and **D2 retention / consent wording** agreed in writing; the
-      consent text entered for the event and the retention period set (workspace → Privacy).
+      consent text published for the event; retention is applied by hand until a retention
+      feature exists (see `17-implementation-status.md`).
 - [ ] **E-mail provider**: sender domain verified; a test registration received the e-mail.
 - [ ] **Hosting region** confirmed acceptable for participant data.
 - [ ] Production environment built per `18-deployment-and-operations.md`; security checklist
@@ -32,7 +33,7 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
   connection, switch to airplane mode, scan 10 badges, reconnect, confirm they sync and that
   scanning the same badge twice reports a duplicate. Also try the manual lookup.
 - Run the load test against staging with the expected peak (`apps/api/scripts/load-test.ts`).
-- Erase the test data (registrations tab → Erase, or the retention purge) before launch.
+- Erase the test registrations (registrations tab → Erase) before launch.
 
 ## Event day
 
@@ -46,7 +47,7 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 - Export the registrations CSV (Reports → Export) for the organisers; it contains personal
   data, so store and share it accordingly.
 - Review the reports and the public figures (small groups are hidden by design).
-- Apply the retention period; keep the aggregate figures.
+- Erase personal data you no longer need (registrations tab → Erase); keep the aggregate figures.
 - Hold a short review against the beta learning objectives and log what to change.
 
 ## Rollback / incident
@@ -54,5 +55,5 @@ Phase 8. This is a checklist, not a design: the decisions it depends on are in
 - A bad release: redeploy the previous image; migrations are additive, so the previous API
   keeps working against the newer schema unless a release notes says otherwise.
 - A workspace misbehaving or compromised: suspend it from the Super Admin console.
-- Suspected leaked participant link: Resend link rotates it; the old one stops working.
+- Suspected leaked badge: reissue it from the registrations tab; the old one stops working.
 - Suspected leaked admin session: revoke sessions (Security) and reset the password.
